@@ -39,6 +39,11 @@ except Exception:  # pragma: no cover - optional
     requests = None
 
 try:
+    import aiohttp
+except Exception:
+    aiohttp = None
+
+try:
     from fastapi import FastAPI, WebSocket, Request
     from fastapi.staticfiles import StaticFiles
     import uvicorn
@@ -149,21 +154,37 @@ async def agent_loop(cfg: Config) -> None:
     print(ASCII_AGENT)
     print(f"Mode: Agent | Sending to: {cfg.server_url}")
 
-    if requests is None:
-        logger.warning("requests not installed; agent cannot send data")
+    if aiohttp is None and requests is None:
+        logger.warning("No HTTP client available; install aiohttp or requests")
 
-    session = requests.Session() if requests else None
+    async def post_with_retries(url: str, json_payload: Dict[str, Any], retries: int = 3):
+        for attempt in range(1, retries + 1):
+            try:
+                if aiohttp:
+                    async with aiohttp.ClientSession() as ses:
+                        async with ses.post(url, json=json_payload, timeout=5) as resp:
+                            text = await resp.text()
+                            logger.debug("Agent posted metrics: %s %s", resp.status, text[:200])
+                            return True
+                else:
+                    # blocking fallback
+                    url2 = url
+                    resp = requests.post(url2, json=json_payload, timeout=5)
+                    logger.debug("Agent posted metrics (requests): %s", resp.status_code)
+                    return True
+            except Exception:
+                logger.exception("Attempt %s: Failed to send metrics to server", attempt)
+                await asyncio.sleep(attempt * 1.5)
+        return False
 
     while True:
         metrics = await collect_metrics()
         payload = {"api_key": cfg.api_key, "metrics": metrics}
         try:
-            if session:
-                url = cfg.server_url.rstrip("/") + "/api/agent/update"
-                resp = session.post(url, json=payload, timeout=5)
-                logger.debug("Agent posted metrics: %s", resp.status_code)
-            else:
-                logger.info("Collected metrics (not sent): %s", metrics)
+            url = cfg.server_url.rstrip("/") + "/api/agent/update"
+            ok = await post_with_retries(url, payload, retries=3)
+            if not ok:
+                logger.warning("Failed to deliver metrics after retries")
         except Exception:
             logger.exception("Failed to send metrics to server")
         await asyncio.sleep(cfg.heartbeat_interval)
@@ -206,6 +227,9 @@ def create_app(cfg: Config):
         body = await request.json()
         api_key = body.get("api_key")
         metrics = body.get("metrics")
+        # validate token
+        if api_key not in TOKENS.values():
+            return {"error": "invalid_token"}
         agent_id = metrics.get("hostname") if isinstance(metrics, dict) else "unknown"
         AGENTS[agent_id] = {"metrics": metrics}
         return {"status": "ok", "agent_id": agent_id}
@@ -217,9 +241,11 @@ def create_app(cfg: Config):
         """
         token = payload.get("api_token")
         hostname = payload.get("hostname") or "unknown"
-        # For demo accept any non-empty token and store agent
+        # Require token to be one we created via admin
         if not token:
             return {"error": "api_token_required"}
+        if token not in TOKENS.values():
+            return {"error": "invalid_token"}
         AGENTS[hostname] = {"token": token, "connected": True}
         return {"status": "connected", "agent": hostname}
 
@@ -253,12 +279,19 @@ def create_app(cfg: Config):
             except Exception:
                 ok = False
             if ok and username == admin.get("username"):
-                return {"status": "ok"}
+                # create a simple in-memory session token
+                sess = os.urandom(16).hex()
+                app.state.admin_session = sess
+                return {"status": "ok", "session": sess}
         return {"error": "invalid_credentials"}
 
     @app.post("/api/admin/token")
     async def admin_token(payload: Dict[str, Any]):
         # Create a node token which can be used to connect agents
+        # require a simple admin session token header
+        session = payload.get("session")
+        if not session or session != app.state.get("admin_session"):
+            return {"error": "unauthorized"}
         name = payload.get("name") or "node"
         token = payload.get("token") or os.urandom(16).hex()
         TOKENS[name] = token
