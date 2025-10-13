@@ -40,11 +40,13 @@ except Exception:  # pragma: no cover - optional
 
 try:
     from fastapi import FastAPI, WebSocket, Request
+    from fastapi.staticfiles import StaticFiles
     import uvicorn
 except Exception:  # pragma: no cover - optional
     FastAPI = None
     WebSocket = None
     Request = None
+    StaticFiles = None
     uvicorn = None
 
 # ASCII art
@@ -178,6 +180,11 @@ def create_app(cfg: Config):
 
     # In-memory store for demo
     AGENTS: Dict[str, Dict[str, Any]] = {}
+    # simple admin store
+    try:
+        from db import admin_store
+    except Exception:
+        admin_store = None
 
     @app.post("/api/agent/update")
     async def agent_update(request: Request):
@@ -187,6 +194,19 @@ def create_app(cfg: Config):
         agent_id = metrics.get("hostname") if isinstance(metrics, dict) else "unknown"
         AGENTS[agent_id] = {"metrics": metrics}
         return {"status": "ok", "agent_id": agent_id}
+
+    @app.post("/api/agent/connect")
+    async def agent_connect(payload: Dict[str, Any]):
+        """Agent calls this to register/connect with an api_token (simple flow).
+        Payload: {"api_token": "...", "hostname": "..."}
+        """
+        token = payload.get("api_token")
+        hostname = payload.get("hostname") or "unknown"
+        # For demo accept any non-empty token and store agent
+        if not token:
+            return {"error": "api_token_required"}
+        AGENTS[hostname] = {"token": token, "connected": True}
+        return {"status": "connected", "agent": hostname}
 
     @app.get("/api/agent/list")
     async def agent_list():
@@ -210,6 +230,11 @@ def create_app(cfg: Config):
                 await asyncio.sleep(5)
         except Exception:
             pass
+
+    # Serve static files from public/ if available
+    public_dir = os.path.join(os.getcwd(), "public")
+    if StaticFiles is not None and os.path.isdir(public_dir):
+        app.mount("/", StaticFiles(directory=public_dir, html=True), name="public")
 
     return app
 
@@ -244,18 +269,46 @@ def main(argv=None):
     if args.mode:
         cfg.mode = args.mode
 
-    if cfg.mode == "agent":
-        try:
+    # If no CLI mode provided, prompt interactively
+    if not args.mode:
+        print("Select mode to run:")
+        print("  1) Agent")
+        print("  2) Server")
+        print("  3) Agent + Server (both)")
+        choice = input("Enter choice [1]: ") or "1"
+        mapping = {"1": "agent", "2": "server", "3": "both"}
+        cfg.mode = mapping.get(choice, "agent")
+
+    try:
+        if cfg.mode == "agent":
             asyncio.run(agent_loop(cfg))
-        except KeyboardInterrupt:
-            print("Agent exiting")
-    elif cfg.mode == "server":
-        try:
+        elif cfg.mode == "server":
             server_run(cfg)
-        except KeyboardInterrupt:
-            print("Server exiting")
-    else:
-        print("Unknown mode. Use --mode agent|server")
+        elif cfg.mode == "both":
+            # Run server in background thread via uvicorn server and agent loop concurrently
+            # We'll run uvicorn in an asyncio task using Config.create_server
+            async def both():
+                # Run server in a background thread
+                loop = asyncio.get_event_loop()
+
+                def start_uvicorn():
+                    server_run(cfg)
+
+                from concurrent.futures import ThreadPoolExecutor
+
+                with ThreadPoolExecutor(max_workers=1) as ex:
+                    fut = loop.run_in_executor(ex, start_uvicorn)
+                    # give server a moment to start
+                    await asyncio.sleep(1)
+                    # start agent loop
+                    agent_task = asyncio.create_task(agent_loop(cfg))
+                    await agent_task
+
+            asyncio.run(both())
+        else:
+            print("Unknown mode. Use --mode agent|server")
+    except KeyboardInterrupt:
+        print("Exiting")
 
 
 if __name__ == "__main__":

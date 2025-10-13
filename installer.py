@@ -6,6 +6,13 @@ Run: python installer.py
 """
 import json
 import os
+import getpass
+from typing import Optional
+
+try:
+    import bcrypt
+except Exception:
+    bcrypt = None
 
 ASCII = r"""
 ███╗   ██╗███████╗██╗  ██╗██╗   ██╗███████╗
@@ -53,6 +60,36 @@ def main():
         print(f"{CONFIG_FILE} already exists; not overwriting")
 
     print(f"Wrote {ENV_FILE}")
+    # Prompt to create admin account
+    def ask_admin() -> Optional[dict]:
+        create = input("Create admin user now? (y/N): ") or "n"
+        if create.lower() != "y":
+            return None
+        username = input("Admin username [admin]: ") or "admin"
+        pw = getpass.getpass("Password: ")
+        pw2 = getpass.getpass("Confirm Password: ")
+        if pw != pw2:
+            print("Passwords did not match; skipping admin creation")
+            return None
+        if bcrypt:
+            hashed = bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode()
+        else:
+            # fallback (not secure)
+            import hashlib
+
+            hashed = hashlib.sha256(pw.encode()).hexdigest()
+        return {"username": username, "password": hashed}
+
+    admin = ask_admin()
+    if admin:
+        # write to db/admin.json (simple storage)
+        db_dir = os.path.join(os.getcwd(), "db")
+        os.makedirs(db_dir, exist_ok=True)
+        admin_file = os.path.join(db_dir, "admin.json")
+        with open(admin_file, "w", encoding="utf-8") as f:
+            json.dump(admin, f, indent=2)
+        print(f"Wrote admin user to {admin_file}")
+
     print("Installation complete. Run 'python nexus.py --mode agent' or '--mode server'")
 
 
