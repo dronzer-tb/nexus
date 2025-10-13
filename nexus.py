@@ -185,6 +185,21 @@ def create_app(cfg: Config):
         from db import admin_store
     except Exception:
         admin_store = None
+    try:
+        from db import admin_store as astore
+    except Exception:
+        astore = None
+
+    # simple token store
+    TOKENS_PATH = os.path.join(os.getcwd(), "db", "tokens.json")
+    if os.path.exists(TOKENS_PATH):
+        try:
+            with open(TOKENS_PATH, "r", encoding="utf-8") as f:
+                TOKENS = json.load(f)
+        except Exception:
+            TOKENS = {}
+    else:
+        TOKENS = {}
 
     @app.post("/api/agent/update")
     async def agent_update(request: Request):
@@ -220,6 +235,41 @@ def create_app(cfg: Config):
     async def agent_command(payload: Dict[str, Any]):
         # Placeholder: in a real system you'd enqueue commands for agents
         return {"status": "queued", "payload": payload}
+
+    @app.post("/api/admin/login")
+    async def admin_login(payload: Dict[str, Any]):
+        # Very small demo auth: verify username/password against admin_store
+        username = payload.get("username")
+        password = payload.get("password")
+        if astore:
+            admin = astore.load_admin()
+            if not admin:
+                return {"error": "no_admin"}
+            # verify password using utils.auth
+            try:
+                from utils import auth
+
+                ok = auth.verify_password(password, admin.get("password", ""))
+            except Exception:
+                ok = False
+            if ok and username == admin.get("username"):
+                return {"status": "ok"}
+        return {"error": "invalid_credentials"}
+
+    @app.post("/api/admin/token")
+    async def admin_token(payload: Dict[str, Any]):
+        # Create a node token which can be used to connect agents
+        name = payload.get("name") or "node"
+        token = payload.get("token") or os.urandom(16).hex()
+        TOKENS[name] = token
+        # persist
+        try:
+            os.makedirs(os.path.join(os.getcwd(), "db"), exist_ok=True)
+            with open(TOKENS_PATH, "w", encoding="utf-8") as f:
+                json.dump(TOKENS, f, indent=2)
+        except Exception:
+            pass
+        return {"status": "created", "name": name, "token": token}
 
     @app.websocket("/api/live")
     async def live_ws(ws: WebSocket):
