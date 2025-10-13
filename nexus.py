@@ -232,6 +232,11 @@ def create_app(cfg: Config):
             return {"error": "invalid_token"}
         agent_id = metrics.get("hostname") if isinstance(metrics, dict) else "unknown"
         AGENTS[agent_id] = {"metrics": metrics}
+        # Broadcast to live clients
+        try:
+            asyncio.create_task(broadcast_event({"type": "agent.update", "agent": agent_id, "metrics": metrics}))
+        except Exception:
+            pass
         return {"status": "ok", "agent_id": agent_id}
 
     @app.post("/api/agent/connect")
@@ -304,15 +309,38 @@ def create_app(cfg: Config):
             pass
         return {"status": "created", "name": name, "token": token}
 
+    # Track connected websocket clients for live updates
+    LIVE_WS: set = set()
+
     @app.websocket("/api/live")
     async def live_ws(ws: WebSocket):
         await ws.accept()
+        LIVE_WS.add(ws)
         try:
             while True:
-                await ws.send_json({"message": "ping"})
-                await asyncio.sleep(5)
+                # keep connection alive
+                await asyncio.sleep(60)
         except Exception:
             pass
+        finally:
+            try:
+                LIVE_WS.remove(ws)
+            except Exception:
+                pass
+
+    # helper to broadcast an event to all connected websockets
+    async def broadcast_event(event: Dict[str, Any]):
+        to_remove = []
+        for ws in list(LIVE_WS):
+            try:
+                await ws.send_json(event)
+            except Exception:
+                to_remove.append(ws)
+        for ws in to_remove:
+            try:
+                LIVE_WS.remove(ws)
+            except Exception:
+                pass
 
     # Serve static files from public/ if available
     public_dir = os.path.join(os.getcwd(), "public")
@@ -337,8 +365,8 @@ def setup_logging(debug: bool = False) -> None:
 
 
 def parse_args(argv=None):
-    parser = argparse.ArgumentParser(description="Nexus single program (Agent or Server)")
-    parser.add_argument("--mode", choices=("agent", "server"), help="Run mode", default=None)
+    parser = argparse.ArgumentParser(description="Nexus single program (Agent, Server, or Both)")
+    parser.add_argument("--mode", choices=("agent", "server", "both"), help="Run mode", default=None)
     parser.add_argument("--config", help="Path to config.json", default=CONFIG_FILE)
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     return parser.parse_args(argv)
