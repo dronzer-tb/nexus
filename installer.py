@@ -80,6 +80,14 @@ def main():
             hashed = hashlib.sha256(pw.encode()).hexdigest()
         return {"username": username, "password": hashed}
 
+    # Check installer dependencies (bcrypt) before creating admin
+    try:
+        from utils.deps import ensure_for_mode
+
+        ensure_for_mode("installer")
+    except Exception:
+        pass
+
     admin = ask_admin()
     if admin:
         # write to db/admin.json (simple storage)

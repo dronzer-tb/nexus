@@ -329,6 +329,16 @@ def main(argv=None):
         mapping = {"1": "agent", "2": "server", "3": "both"}
         cfg.mode = mapping.get(choice, "agent")
 
+    # Check dependencies for selected mode and offer to install
+    try:
+        from utils.deps import ensure_for_mode
+
+        ok, missing = ensure_for_mode(cfg.mode)
+        if not ok:
+            logger.warning("Missing dependencies: %s", missing)
+    except Exception:
+        logger.debug("Dependency checker not available")
+
     try:
         if cfg.mode == "agent":
             asyncio.run(agent_loop(cfg))
