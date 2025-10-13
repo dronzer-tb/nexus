@@ -1,0 +1,262 @@
+#!/usr/bin/env python3
+"""Nexus single-file program that can run as Agent or Server.
+
+Run with:
+  python nexus.py --mode agent
+  python nexus.py --mode server
+
+This scaffold includes placeholders and simple implementations for:
+- mode detection
+- ASCII art startup
+- Agent: periodic metrics sending (psutil)
+- Server: FastAPI app with placeholder endpoints
+- config loading from .env or config.json
+- simple logging
+
+Expand this scaffold to add real DB and security features.
+"""
+from __future__ import annotations
+
+import argparse
+import asyncio
+import json
+import logging
+import os
+import platform
+import sys
+from dataclasses import dataclass
+from typing import Any, Dict, Optional
+
+# Optional imports (installed via requirements)
+try:
+    import psutil
+except Exception:  # pragma: no cover - optional
+    psutil = None
+
+try:
+    import requests
+except Exception:  # pragma: no cover - optional
+    requests = None
+
+try:
+    from fastapi import FastAPI, WebSocket, Request
+    import uvicorn
+except Exception:  # pragma: no cover - optional
+    FastAPI = None
+    WebSocket = None
+    Request = None
+    uvicorn = None
+
+# ASCII art
+ASCII_SERVER = r"""
+███╗   ██╗███████╗██╗  ██╗██╗   ██╗███████╗
+████╗  ██║██╔════╝╚██╗██╔╝██║   ██║██╔════╝
+██╔██╗ ██║█████╗   ╚███╔╝ ██║   ██║███████╗
+██║╚██╗██║██╔══╝   ██╔██╗ ██║   ██║╚════██║
+██║ ╚████║███████╗██╔╝ ██╗╚██████╔╝███████║
+╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝
+"""
+
+ASCII_AGENT = r"""
+   .-._   _ _ _ _ _ _ _
+ .-"     "  .-"  .-"  .-"
+/  .-""-.  /  .-"  /  .-""-.
+\ (  \  )/    \  (  (  \  )
+ `-`--'`      `-`--'` `-`--'
+        Dronzer Studios - Agent v1.0.0
+"""
+
+CONFIG_FILE = "config.json"
+ENV_FILE = ".env"
+
+logger = logging.getLogger("nexus")
+
+
+@dataclass
+class Config:
+    mode: str = "agent"
+    server_url: str = "http://localhost:8000"
+    api_key: Optional[str] = None
+    db_path: str = "db/nexus.db"
+    heartbeat_interval: int = 10
+
+
+def load_config() -> Config:
+    # Load from .env if exists
+    cfg = Config()
+    if os.path.exists(ENV_FILE):
+        try:
+            from dotenv import load_dotenv
+
+            load_dotenv(ENV_FILE)
+            cfg.mode = os.getenv("NEXUS_MODE", cfg.mode)
+            cfg.server_url = os.getenv("NEXUS_SERVER_URL", cfg.server_url)
+            cfg.api_key = os.getenv("NEXUS_API_KEY", cfg.api_key)
+            cfg.db_path = os.getenv("NEXUS_DB_PATH", cfg.db_path)
+            cfg.heartbeat_interval = int(os.getenv("NEXUS_HEARTBEAT_INTERVAL", cfg.heartbeat_interval))
+        except Exception:
+            logger.exception("Failed to load .env")
+
+    # Override with config.json if present
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            for k, v in data.items():
+                if hasattr(cfg, k):
+                    setattr(cfg, k, v)
+        except Exception:
+            logger.exception("Failed to load config.json")
+
+    return cfg
+
+
+# ---------------- Agent helpers -----------------
+
+async def collect_metrics() -> Dict[str, Any]:
+    """Collect basic host metrics using psutil. Returns a JSON-serializable dict."""
+    if psutil is None:
+        return {"error": "psutil not installed"}
+
+    try:
+        cpu = psutil.cpu_percent(interval=0.5)
+        mem = psutil.virtual_memory()._asdict()
+        disk = {p.mountpoint: psutil.disk_usage(p.mountpoint)._asdict() for p in psutil.disk_partitions(all=False)}
+        net = psutil.net_io_counters(pernic=False)._asdict()
+        procs = []
+        for p in psutil.process_iter(["pid", "name", "cpu_percent", "memory_percent"]):
+            try:
+                procs.append(p.info)
+            except Exception:
+                continue
+        return {
+            "hostname": platform.node(),
+            "cpu_percent": cpu,
+            "memory": mem,
+            "disk": disk,
+            "network": net,
+            "processes": procs,
+        }
+    except Exception:
+        logger.exception("Failed to collect metrics")
+        return {"error": "collect_failed"}
+
+
+async def agent_loop(cfg: Config) -> None:
+    """Main agent loop: collect and send metrics periodically."""
+    print(ASCII_AGENT)
+    print(f"Mode: Agent | Sending to: {cfg.server_url}")
+
+    if requests is None:
+        logger.warning("requests not installed; agent cannot send data")
+
+    session = requests.Session() if requests else None
+
+    while True:
+        metrics = await collect_metrics()
+        payload = {"api_key": cfg.api_key, "metrics": metrics}
+        try:
+            if session:
+                url = cfg.server_url.rstrip("/") + "/api/agent/update"
+                resp = session.post(url, json=payload, timeout=5)
+                logger.debug("Agent posted metrics: %s", resp.status_code)
+            else:
+                logger.info("Collected metrics (not sent): %s", metrics)
+        except Exception:
+            logger.exception("Failed to send metrics to server")
+        await asyncio.sleep(cfg.heartbeat_interval)
+
+
+# ---------------- Server helpers -----------------
+
+def create_app(cfg: Config):
+    """Create a FastAPI app with placeholder endpoints."""
+    if FastAPI is None:
+        raise RuntimeError("FastAPI is not installed")
+
+    app = FastAPI(title="Nexus Server")
+
+    # In-memory store for demo
+    AGENTS: Dict[str, Dict[str, Any]] = {}
+
+    @app.post("/api/agent/update")
+    async def agent_update(request: Request):
+        body = await request.json()
+        api_key = body.get("api_key")
+        metrics = body.get("metrics")
+        agent_id = metrics.get("hostname") if isinstance(metrics, dict) else "unknown"
+        AGENTS[agent_id] = {"metrics": metrics}
+        return {"status": "ok", "agent_id": agent_id}
+
+    @app.get("/api/agent/list")
+    async def agent_list():
+        return {"agents": list(AGENTS.keys())}
+
+    @app.get("/api/agent/{agent_id}")
+    async def agent_get(agent_id: str):
+        return AGENTS.get(agent_id, {"error": "not_found"})
+
+    @app.post("/api/agent/command")
+    async def agent_command(payload: Dict[str, Any]):
+        # Placeholder: in a real system you'd enqueue commands for agents
+        return {"status": "queued", "payload": payload}
+
+    @app.websocket("/api/live")
+    async def live_ws(ws: WebSocket):
+        await ws.accept()
+        try:
+            while True:
+                await ws.send_json({"message": "ping"})
+                await asyncio.sleep(5)
+        except Exception:
+            pass
+
+    return app
+
+
+def server_run(cfg: Config) -> None:
+    print(ASCII_SERVER)
+    print(f"Mode: Server | Listening on 0.0.0.0:8000 | DB: {cfg.db_path}")
+    app = create_app(cfg)
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
+# ---------------- CLI / Entrypoint -----------------
+
+def setup_logging(debug: bool = False) -> None:
+    level = logging.DEBUG if debug else logging.INFO
+    logging.basicConfig(level=level, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+
+
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(description="Nexus single program (Agent or Server)")
+    parser.add_argument("--mode", choices=("agent", "server"), help="Run mode", default=None)
+    parser.add_argument("--config", help="Path to config.json", default=CONFIG_FILE)
+    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
+    return parser.parse_args(argv)
+
+
+def main(argv=None):
+    args = parse_args(argv)
+    setup_logging(args.debug)
+    cfg = load_config()
+    # CLI arg overrides
+    if args.mode:
+        cfg.mode = args.mode
+
+    if cfg.mode == "agent":
+        try:
+            asyncio.run(agent_loop(cfg))
+        except KeyboardInterrupt:
+            print("Agent exiting")
+    elif cfg.mode == "server":
+        try:
+            server_run(cfg)
+        except KeyboardInterrupt:
+            print("Server exiting")
+    else:
+        print("Unknown mode. Use --mode agent|server")
+
+
+if __name__ == "__main__":
+    main()

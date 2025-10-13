@@ -1,0 +1,7 @@
+{
+  "mode": "agent",
+  "server_url": "http://localhost:8000",
+  "api_key": "",
+  "db_path": "db/nexus.db",
+  "heartbeat_interval": 10
+}
