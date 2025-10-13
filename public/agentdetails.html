@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Nexus Dashboard</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary": "#0d8bf2",
+              "background-light": "#f5f7f8",
+              "background-dark": "#101a22",
+            },
+            fontFamily: {
+              "display": ["Space Grotesk"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      };
+    </script>
+<style>
+      .glow {
+        box-shadow: 0 0 5px theme('colors.primary'), 0 0 10px theme('colors.primary / 0.8'), 0 0 15px theme('colors.primary / 0.6');
+      }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-white/80 dark:text-white/80 transition-colors duration-300">
+<div class="flex min-h-screen">
+<aside class="w-64 bg-background-light/50 dark:bg-background-dark/50 p-6 flex flex-col justify-between border-r border-white/10 dark:border-white/10">
+<div>
+<div class="mb-10">
+<h1 class="text-xl font-bold text-white">Nexus Dashboard</h1>
+<p class="text-sm text-white/60">Remote Resource Management</p>
+</div>
+<nav class="flex flex-col space-y-2">
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-white/80 hover:bg-primary/20 transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">monitoring</span>
+<span>Overview</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary text-white font-semibold glow transition-all duration-300" href="#">
+<span class="material-symbols-outlined">dns</span>
+<span>Agents List</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-white/80 hover:bg-primary/20 transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">memory</span>
+<span>Process Manager</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-white/80 hover:bg-primary/20 transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">terminal</span>
+<span>Command Console</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-white/80 hover:bg-primary/20 transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">description</span>
+<span>Logs</span>
+</a>
+</nav>
+</div>
+<footer class="text-center text-sm text-white/40">
+          Powered by Dronzer Studios
+        </footer>
+</aside>
+<main class="flex-1 p-8">
+<header class="mb-8">
+<h2 class="text-3xl font-bold text-white">Agent Details</h2>
+<p class="text-white/60">Monitor and manage individual agent performance</p>
+</header>
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
+<div class="bg-background-light/30 dark:bg-background-dark/50 p-6 rounded-xl border border-white/10 transform hover:-translate-y-1 transition-transform duration-300">
+<h3 class="text-lg font-medium text-white/90">CPU Usage</h3>
+<p class="text-4xl font-bold text-white my-2">75%</p>
+<div class="flex items-center text-sm">
+<span class="text-green-400 mr-2">+5%</span>
+<span class="text-white/60">Last 24 Hours</span>
+</div>
+<div class="h-24 mt-4 -mb-2">
+</div>
+</div>
+<div class="bg-background-light/30 dark:bg-background-dark/50 p-6 rounded-xl border border-white/10 transform hover:-translate-y-1 transition-transform duration-300">
+<h3 class="text-lg font-medium text-white/90">Memory Usage</h3>
+<p class="text-4xl font-bold text-white my-2">60%</p>
+<div class="flex items-center text-sm">
+<span class="text-red-400 mr-2">-2%</span>
+<span class="text-white/60">Last 24 Hours</span>
+</div>
+<div class="h-24 mt-4 -mb-2">
+</div>
+</div>
+<div class="bg-background-light/30 dark:bg-background-dark/50 p-6 rounded-xl border border-white/10 transform hover:-translate-y-1 transition-transform duration-300">
+<h3 class="text-lg font-medium text-white/90">Disk I/O</h3>
+<p class="text-4xl font-bold text-white my-2">45 MB/s</p>
+<div class="flex items-center text-sm">
+<span class="text-green-400 mr-2">+10%</span>
+<span class="text-white/60">Last 24 Hours</span>
+</div>
+<div class="h-24 mt-4 -mb-2">
+</div>
+</div>
+<div class="bg-background-light/30 dark:bg-background-dark/50 p-6 rounded-xl border border-white/10 transform hover:-translate-y-1 transition-transform duration-300">
+<h3 class="text-lg font-medium text-white/90">Network Throughput</h3>
+<p class="text-4xl font-bold text-white my-2">20 Mbps</p>
+<div class="flex items-center text-sm">
+<span class="text-red-400 mr-2">-3%</span>
+<span class="text-white/60">Last 24 Hours</span>
+</div>
+<div class="h-24 mt-4 -mb-2">
+</div>
+</div>
+</div>
+<div class="bg-background-light/30 dark:bg-background-dark/50 rounded-xl border border-white/10">
+<h3 class="text-xl font-bold text-white p-6">Running Processes</h3>
+<div class="overflow-x-auto">
+<table class="w-full text-left">
+<thead class="border-b border-white/10">
+<tr>
+<th class="p-4 text-sm font-semibold text-white/70">Process Name</th>
+<th class="p-4 text-sm font-semibold text-white/70">PID</th>
+<th class="p-4 text-sm font-semibold text-white/70">CPU</th>
+<th class="p-4 text-sm font-semibold text-white/70">Memory</th>
+<th class="p-4 text-sm font-semibold text-white/70">Status</th>
+<th class="p-4 text-sm font-semibold text-white/70">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-white/10">
+<tr class="hover:bg-primary/10 transition-colors duration-200">
+<td class="p-4 text-white">System Process A</td>
+<td class="p-4 text-white/60">1234</td>
+<td class="p-4 text-white/90">75%</td>
+<td class="p-4 text-white/90">60%</td>
+<td class="p-4"><span class="bg-green-500/20 text-green-300 text-xs font-semibold px-2 py-1 rounded-full">Active</span></td>
+<td class="p-4"><button class="text-red-400 hover:text-red-300 font-semibold transition-colors duration-200">Kill</button></td>
+</tr>
+<tr class="hover:bg-primary/10 transition-colors duration-200">
+<td class="p-4 text-white">System Process B</td>
+<td class="p-4 text-white/60">5678</td>
+<td class="p-4 text-white/90">20%</td>
+<td class="p-4 text-white/90">30%</td>
+<td class="p-4"><span class="bg-green-500/20 text-green-300 text-xs font-semibold px-2 py-1 rounded-full">Active</span></td>
+<td class="p-4"><button class="text-red-400 hover:text-red-300 font-semibold transition-colors duration-200">Kill</button></td>
+</tr>
+<tr class="hover:bg-primary/10 transition-colors duration-200">
+<td class="p-4 text-white">System Process C</td>
+<td class="p-4 text-white/60">9012</td>
+<td class="p-4 text-white/90">5%</td>
+<td class="p-4 text-white/90">10%</td>
+<td class="p-4"><span class="bg-green-500/20 text-green-300 text-xs font-semibold px-2 py-1 rounded-full">Active</span></td>
+<td class="p-4"><button class="text-red-400 hover:text-red-300 font-semibold transition-colors duration-200">Kill</button></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="mt-8 bg-background-light/30 dark:bg-background-dark/50 rounded-xl border border-white/10 p-6">
+<h3 class="text-xl font-bold text-white mb-4">Command Console</h3>
+<div class="flex gap-4">
+<input class="flex-grow bg-background-dark/70 border-white/20 rounded-lg p-3 text-white/90 focus:ring-2 focus:ring-primary focus:outline-none transition-shadow duration-200" placeholder="&gt; Enter command..." type="text"/>
+<button class="bg-primary text-white font-bold py-3 px-6 rounded-lg hover:bg-primary/90 transition-colors duration-200 glow">Execute</button>
+</div>
+</div>
+</main>
+</div>
+
+</body></html>
+<script src="/js/app.js"></script>
