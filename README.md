@@ -3,11 +3,52 @@
 
 Nexus is a self-hosted, modular platform by Dronzer Studios that allows you to monitor and manage multiple systems—VPSs, cloud environments, and local machines—from a single, centralized interface.
 
-## Nexus (single program)
+## Available Implementations
 
-This workspace contains a single Python program (`nexus.py`) that can run in Agent, Server, or combined (Agent+Server) mode.
+Nexus is available in two implementations:
+- **Node.js/TypeScript** (recommended) - Modern, async, better performance
+- **Python** - Original implementation
 
-Quick start
+## Nexus (Node.js/TypeScript)
+
+This workspace contains a TypeScript program that can run in Agent, Server, or combined (Agent+Server) mode.
+
+### Quick start (Node.js)
+
+1. One-line install and run:
+
+```bash
+./install_and_run_node.sh both
+```
+
+Or manually:
+
+1. Install dependencies and build:
+
+```bash
+npm install
+npm run build
+```
+
+2. Run the installer:
+
+```bash
+node dist/installer.js
+```
+
+3. Start Nexus (interactive mode selection or use --mode):
+
+```bash
+npm start
+# or
+node dist/index.js --mode both
+```
+
+---
+
+## Nexus (Python - Legacy)
+
+Quick start (Python)
 
 1. Create a virtual environment and install dependencies:
 
