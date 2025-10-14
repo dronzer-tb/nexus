@@ -10,7 +10,7 @@ function authenticate(req, res, next) {
       return res.status(401).json({ message: 'Authentication required' });
     }
 
-    const decoded = jwt.verify(token, config.get('jwt.secret', 'nexus-secret-key'));
+    const decoded = jwt.verify(token, config.get('server.jwtSecret', 'nexus-secret-key'));
     req.user = decoded;
     next();
   } catch (error) {
