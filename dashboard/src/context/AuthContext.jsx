@@ -70,24 +70,30 @@ export function AuthProvider({ children }) {
 
   const login = async (username, password) => {
     try {
+      console.log('Login: Sending login request...');
       const response = await axios.post('/api/auth/login', { username, password });
       const { token, user } = response.data;
       
+      console.log('Login: Received token, storing in localStorage');
       // Store token in localStorage
       localStorage.setItem('token', token);
       
+      console.log('Login: Verifying token...');
       // Verify the token works before updating state
       try {
         const verifyResponse = await axios.get('/api/auth/verify', {
           headers: { Authorization: `Bearer ${token}` }
         });
         
+        console.log('Login: Token verified successfully, user:', verifyResponse.data.user);
         // Token is valid, update state
         setUser(verifyResponse.data.user);
         setIsAuthenticated(true);
+        console.log('Login: State updated - isAuthenticated should now be true');
         
         return { success: true };
       } catch (verifyError) {
+        console.error('Login: Token verification failed:', verifyError.response?.status, verifyError.response?.data);
         // Token verification failed, remove it
         localStorage.removeItem('token');
         return { 
@@ -96,6 +102,7 @@ export function AuthProvider({ children }) {
         };
       }
     } catch (error) {
+      console.error('Login: Login request failed:', error.response?.status, error.response?.data);
       return { 
         success: false, 
         error: error.response?.data?.message || 'Login failed' 
