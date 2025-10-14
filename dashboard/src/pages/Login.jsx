@@ -21,19 +21,22 @@ function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    console.log('=== FORM SUBMIT CLICKED ===');
     setError('');
     setLoading(true);
 
-    console.log('Login: Attempting login...');
+    console.log('Login: Calling login function with username:', username);
     const result = await login(username, password);
-    console.log('Login: Result =', result);
+    console.log('Login: Result received =', result);
     
     if (!result.success) {
+      console.error('Login: Failed with error:', result.error);
       setError(result.error);
       setLoading(false);
+    } else {
+      console.log('Login: Success! Waiting for redirect...');
     }
     // Don't navigate here - let the useEffect handle it when isAuthenticated changes
-    // Don't set loading to false on success - let the redirect happen
   };
 
   return (

@@ -69,40 +69,41 @@ export function AuthProvider({ children }) {
   };
 
   const login = async (username, password) => {
+    console.log('=== LOGIN FUNCTION CALLED ===');
+    console.log('Username:', username, 'Password length:', password?.length);
+    
     try {
-      console.log('Login: Sending login request...');
+      console.log('Login: Sending login request to /api/auth/login...');
       const response = await axios.post('/api/auth/login', { username, password });
-      const { token, user } = response.data;
+      console.log('Login: Response received:', response.status);
       
-      console.log('Login: Received token, storing in localStorage');
+      const { token, user } = response.data;
+      console.log('Login: Token received (length):', token?.length);
+      console.log('Login: User received:', user);
+      
       // Store token in localStorage
       localStorage.setItem('token', token);
+      console.log('Login: Token stored in localStorage');
       
-      console.log('Login: Verifying token...');
-      // Verify the token works before updating state
-      try {
-        const verifyResponse = await axios.get('/api/auth/verify', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        
-        console.log('Login: Token verified successfully, user:', verifyResponse.data.user);
-        // Token is valid, update state
-        setUser(verifyResponse.data.user);
-        setIsAuthenticated(true);
-        console.log('Login: State updated - isAuthenticated should now be true');
-        
-        return { success: true };
-      } catch (verifyError) {
-        console.error('Login: Token verification failed:', verifyError.response?.status, verifyError.response?.data);
-        // Token verification failed, remove it
-        localStorage.removeItem('token');
-        return { 
-          success: false, 
-          error: 'Authentication verification failed' 
-        };
-      }
+      // Verify localStorage immediately
+      const storedToken = localStorage.getItem('token');
+      console.log('Login: Verification - token in localStorage?', !!storedToken, 'Length:', storedToken?.length);
+      
+      // Update state immediately without verification
+      setUser(user);
+      setIsAuthenticated(true);
+      console.log('Login: State updated - isAuthenticated set to TRUE');
+      
+      // Give React time to update
+      await new Promise(resolve => setTimeout(resolve, 50));
+      console.log('Login: Returning success');
+      
+      return { success: true };
     } catch (error) {
-      console.error('Login: Login request failed:', error.response?.status, error.response?.data);
+      console.error('=== LOGIN ERROR ===');
+      console.error('Status:', error.response?.status);
+      console.error('Data:', error.response?.data);
+      console.error('Message:', error.message);
       return { 
         success: false, 
         error: error.response?.data?.message || 'Login failed' 
