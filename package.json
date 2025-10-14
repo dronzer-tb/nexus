@@ -1,32 +1,47 @@
 {
   "name": "nexus",
   "version": "1.0.0",
-  "description": "Nexus - Remote monitoring and management (Node.js/TypeScript)",
-  "main": "dist/index.js",
+  "description": "Unified, self-hosted remote resource monitoring and management platform by Dronzer Studios",
+  "main": "src/index.js",
   "scripts": {
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "dev": "ts-node src/index.ts",
-    "install:run": "npm install && npm run build && node dist/installer.js && npm start"
+    "start": "node src/index.js",
+    "start:node": "node src/index.js --mode=node",
+    "start:server": "node src/index.js --mode=server",
+    "start:combine": "node src/index.js --mode=combine",
+    "dev": "nodemon src/index.js --mode=combine",
+    "build:dashboard": "cd dashboard && npm run build",
+    "install:dashboard": "cd dashboard && npm install",
+    "setup": "npm install && npm run install:dashboard && npm run build:dashboard"
   },
-  "keywords": ["monitoring", "agent", "server", "remote"],
+  "keywords": [
+    "monitoring",
+    "system",
+    "metrics",
+    "remote",
+    "management",
+    "server"
+  ],
   "author": "Dronzer Studios",
   "license": "MIT",
   "dependencies": {
     "express": "^4.18.2",
-    "ws": "^8.14.2",
-    "systeminformation": "^5.21.15",
-    "axios": "^1.6.2",
-    "bcrypt": "^5.1.1",
+    "socket.io": "^4.6.1",
+    "socket.io-client": "^4.6.1",
+    "systeminformation": "^5.21.20",
+    "winston": "^3.11.0",
+    "jsonwebtoken": "^9.0.2",
+    "better-sqlite3": "^9.2.2",
+    "cors": "^2.8.5",
+    "helmet": "^7.1.0",
     "dotenv": "^16.3.1",
-    "commander": "^11.1.0"
+    "axios": "^1.6.2",
+    "uuid": "^9.0.1",
+    "bcrypt": "^5.1.1"
   },
   "devDependencies": {
-    "@types/express": "^4.17.21",
-    "@types/ws": "^8.5.9",
-    "@types/bcrypt": "^5.0.2",
-    "@types/node": "^20.10.0",
-    "typescript": "^5.3.2",
-    "ts-node": "^10.9.1"
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

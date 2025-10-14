@@ -1,0 +1,12 @@
+.dockerignore
+node_modules
+dashboard/node_modules
+dashboard/build
+data
+*.log
+.git
+.gitignore
+README.md
+*.md
+.env
+.DS_Store

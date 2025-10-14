@@ -1,0 +1,62 @@
+# Docker Compose for Nexus
+# This file provides example configurations for different deployment scenarios
+
+version: '3.8'
+
+services:
+  # Server mode - runs the dashboard and API
+  nexus-server:
+    build: .
+    container_name: nexus-server
+    command: node src/index.js --mode=server
+    ports:
+      - "8080:8080"
+    volumes:
+      - nexus-server-data:/app/data
+      - ./config:/app/config
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+    networks:
+      - nexus-network
+
+  # Node mode - monitors remote machine (example 1)
+  nexus-node-1:
+    build: .
+    container_name: nexus-node-1
+    command: node src/index.js --mode=node
+    volumes:
+      - nexus-node-1-data:/app/data
+      - ./config:/app/config
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+    networks:
+      - nexus-network
+    depends_on:
+      - nexus-server
+
+  # Combine mode - runs both server and node on same machine
+  # nexus-combine:
+  #   build: .
+  #   container_name: nexus-combine
+  #   command: node src/index.js --mode=combine
+  #   ports:
+  #     - "8080:8080"
+  #   volumes:
+  #     - nexus-combine-data:/app/data
+  #     - ./config:/app/config
+  #   environment:
+  #     - NODE_ENV=production
+  #   restart: unless-stopped
+  #   networks:
+  #     - nexus-network
+
+volumes:
+  nexus-server-data:
+  nexus-node-1-data:
+  # nexus-combine-data:
+
+networks:
+  nexus-network:
+    driver: bridge

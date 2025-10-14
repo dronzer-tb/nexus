@@ -1,0 +1,19 @@
+# Simple docker-compose for combine mode (monitoring local machine)
+version: '3.8'
+
+services:
+  nexus:
+    build: .
+    container_name: nexus
+    command: node src/index.js --mode=combine
+    ports:
+      - "8080:8080"
+    volumes:
+      - nexus-data:/app/data
+      - ./config:/app/config
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+
+volumes:
+  nexus-data:

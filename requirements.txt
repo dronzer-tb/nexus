@@ -1,7 +1,0 @@
-fastapi
-uvicorn[standard]
-psutil
-requests
-aiohttp
-python-dotenv
-bcrypt

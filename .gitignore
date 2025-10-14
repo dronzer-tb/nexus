@@ -1,0 +1,14 @@
+node_modules/
+dashboard/node_modules/
+dashboard/build/
+dashboard/dist/
+data/
+*.db
+*.log
+.env
+config/config.json
+.DS_Store
+*.swp
+*.swo
+.vscode/
+.idea/

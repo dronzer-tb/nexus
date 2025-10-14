@@ -1,0 +1,184 @@
+const express = require('express');
+const database = require('../../utils/database');
+const auth = require('../../utils/auth');
+const logger = require('../../utils/logger');
+
+const router = express.Router();
+
+// Register a new node or update existing one
+router.post('/register', (req, res) => {
+  try {
+    const apiKey = req.headers['x-api-key'];
+    const { nodeId, hostname, systemInfo } = req.body;
+
+    if (!apiKey || !nodeId || !hostname) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: nodeId, hostname, or API key'
+      });
+    }
+
+    // Check if node already exists
+    let existingNode = database.getNode(nodeId);
+
+    if (existingNode) {
+      // Verify API key matches
+      if (existingNode.api_key !== apiKey) {
+        return res.status(401).json({
+          success: false,
+          error: 'Invalid API key for this node'
+        });
+      }
+
+      // Update existing node
+      database.updateNodeStatus(nodeId, 'online');
+      database.updateNodeLastSeen(nodeId);
+      
+      if (systemInfo) {
+        database.updateNodeSystemInfo(nodeId, systemInfo);
+      }
+
+      logger.info(`Node ${nodeId} (${hostname}) reconnected`);
+      
+      return res.json({
+        success: true,
+        message: 'Node updated successfully',
+        nodeId: nodeId
+      });
+    }
+
+    // Create new node
+    const apiKeyHash = auth.hashApiKey(apiKey);
+    
+    database.createNode({
+      id: nodeId,
+      hostname: hostname,
+      apiKey: apiKey,
+      apiKeyHash: apiKeyHash,
+      status: 'online',
+      systemInfo: systemInfo
+    });
+
+    logger.info(`New node registered: ${nodeId} (${hostname})`);
+
+    res.json({
+      success: true,
+      message: 'Node registered successfully',
+      nodeId: nodeId
+    });
+  } catch (error) {
+    logger.error('Error registering node:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+});
+
+// Get all nodes
+router.get('/', (req, res) => {
+  try {
+    const nodes = database.getAllNodes();
+    
+    // Update status based on last seen (offline if not seen in 30 seconds)
+    const now = Date.now();
+    const offlineThreshold = 30000; // 30 seconds
+
+    nodes.forEach(node => {
+      if (node.last_seen && (now - node.last_seen) > offlineThreshold) {
+        if (node.status !== 'offline') {
+          database.updateNodeStatus(node.id, 'offline');
+          node.status = 'offline';
+        }
+      }
+    });
+
+    // Remove sensitive data
+    const sanitizedNodes = nodes.map(node => ({
+      id: node.id,
+      hostname: node.hostname,
+      status: node.status,
+      last_seen: node.last_seen,
+      created_at: node.created_at,
+      system_info: node.system_info
+    }));
+
+    res.json({
+      success: true,
+      nodes: sanitizedNodes
+    });
+  } catch (error) {
+    logger.error('Error fetching nodes:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+});
+
+// Get specific node
+router.get('/:nodeId', (req, res) => {
+  try {
+    const { nodeId } = req.params;
+    const node = database.getNode(nodeId);
+
+    if (!node) {
+      return res.status(404).json({
+        success: false,
+        error: 'Node not found'
+      });
+    }
+
+    // Remove sensitive data
+    const sanitizedNode = {
+      id: node.id,
+      hostname: node.hostname,
+      status: node.status,
+      last_seen: node.last_seen,
+      created_at: node.created_at,
+      system_info: node.system_info
+    };
+
+    res.json({
+      success: true,
+      node: sanitizedNode
+    });
+  } catch (error) {
+    logger.error('Error fetching node:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+});
+
+// Delete a node
+router.delete('/:nodeId', (req, res) => {
+  try {
+    const { nodeId } = req.params;
+    const node = database.getNode(nodeId);
+
+    if (!node) {
+      return res.status(404).json({
+        success: false,
+        error: 'Node not found'
+      });
+    }
+
+    database.deleteNode(nodeId);
+    logger.info(`Node deleted: ${nodeId}`);
+
+    res.json({
+      success: true,
+      message: 'Node deleted successfully'
+    });
+  } catch (error) {
+    logger.error('Error deleting node:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+});
+
+module.exports = router;

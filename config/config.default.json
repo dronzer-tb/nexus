@@ -1,0 +1,24 @@
+{
+  "server": {
+    "port": 8080,
+    "host": "0.0.0.0",
+    "jwtSecret": "change-this-secret-in-production"
+  },
+  "node": {
+    "serverUrl": "http://localhost:8080",
+    "reportInterval": 5000,
+    "hostname": ""
+  },
+  "database": {
+    "path": "./data/nexus.db"
+  },
+  "security": {
+    "enableHttps": false,
+    "certPath": "",
+    "keyPath": ""
+  },
+  "logging": {
+    "level": "info",
+    "file": "./data/nexus.log"
+  }
+}
