@@ -54,9 +54,11 @@ function Overview({ socket }) {
         axiosDefaultHeaders: axios.defaults.headers.common['Authorization']
       });
       
-      const response = await axios.get('/api/agents');
-      setAgents(response.data);
-      updateStats(response.data);
+      const response = await axios.get('/api/nodes');
+      // Extract nodes array from response and map to agent format
+      const nodes = response.data.nodes || [];
+      setAgents(nodes);
+      updateStats(nodes);
     } catch (error) {
       console.error('Failed to fetch agents:', error);
     }
