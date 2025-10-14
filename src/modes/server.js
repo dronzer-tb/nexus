@@ -12,6 +12,7 @@ const database = require('../utils/database');
 // Import routes
 const authRouter = require('../api/routes/auth');
 const agentsRouter = require('../api/routes/agents');
+const nodesRouter = require('../api/routes/nodes');
 const processesRouter = require('../api/routes/processes');
 const commandsRouter = require('../api/routes/commands');
 const logsRouter = require('../api/routes/logs');
@@ -89,6 +90,7 @@ class ServerMode {
     // API routes
     this.app.use('/api/auth', authRouter);
     this.app.use('/api/agents', agentsRouter);
+    this.app.use('/api/nodes', nodesRouter);
     this.app.use('/api/processes', processesRouter);
     this.app.use('/api/commands', commandsRouter);
     this.app.use('/api/logs', logsRouter);
