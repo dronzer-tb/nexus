@@ -48,17 +48,22 @@ export function AuthProvider({ children }) {
 
   const checkAuth = async () => {
     const token = localStorage.getItem('token');
+    console.log('CheckAuth: Token exists?', !!token);
     if (token) {
       try {
         const response = await axios.get('/api/auth/verify', {
           headers: { Authorization: `Bearer ${token}` }
         });
+        console.log('CheckAuth: Token valid, user:', response.data.user);
         setUser(response.data.user);
         setIsAuthenticated(true);
       } catch (error) {
+        console.error('CheckAuth: Token verification failed:', error.response?.status);
         localStorage.removeItem('token');
         setIsAuthenticated(false);
       }
+    } else {
+      console.log('CheckAuth: No token found');
     }
     setLoading(false);
   };
@@ -68,17 +73,28 @@ export function AuthProvider({ children }) {
       const response = await axios.post('/api/auth/login', { username, password });
       const { token, user } = response.data;
       
-      // Store token first
+      // Store token in localStorage
       localStorage.setItem('token', token);
       
-      // Update state
-      setUser(user);
-      setIsAuthenticated(true);
-      
-      // Small delay to ensure state is updated
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      return { success: true };
+      // Verify the token works before updating state
+      try {
+        const verifyResponse = await axios.get('/api/auth/verify', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        // Token is valid, update state
+        setUser(verifyResponse.data.user);
+        setIsAuthenticated(true);
+        
+        return { success: true };
+      } catch (verifyError) {
+        // Token verification failed, remove it
+        localStorage.removeItem('token');
+        return { 
+          success: false, 
+          error: 'Authentication verification failed' 
+        };
+      }
     } catch (error) {
       return { 
         success: false, 

@@ -12,8 +12,10 @@ function Login() {
 
   // Redirect if already authenticated
   useEffect(() => {
+    console.log('Login useEffect: isAuthenticated =', isAuthenticated);
     if (isAuthenticated) {
-      navigate('/');
+      console.log('Login useEffect: Navigating to /');
+      navigate('/', { replace: true });
     }
   }, [isAuthenticated, navigate]);
 
@@ -22,7 +24,9 @@ function Login() {
     setError('');
     setLoading(true);
 
+    console.log('Login: Attempting login...');
     const result = await login(username, password);
+    console.log('Login: Result =', result);
     
     if (!result.success) {
       setError(result.error);
