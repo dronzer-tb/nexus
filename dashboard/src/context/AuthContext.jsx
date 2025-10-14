@@ -1,0 +1,67 @@
+import { createContext, useContext, useState, useEffect } from 'react';
+import axios from 'axios';
+
+const AuthContext = createContext(null);
+
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  useEffect(() => {
+    checkAuth();
+  }, []);
+
+  const checkAuth = async () => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        const response = await axios.get('/api/auth/verify', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setUser(response.data.user);
+        setIsAuthenticated(true);
+      } catch (error) {
+        localStorage.removeItem('token');
+        setIsAuthenticated(false);
+      }
+    }
+    setLoading(false);
+  };
+
+  const login = async (username, password) => {
+    try {
+      const response = await axios.post('/api/auth/login', { username, password });
+      const { token, user } = response.data;
+      localStorage.setItem('token', token);
+      setUser(user);
+      setIsAuthenticated(true);
+      return { success: true };
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error.response?.data?.message || 'Login failed' 
+      };
+    }
+  };
+
+  const logout = () => {
+    localStorage.removeItem('token');
+    setUser(null);
+    setIsAuthenticated(false);
+  };
+
+  return (
+    <AuthContext.Provider value={{ user, login, logout, isAuthenticated, loading }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+}
