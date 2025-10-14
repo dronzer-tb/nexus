@@ -34,6 +34,12 @@ function Login() {
       
       <main className="relative z-10 w-full max-w-md p-8 space-y-8 bg-background-light/10 backdrop-blur-sm border border-primary/20 rounded-xl shadow-2xl">
         <div className="text-center">
+          <img 
+            src="/logo.png" 
+            alt="Nexus Logo" 
+            className="w-20 h-20 mx-auto mb-4 rounded-xl" 
+            style={{ boxShadow: '0 0 20px rgba(13, 139, 242, 0.6)' }}
+          />
           <h1 className="text-4xl font-bold text-white drop-shadow-lg">
             <span className="text-primary">NEXUS</span>
           </h1>

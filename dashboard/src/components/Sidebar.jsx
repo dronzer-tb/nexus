@@ -60,9 +60,12 @@ function Sidebar() {
   return (
     <aside className="w-64 bg-background-light/5 p-6 flex flex-col justify-between border-r border-primary/10">
       <div>
-        <div className="mb-10">
-          <h1 className="text-2xl font-bold text-white">Nexus</h1>
-          <p className="text-sm text-white/60">Remote Resource Management</p>
+        <div className="mb-10 flex items-center gap-3">
+          <img src="/logo.png" alt="Nexus Logo" className="w-10 h-10 rounded-lg" style={{ boxShadow: '0 0 15px rgba(13, 139, 242, 0.5)' }} />
+          <div>
+            <h1 className="text-2xl font-bold text-white">Nexus</h1>
+            <p className="text-sm text-white/60">Remote Resource Management</p>
+          </div>
         </div>
         
         <nav className="flex flex-col space-y-2">
