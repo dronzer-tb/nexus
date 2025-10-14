@@ -3,14 +3,16 @@
 ## Installation
 
 ```bash
-# Clone & Setup
+# ONE-LINER (Fastest) ⚡
+curl -fsSL https://raw.githubusercontent.com/dronzer-tb/nexus/main/quick-install.sh | bash
+
+# Or automated installer
 git clone https://github.com/dronzer-tb/nexus.git
 cd nexus
-npm run setup
+./install.sh
 
-# Or use setup script
-chmod +x setup.sh
-./setup.sh
+# Or manual setup
+npm run setup
 ```
 
 ## Running Modes

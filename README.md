@@ -105,6 +105,16 @@ docker run -d -p 8080:8080 dronzer/nexus --mode=combine
 
 ## 🚀 Quick Start
 
+### ⚡ Fastest Way to Install (One-Liner)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/dronzer-tb/nexus/main/quick-install.sh | bash
+```
+
+This will automatically clone, install, and set up everything for you!
+
+---
+
 ### Prerequisites
 
 - **Node.js** 18.0.0 or higher
@@ -113,7 +123,25 @@ docker run -d -p 8080:8080 dronzer/nexus --mode=combine
 
 ### Installation
 
-#### Option 1: Manual Installation
+#### Option 1: Automated Installation Script ⚡ (Recommended)
+
+```bash
+# Clone and install everything automatically
+git clone https://github.com/dronzer-tb/nexus.git
+cd nexus
+./install.sh
+```
+
+The installer will:
+- ✅ Check prerequisites
+- ✅ Install all dependencies
+- ✅ Build the dashboard
+- ✅ Configure the system
+- ✅ Optionally start Nexus immediately
+
+**That's it!** Visit `http://localhost:8080` to access the dashboard.
+
+#### Option 2: Manual Installation
 
 ```bash
 # Clone the repository
@@ -129,7 +157,7 @@ npm run start:combine
 
 Visit `http://localhost:8080` to access the dashboard.
 
-#### Option 2: Docker (Recommended)
+#### Option 3: Docker
 
 ```bash
 # Clone the repository
