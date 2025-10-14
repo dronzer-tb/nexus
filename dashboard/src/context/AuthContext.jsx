@@ -51,6 +51,7 @@ export function AuthProvider({ children }) {
     console.log('CheckAuth: Token exists?', !!token);
     if (token) {
       try {
+        axios.defaults.headers.common.Authorization = `Bearer ${token}`;
         const response = await axios.get('/api/auth/verify', {
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -84,6 +85,9 @@ export function AuthProvider({ children }) {
       // Store token in localStorage
       localStorage.setItem('token', token);
       console.log('Login: Token stored in localStorage');
+
+  // Ensure axios includes the token by default for subsequent requests
+  axios.defaults.headers.common.Authorization = `Bearer ${token}`;
       
       // Verify localStorage immediately
       const storedToken = localStorage.getItem('token');
