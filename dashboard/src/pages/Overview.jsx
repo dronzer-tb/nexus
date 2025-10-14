@@ -41,10 +41,7 @@ function Overview({ socket }) {
 
   const fetchAgents = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get('/api/agents', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await axios.get('/api/agents');
       setAgents(response.data);
       updateStats(response.data);
     } catch (error) {
@@ -68,10 +65,8 @@ function Overview({ socket }) {
     setError('');
 
     try {
-      const token = localStorage.getItem('token');
       const response = await axios.post('/api/agents/connect', 
-        { name: agentName, apiKey },
-        { headers: { Authorization: `Bearer ${token}` }}
+        { name: agentName, apiKey }
       );
 
       if (response.data.success) {
