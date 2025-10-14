@@ -166,6 +166,53 @@ router.post('/:agentId/execute', async (req, res) => {
   }
 });
 
+// Connect new agent manually
+router.post('/connect', async (req, res) => {
+  try {
+    const { name, apiKey } = req.body;
+
+    if (!name || !apiKey) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Agent name and API key are required' 
+      });
+    }
+
+    // Validate API key format (basic validation)
+    if (apiKey.length < 32) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Invalid API key format' 
+      });
+    }
+
+    // Store the agent connection request
+    // The actual connection will happen when the agent connects via WebSocket
+    // For now, we'll create a placeholder entry
+    const agentId = `agent_${Date.now()}`;
+    
+    logger.info(`Manual agent connection requested: ${name} (${agentId})`);
+    
+    // In a real implementation, you would:
+    // 1. Validate the API key against stored credentials
+    // 2. Store the agent info in database
+    // 3. Wait for WebSocket connection from the agent
+    
+    // For now, return success and let the WebSocket handler manage the actual connection
+    res.json({ 
+      success: true,
+      message: 'Agent connection request received. The agent will appear once it connects.',
+      agentId
+    });
+  } catch (error) {
+    logger.error('Error connecting agent:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to process agent connection' 
+    });
+  }
+});
+
 // Export agents map for use in WebSocket handler
 router.agents = agents;
 
