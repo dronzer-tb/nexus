@@ -24,13 +24,12 @@ function Login() {
 
     const result = await login(username, password);
     
-    if (result.success) {
-      navigate('/');
-    } else {
+    if (!result.success) {
       setError(result.error);
+      setLoading(false);
     }
-    
-    setLoading(false);
+    // Don't navigate here - let the useEffect handle it when isAuthenticated changes
+    // Don't set loading to false on success - let the redirect happen
   };
 
   return (
