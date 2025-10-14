@@ -67,9 +67,17 @@ export function AuthProvider({ children }) {
     try {
       const response = await axios.post('/api/auth/login', { username, password });
       const { token, user } = response.data;
+      
+      // Store token first
       localStorage.setItem('token', token);
+      
+      // Update state
       setUser(user);
       setIsAuthenticated(true);
+      
+      // Small delay to ensure state is updated
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       return { success: true };
     } catch (error) {
       return { 

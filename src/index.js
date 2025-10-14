@@ -1,3 +1,5 @@
+const fs = require('fs');
+const path = require('path');
 const config = require('./utils/config');
 const logger = require('./utils/logger');
 
@@ -11,7 +13,20 @@ const BANNER = `
 ╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝
 `;
 
-const VERSION = '1.0.0';
+// Read version from VERSION file or package.json
+let VERSION = '1.1.0';
+try {
+  const versionFile = path.join(__dirname, '../VERSION');
+  if (fs.existsSync(versionFile)) {
+    VERSION = fs.readFileSync(versionFile, 'utf8').trim();
+  } else {
+    const packageJson = require('../package.json');
+    VERSION = packageJson.version;
+  }
+} catch (error) {
+  // Use default version if files not found
+}
+
 const COMPANY = 'Dronzer Studios';
 
 // Parse command line arguments

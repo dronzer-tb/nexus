@@ -16,8 +16,20 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
+# Get version
+get_version() {
+    if [ -f "VERSION" ]; then
+        cat VERSION
+    elif [ -f "package.json" ] && command_exists node; then
+        node -e "console.log(require('./package.json').version)" 2>/dev/null || echo "1.1.0"
+    else
+        echo "1.1.0"
+    fi
+}
+
 # Banner
 print_banner() {
+    VERSION=$(get_version)
     echo -e "${CYAN}"
     cat << "EOF"
 ███╗   ██╗███████╗██╗  ██╗██╗   ██╗███████╗
@@ -26,10 +38,9 @@ print_banner() {
 ██║╚██╗██║██╔══╝   ██╔██╗ ██║   ██║╚════██║
 ██║ ╚████║███████╗██╔╝ ██╗╚██████╔╝███████║
 ╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝
-
-        Dronzer Studios - v1.0.0
-           ONE-COMMAND INSTALLER
 EOF
+    echo -e "        Dronzer Studios - v${VERSION}"
+    echo -e "           ONE-COMMAND INSTALLER"
     echo -e "${NC}"
 }
 
@@ -181,14 +192,39 @@ setup_admin() {
             return
         fi
         
-        print_status "Running admin account setup..."
-        node -e "
-        const { setupAdminInteractive } = require('./src/utils/setup-admin');
-        setupAdminInteractive().catch(err => {
-          console.error('Error setting up admin:', err);
-          process.exit(1);
-        });
-        "
+        echo ""
+        echo -e "${CYAN}═══════════════════════════════════════════════════════${NC}"
+        echo -e "${CYAN}   ADMIN ACCOUNT SETUP${NC}"
+        echo -e "${CYAN}═══════════════════════════════════════════════════════${NC}"
+        echo ""
+        echo -e "${YELLOW}Would you like to create a custom admin account?${NC}"
+        echo ""
+        echo -e "  ${GREEN}Yes${NC} - Create custom username and password"
+        echo -e "  ${GREEN}No${NC}  - Use default credentials (admin / admin123)"
+        echo ""
+        echo -en "${YELLOW}Setup custom account? (y/n):${NC} "
+        read -r SETUP_CUSTOM < /dev/tty
+        echo ""
+        
+        if [[ "$SETUP_CUSTOM" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+            print_status "Running custom admin account setup..."
+            node -e "
+            const { setupAdminInteractive } = require('./src/utils/setup-admin');
+            setupAdminInteractive().catch(err => {
+              console.error('Error setting up admin:', err);
+              process.exit(1);
+            });
+            "
+        else
+            print_status "Creating default admin account..."
+            node -e "
+            const { setupDefaultAdmin } = require('./src/utils/setup-admin');
+            setupDefaultAdmin().catch(err => {
+              console.error('Error setting up admin:', err);
+              process.exit(1);
+            });
+            "
+        fi
     else
         print_status "Skipping admin setup (not needed for Node mode)"
     fi

@@ -23,7 +23,7 @@ cat << "EOF"
 ██║ ╚████║███████╗██╔╝ ██╗╚██████╔╝███████║
 ╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝
 
-        Dronzer Studios - v1.0.0
+        Dronzer Studios - v1.1.0
           QUICK INSTALLER
 EOF
 echo -e "${NC}"
