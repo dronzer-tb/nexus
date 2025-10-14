@@ -111,20 +111,28 @@ install_backend() {
 
 # Install frontend dependencies
 install_frontend() {
-    print_status "Installing frontend dependencies..."
-    cd dashboard
-    npm install --no-audit --no-fund
-    cd ..
-    print_success "Frontend dependencies installed"
+    if [ "$NEEDS_DASHBOARD" = true ]; then
+        print_status "Installing frontend dependencies..."
+        cd dashboard
+        npm install --no-audit --no-fund
+        cd ..
+        print_success "Frontend dependencies installed"
+    else
+        print_status "Skipping frontend dependencies (not needed for Node mode)"
+    fi
 }
 
 # Build dashboard
 build_dashboard() {
-    print_status "Building React dashboard..."
-    cd dashboard
-    npm run build
-    cd ..
-    print_success "Dashboard built successfully"
+    if [ "$NEEDS_DASHBOARD" = true ]; then
+        print_status "Building React dashboard (this may take a minute)..."
+        cd dashboard
+        npm run build
+        cd ..
+        print_success "Dashboard built successfully"
+    else
+        print_status "Skipping dashboard build (not needed for Node mode)"
+    fi
 }
 
 # Create necessary directories
@@ -161,6 +169,52 @@ check_docker() {
     fi
 }
 
+# Prompt for installation mode
+prompt_mode() {
+    echo ""
+    echo -e "${CYAN}═══════════════════════════════════════════════════════${NC}"
+    echo -e "${CYAN}   SELECT INSTALLATION MODE${NC}"
+    echo -e "${CYAN}═══════════════════════════════════════════════════════${NC}"
+    echo ""
+    echo -e "${YELLOW}Which mode do you want to use?${NC}"
+    echo ""
+    echo -e "  ${GREEN}1${NC}) ${YELLOW}Combine Mode${NC} - Monitor local machine + Web Dashboard"
+    echo -e "     ${BLUE}Runs both agent and server with dashboard${NC}"
+    echo ""
+    echo -e "  ${GREEN}2${NC}) ${YELLOW}Server Mode${NC} - Web Dashboard Only"
+    echo -e "     ${BLUE}Runs central server with dashboard for managing agents${NC}"
+    echo ""
+    echo -e "  ${GREEN}3${NC}) ${YELLOW}Node Mode${NC} - Agent Only (No Dashboard)"
+    echo -e "     ${BLUE}Runs as monitoring agent, reports to remote server${NC}"
+    echo ""
+    echo -e "${YELLOW}Enter your choice [1-3]:${NC} "
+    read -r MODE_CHOICE
+    
+    case $MODE_CHOICE in
+        1)
+            SELECTED_MODE="combine"
+            NEEDS_DASHBOARD=true
+            print_success "Selected: Combine Mode"
+            ;;
+        2)
+            SELECTED_MODE="server"
+            NEEDS_DASHBOARD=true
+            print_success "Selected: Server Mode"
+            ;;
+        3)
+            SELECTED_MODE="node"
+            NEEDS_DASHBOARD=false
+            print_success "Selected: Node Mode"
+            ;;
+        *)
+            print_warning "Invalid choice. Defaulting to Combine Mode."
+            SELECTED_MODE="combine"
+            NEEDS_DASHBOARD=true
+            ;;
+    esac
+    echo ""
+}
+
 # Display installation summary
 display_summary() {
     echo ""
@@ -168,29 +222,61 @@ display_summary() {
     echo -e "${GREEN}   ✓ INSTALLATION COMPLETE${NC}"
     echo -e "${GREEN}═══════════════════════════════════════════════════════${NC}"
     echo ""
-    echo -e "${CYAN}Quick Start Commands:${NC}"
+    
+    case $SELECTED_MODE in
+        combine)
+            echo -e "${CYAN}Installed for: ${YELLOW}Combine Mode${NC}"
+            echo -e "${BLUE}Monitor local machine + Web Dashboard${NC}"
+            echo ""
+            echo -e "${CYAN}Start Command:${NC}"
+            echo -e "  ${GREEN}npm run start:combine${NC}"
+            echo -e "  Dashboard: ${BLUE}http://localhost:8080${NC}"
+            echo -e "  Default credentials: ${YELLOW}admin / admin123${NC}"
+            ;;
+        server)
+            echo -e "${CYAN}Installed for: ${YELLOW}Server Mode${NC}"
+            echo -e "${BLUE}Web Dashboard Only${NC}"
+            echo ""
+            echo -e "${CYAN}Start Command:${NC}"
+            echo -e "  ${GREEN}npm run start:server${NC}"
+            echo -e "  Dashboard: ${BLUE}http://localhost:8080${NC}"
+            echo -e "  Default credentials: ${YELLOW}admin / admin123${NC}"
+            ;;
+        node)
+            echo -e "${CYAN}Installed for: ${YELLOW}Node Mode${NC}"
+            echo -e "${BLUE}Monitoring Agent Only${NC}"
+            echo ""
+            echo -e "${CYAN}Start Command:${NC}"
+            echo -e "  ${GREEN}npm run start:node${NC}"
+            echo -e "  ${YELLOW}Note: Configure server URL in config/config.json${NC}"
+            ;;
+    esac
+    
     echo ""
-    echo -e "  ${YELLOW}1. Start in Combine Mode${NC} (monitor local machine + dashboard)"
+    echo -e "${CYAN}All Available Modes:${NC}"
+    echo ""
+    echo -e "  ${YELLOW}1. Combine Mode${NC}"
     echo -e "     ${GREEN}npm run start:combine${NC}"
     echo -e "     Dashboard: ${BLUE}http://localhost:8080${NC}"
     echo ""
-    echo -e "  ${YELLOW}2. Start in Server Mode${NC} (dashboard only)"
+    echo -e "  ${YELLOW}2. Server Mode${NC}"
     echo -e "     ${GREEN}npm run start:server${NC}"
+    echo -e "     Dashboard: ${BLUE}http://localhost:8080${NC}"
     echo ""
-    echo -e "  ${YELLOW}3. Start in Node Mode${NC} (metrics collection only)"
+    echo -e "  ${YELLOW}3. Node Mode${NC}"
     echo -e "     ${GREEN}npm run start:node${NC}"
     echo ""
-    echo -e "  ${YELLOW}4. Development Mode${NC} (with auto-reload)"
+    echo -e "  ${YELLOW}4. Development Mode${NC}"
     echo -e "     ${GREEN}npm run dev${NC}"
     echo ""
     
     if [ "$DOCKER_AVAILABLE" = true ]; then
         echo -e "${CYAN}Docker Commands:${NC}"
         echo ""
-        echo -e "  ${YELLOW}Build Docker Image:${NC}"
+        echo -e "  ${YELLOW}Build Image:${NC}"
         echo -e "     ${GREEN}docker build -t dronzer/nexus .${NC}"
         echo ""
-        echo -e "  ${YELLOW}Run with Docker:${NC}"
+        echo -e "  ${YELLOW}Run with Docker Compose:${NC}"
         echo -e "     ${GREEN}docker-compose -f docker-compose.simple.yml up -d${NC}"
         echo ""
     fi
@@ -205,6 +291,13 @@ display_summary() {
     echo -e "  Quick Reference: ${BLUE}QUICK_REFERENCE.md${NC}"
     echo -e "  Development Guide: ${BLUE}DEVELOPMENT.md${NC}"
     echo ""
+    
+    if [ "$NEEDS_DASHBOARD" = false ]; then
+        echo -e "${YELLOW}ℹ  To install dashboard later:${NC}"
+        echo -e "     ${GREEN}cd dashboard && npm install && npm run build${NC}"
+        echo ""
+    fi
+    
     echo -e "${GREEN}═══════════════════════════════════════════════════════${NC}"
     echo ""
 }
@@ -216,14 +309,42 @@ prompt_start() {
     
     if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
         echo ""
-        echo -e "${CYAN}Starting Nexus in Combine mode...${NC}"
-        echo -e "${YELLOW}Press Ctrl+C to stop${NC}"
-        echo ""
-        sleep 2
-        npm run start:combine
+        case $SELECTED_MODE in
+            combine)
+                echo -e "${CYAN}Starting Nexus in Combine mode...${NC}"
+                echo -e "${YELLOW}Press Ctrl+C to stop${NC}"
+                echo ""
+                sleep 2
+                npm run start:combine
+                ;;
+            server)
+                echo -e "${CYAN}Starting Nexus in Server mode...${NC}"
+                echo -e "${YELLOW}Press Ctrl+C to stop${NC}"
+                echo ""
+                sleep 2
+                npm run start:server
+                ;;
+            node)
+                echo -e "${CYAN}Starting Nexus in Node mode...${NC}"
+                echo -e "${YELLOW}Press Ctrl+C to stop${NC}"
+                echo ""
+                sleep 2
+                npm run start:node
+                ;;
+        esac
     else
         echo ""
-        echo -e "${GREEN}Setup complete! Run ${YELLOW}npm run start:combine${GREEN} when ready.${NC}"
+        case $SELECTED_MODE in
+            combine)
+                echo -e "${GREEN}Setup complete! Run ${YELLOW}npm run start:combine${GREEN} when ready.${NC}"
+                ;;
+            server)
+                echo -e "${GREEN}Setup complete! Run ${YELLOW}npm run start:server${GREEN} when ready.${NC}"
+                ;;
+            node)
+                echo -e "${GREEN}Setup complete! Run ${YELLOW}npm run start:node${GREEN} when ready.${NC}"
+                ;;
+        esac
         echo ""
     fi
 }
@@ -245,30 +366,33 @@ main() {
     check_docker
     echo ""
     
-    # Step 3: Install backend dependencies
+    # Step 3: Ask user for installation mode
+    prompt_mode
+    
+    # Step 4: Install backend dependencies
     install_backend
     echo ""
     
-    # Step 4: Install frontend dependencies
+    # Step 5: Install frontend dependencies (only if needed)
     install_frontend
     echo ""
     
-    # Step 5: Build dashboard
+    # Step 6: Build dashboard (only if needed)
     build_dashboard
     echo ""
     
-    # Step 6: Create directories
+    # Step 7: Create directories
     create_directories
     echo ""
     
-    # Step 7: Generate configuration
+    # Step 8: Generate configuration
     generate_config
     echo ""
     
-    # Step 8: Display summary
+    # Step 9: Display summary
     display_summary
     
-    # Step 9: Prompt to start
+    # Step 10: Prompt to start
     prompt_start
 }
 
