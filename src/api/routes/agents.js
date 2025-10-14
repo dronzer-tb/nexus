@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const logger = require('../utils/logger');
+const logger = require('../../utils/logger');
 
 // Store for agents (in-memory for now, can be moved to database)
 const agents = new Map();
 
 // Authentication middleware
-const authenticate = require('../middleware/auth');
+const authenticate = require('../../middleware/auth');
 
 // Apply authentication to all routes
 router.use(authenticate);

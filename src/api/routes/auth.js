@@ -2,8 +2,8 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
-const logger = require('../utils/logger');
-const config = require('../utils/config');
+const logger = require('../../utils/logger');
+const config = require('../../utils/config');
 
 // In-memory user store (replace with database in production)
 const users = [
