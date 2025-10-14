@@ -1,6 +1,6 @@
 {
   "name": "nexus",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Unified, self-hosted remote resource monitoring and management platform by Dronzer Studios",
   "main": "src/index.js",
   "scripts": {
