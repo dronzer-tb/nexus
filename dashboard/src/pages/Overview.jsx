@@ -11,9 +11,15 @@ function Overview({ socket }) {
   const [apiKey, setApiKey] = useState('');
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState('');
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
 
   useEffect(() => {
+    // Only fetch agents if authenticated
+    if (!isAuthenticated) {
+      console.log('Overview: Not authenticated, skipping fetch');
+      return;
+    }
+    
     fetchAgents();
 
     if (socket) {
@@ -37,7 +43,7 @@ function Overview({ socket }) {
         socket.off('agent:status');
       }
     };
-  }, [socket]);
+  }, [socket, isAuthenticated]);
 
   const fetchAgents = async () => {
     try {
