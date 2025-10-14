@@ -39,7 +39,7 @@ function AgentDetails({ socket }) {
   const fetchAgentDetails = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`/api/agents/${agentId}`, {
+      const response = await axios.get(`/api/nodes/${agentId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setAgent(response.data);
@@ -53,7 +53,7 @@ function AgentDetails({ socket }) {
   const fetchProcesses = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`/api/agents/${agentId}/processes`, {
+      const response = await axios.get(`/api/nodes/${agentId}/processes`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setProcesses(response.data);
@@ -65,7 +65,7 @@ function AgentDetails({ socket }) {
   const handleKillProcess = async (pid) => {
     try {
       const token = localStorage.getItem('token');
-      await axios.post(`/api/agents/${agentId}/processes/${pid}/kill`, {}, {
+      await axios.post(`/api/nodes/${agentId}/processes/${pid}/kill`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       fetchProcesses();

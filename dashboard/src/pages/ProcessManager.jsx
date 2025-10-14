@@ -30,10 +30,10 @@ function ProcessManager({ socket }) {
   const fetchAgents = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('/api/agents', {
+      const response = await axios.get('/api/nodes', {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setAgents(response.data);
+      setAgents(response.data.nodes || []);
     } catch (error) {
       console.error('Failed to fetch agents:', error);
     }
@@ -44,7 +44,7 @@ function ProcessManager({ socket }) {
       const token = localStorage.getItem('token');
       const url = selectedAgent === 'all' 
         ? '/api/processes' 
-        : `/api/agents/${selectedAgent}/processes`;
+        : `/api/nodes/${selectedAgent}/processes`;
       
       const response = await axios.get(url, {
         headers: { Authorization: `Bearer ${token}` }
@@ -64,7 +64,7 @@ function ProcessManager({ socket }) {
 
     try {
       const token = localStorage.getItem('token');
-      await axios.post(`/api/agents/${agentId}/processes/${pid}/kill`, {}, {
+      await axios.post(`/api/nodes/${agentId}/processes/${pid}/kill`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       fetchProcesses();
