@@ -21,10 +21,17 @@ axios.interceptors.request.use(
 axios.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    // Don't redirect on 401 for auth verification endpoint
+    // Let the component handle it
+    const isAuthVerify = error.config?.url?.includes('/api/auth/verify');
+    const isLoginRequest = error.config?.url?.includes('/api/auth/login');
+    
+    if (error.response?.status === 401 && !isAuthVerify && !isLoginRequest) {
       // Token is invalid or expired
       localStorage.removeItem('token');
-      window.location.href = '/login';
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }

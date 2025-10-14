@@ -20,56 +20,71 @@ function ProtectedRoute({ children }) {
   return isAuthenticated ? children : <Navigate to="/login" />;
 }
 
-function App() {
+function AppContent() {
   const [socket, setSocket] = useState(null);
+  const { isAuthenticated } = useAuth();
 
   useEffect(() => {
-    // Initialize socket connection
-    const token = localStorage.getItem('token');
-    if (token) {
-      const socketInstance = io(window.location.origin, {
-        path: '/socket.io',
-        transports: ['websocket', 'polling'],
-        auth: {
-          token
-        }
-      });
+    // Initialize socket connection when authenticated
+    if (isAuthenticated) {
+      const token = localStorage.getItem('token');
+      if (token) {
+        const socketInstance = io(window.location.origin, {
+          path: '/socket.io',
+          transports: ['websocket', 'polling'],
+          auth: {
+            token
+          }
+        });
 
-      socketInstance.on('connect', () => {
-        console.log('Connected to Nexus server');
-      });
+        socketInstance.on('connect', () => {
+          console.log('Connected to Nexus server');
+        });
 
-      socketInstance.on('disconnect', () => {
-        console.log('Disconnected from server');
-      });
+        socketInstance.on('disconnect', () => {
+          console.log('Disconnected from server');
+        });
 
-      socketInstance.on('connect_error', (error) => {
-        console.error('Connection error:', error);
-      });
+        socketInstance.on('connect_error', (error) => {
+          console.error('Connection error:', error);
+        });
 
-      setSocket(socketInstance);
+        setSocket(socketInstance);
 
-      return () => {
-        socketInstance.disconnect();
-      };
+        return () => {
+          socketInstance.disconnect();
+        };
+      }
+    } else {
+      // Disconnect socket when not authenticated
+      if (socket) {
+        socket.disconnect();
+        setSocket(null);
+      }
     }
-  }, []);
+  }, [isAuthenticated]);
 
   return (
+    <Router>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route 
+          path="/*" 
+          element={
+            <ProtectedRoute>
+              <Dashboard socket={socket} />
+            </ProtectedRoute>
+          } 
+        />
+      </Routes>
+    </Router>
+  );
+}
+
+function App() {
+  return (
     <AuthProvider>
-      <Router>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route 
-            path="/*" 
-            element={
-              <ProtectedRoute>
-                <Dashboard socket={socket} />
-              </ProtectedRoute>
-            } 
-          />
-        </Routes>
-      </Router>
+      <AppContent />
     </AuthProvider>
   );
 }
