@@ -262,7 +262,7 @@ class ServerMode {
       }
 
       try {
-        const decoded = jwt.verify(token, config.get('jwt.secret', 'nexus-secret-key'));
+        const decoded = jwt.verify(token, config.get('server.jwtSecret', 'nexus-secret-key'));
         socket.user = decoded;
         next();
       } catch (error) {
