@@ -10,8 +10,8 @@ const users = [
   {
     id: 1,
     username: 'admin',
-    // Default password: 'admin123' - hashed
-    password: '$2b$10$rQ8YzW7vQ9LqE1YqN5p4.OXE9BqLqH0mY7lK2vN.qZ8L0xP1Y2XnC'
+    // Default password: 'admin123' - hashed with bcrypt
+    password: '$2b$10$WgryAySWn0L4KAMvwYjRcORJS8VmNuPf2HDBFv2PL.cgqoUqvHPnG'
   }
 ];
 
