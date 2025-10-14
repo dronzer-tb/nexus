@@ -47,6 +47,13 @@ function Overview({ socket }) {
 
   const fetchAgents = async () => {
     try {
+      // Debug: Log token and auth state before fetch
+      console.log('DASHBOARD: About to fetch agents', {
+        hasToken: !!localStorage.getItem('token'),
+        tokenLength: localStorage.getItem('token')?.length,
+        axiosDefaultHeaders: axios.defaults.headers.common['Authorization']
+      });
+      
       const response = await axios.get('/api/agents');
       setAgents(response.data);
       updateStats(response.data);
