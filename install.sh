@@ -151,10 +151,46 @@ generate_config() {
     if [ ! -f "config/config.json" ]; then
         if [ -f "config/config.default.json" ]; then
             cp config/config.default.json config/config.json
-            print_success "Configuration file created"
+            
+            # Generate random JWT secret
+            JWT_SECRET=$(node -e "console.log(require('crypto').randomBytes(64).toString('hex'))")
+            
+            # Update JWT secret in config
+            if command_exists node; then
+                node -e "
+                const fs = require('fs');
+                const config = JSON.parse(fs.readFileSync('config/config.json', 'utf8'));
+                config.server.jwtSecret = '$JWT_SECRET';
+                fs.writeFileSync('config/config.json', JSON.stringify(config, null, 2));
+                " 2>/dev/null
+            fi
+            
+            print_success "Configuration file created with secure JWT secret"
         fi
     else
         print_warning "Configuration file already exists, skipping..."
+    fi
+}
+
+# Setup admin account
+setup_admin() {
+    if [ "$NEEDS_DASHBOARD" = true ]; then
+        # Check if admin account already exists
+        if [ -f "data/admin-credentials.json" ]; then
+            print_status "Admin account already exists, skipping setup"
+            return
+        fi
+        
+        print_status "Running admin account setup..."
+        node -e "
+        const { setupAdminInteractive } = require('./src/utils/setup-admin');
+        setupAdminInteractive().catch(err => {
+          console.error('Error setting up admin:', err);
+          process.exit(1);
+        });
+        "
+    else
+        print_status "Skipping admin setup (not needed for Node mode)"
     fi
 }
 
@@ -223,6 +259,12 @@ display_summary() {
     echo -e "${GREEN}═══════════════════════════════════════════════════════${NC}"
     echo ""
     
+    # Get admin username if available
+    ADMIN_USERNAME="admin"
+    if [ -f "data/admin-credentials.json" ]; then
+        ADMIN_USERNAME=$(node -e "console.log(JSON.parse(require('fs').readFileSync('data/admin-credentials.json', 'utf8')).username)" 2>/dev/null || echo "admin")
+    fi
+    
     case $SELECTED_MODE in
         combine)
             echo -e "${CYAN}Installed for: ${YELLOW}Combine Mode${NC}"
@@ -231,7 +273,7 @@ display_summary() {
             echo -e "${CYAN}Start Command:${NC}"
             echo -e "  ${GREEN}npm run start:combine${NC}"
             echo -e "  Dashboard: ${BLUE}http://localhost:8080${NC}"
-            echo -e "  Default credentials: ${YELLOW}admin / admin123${NC}"
+            echo -e "  Admin username: ${YELLOW}${ADMIN_USERNAME}${NC}"
             ;;
         server)
             echo -e "${CYAN}Installed for: ${YELLOW}Server Mode${NC}"
@@ -240,7 +282,7 @@ display_summary() {
             echo -e "${CYAN}Start Command:${NC}"
             echo -e "  ${GREEN}npm run start:server${NC}"
             echo -e "  Dashboard: ${BLUE}http://localhost:8080${NC}"
-            echo -e "  Default credentials: ${YELLOW}admin / admin123${NC}"
+            echo -e "  Admin username: ${YELLOW}${ADMIN_USERNAME}${NC}"
             ;;
         node)
             echo -e "${CYAN}Installed for: ${YELLOW}Node Mode${NC}"
@@ -389,10 +431,14 @@ main() {
     generate_config
     echo ""
     
-    # Step 9: Display summary
+    # Step 9: Setup admin account (interactive)
+    setup_admin
+    echo ""
+    
+    # Step 10: Display summary
     display_summary
     
-    # Step 10: Prompt to start
+    # Step 11: Prompt to start
     prompt_start
 }
 

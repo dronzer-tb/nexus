@@ -4,16 +4,26 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const logger = require('../../utils/logger');
 const config = require('../../utils/config');
+const { loadAdmin, setupDefaultAdmin } = require('../../utils/setup-admin');
 
-// In-memory user store (replace with database in production)
-const users = [
-  {
+// Load admin user from file or create default
+let admin = loadAdmin();
+if (!admin) {
+  logger.warn('No admin account found, using default credentials');
+  // For backward compatibility, create default admin if none exists
+  setupDefaultAdmin().then(defaultAdmin => {
+    admin = defaultAdmin;
+  });
+  // Fallback for immediate use
+  admin = {
     id: 1,
     username: 'admin',
-    // Default password: 'admin123' - hashed with bcrypt
     password: '$2b$10$WgryAySWn0L4KAMvwYjRcORJS8VmNuPf2HDBFv2PL.cgqoUqvHPnG'
-  }
-];
+  };
+}
+
+// In-memory user store (for now, just admin)
+const users = [admin];
 
 // Login endpoint
 router.post('/login', async (req, res) => {
@@ -41,8 +51,8 @@ router.post('/login', async (req, res) => {
     // Generate JWT token
     const token = jwt.sign(
       { userId: user.id, username: user.username },
-      config.get('jwt.secret', 'nexus-secret-key'),
-      { expiresIn: config.get('jwt.expiresIn', '24h') }
+      config.get('server.jwtSecret', 'nexus-secret-key-change-in-production'),
+      { expiresIn: '24h' }
     );
 
     logger.info(`User logged in: ${username}`);
@@ -69,7 +79,7 @@ router.get('/verify', (req, res) => {
       return res.status(401).json({ message: 'No token provided' });
     }
 
-    const decoded = jwt.verify(token, config.get('jwt.secret', 'nexus-secret-key'));
+    const decoded = jwt.verify(token, config.get('server.jwtSecret', 'nexus-secret-key-change-in-production'));
 
     const user = users.find(u => u.id === decoded.userId);
     if (!user) {
@@ -108,7 +118,7 @@ router.post('/change-password', async (req, res) => {
       return res.status(400).json({ message: 'Current and new password are required' });
     }
 
-    const decoded = jwt.verify(token, config.get('jwt.secret', 'nexus-secret-key'));
+    const decoded = jwt.verify(token, config.get('server.jwtSecret', 'nexus-secret-key-change-in-production'));
     const user = users.find(u => u.id === decoded.userId);
 
     if (!user) {
