@@ -4,26 +4,23 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const logger = require('../../utils/logger');
 const config = require('../../utils/config');
-const { loadAdmin, setupDefaultAdmin } = require('../../utils/setup-admin');
+const { loadAdmin } = require('../../utils/setup-admin');
 
-// Load admin user from file or create default
-let admin = loadAdmin();
-if (!admin) {
+// Helper function to get users (loads fresh each time to support dynamic changes)
+function getUsers() {
+  const admin = loadAdmin();
+  if (admin) {
+    return [admin];
+  }
+  
+  // Fallback default admin if no file exists (backward compatibility)
   logger.warn('No admin account found, using default credentials');
-  // For backward compatibility, create default admin if none exists
-  setupDefaultAdmin().then(defaultAdmin => {
-    admin = defaultAdmin;
-  });
-  // Fallback for immediate use
-  admin = {
+  return [{
     id: 1,
     username: 'admin',
     password: '$2b$10$WgryAySWn0L4KAMvwYjRcORJS8VmNuPf2HDBFv2PL.cgqoUqvHPnG'
-  };
+  }];
 }
-
-// In-memory user store (for now, just admin)
-const users = [admin];
 
 // Login endpoint
 router.post('/login', async (req, res) => {
@@ -35,6 +32,7 @@ router.post('/login', async (req, res) => {
     }
 
     // Find user
+    const users = getUsers();
     const user = users.find(u => u.username === username);
     if (!user) {
       logger.warn(`Failed login attempt for user: ${username}`);
@@ -81,6 +79,7 @@ router.get('/verify', (req, res) => {
 
     const decoded = jwt.verify(token, config.get('server.jwtSecret', 'nexus-secret-key-change-in-production'));
 
+    const users = getUsers();
     const user = users.find(u => u.id === decoded.userId);
     if (!user) {
       return res.status(401).json({ message: 'User not found' });
@@ -119,6 +118,7 @@ router.post('/change-password', async (req, res) => {
     }
 
     const decoded = jwt.verify(token, config.get('server.jwtSecret', 'nexus-secret-key-change-in-production'));
+    const users = getUsers();
     const user = users.find(u => u.id === decoded.userId);
 
     if (!user) {
@@ -131,9 +131,13 @@ router.post('/change-password', async (req, res) => {
       return res.status(401).json({ message: 'Current password is incorrect' });
     }
 
-    // Hash new password
+    // Hash new password and save
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     user.password = hashedPassword;
+    
+    // Save updated admin credentials
+    const { saveAdmin } = require('../../utils/setup-admin');
+    saveAdmin(user);
 
     logger.info(`Password changed for user: ${user.username}`);
 
