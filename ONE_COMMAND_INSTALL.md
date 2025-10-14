@@ -2,10 +2,36 @@
 
 ## The Easiest Way to Install Nexus
 
-Just run this single command:
+### Method 1: Direct Download & Run (Recommended)
+
+```bash
+wget -qO- https://raw.githubusercontent.com/dronzer-tb/nexus/main/quick-install.sh | bash
+```
+
+Or with curl:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/dronzer-tb/nexus/main/quick-install.sh | bash
+```
+
+### Method 2: Two-Step Install (Better for Interactive Prompts)
+
+If the one-liner has issues with interactive input, use this:
+
+```bash
+# Download the installer
+curl -fsSL https://raw.githubusercontent.com/dronzer-tb/nexus/main/quick-install.sh -o /tmp/nexus-install.sh
+
+# Run it
+bash /tmp/nexus-install.sh
+```
+
+### Method 3: Manual Clone (Most Control)
+
+```bash
+git clone https://github.com/dronzer-tb/nexus.git
+cd nexus
+./install.sh
 ```
 
 ## What Happens?

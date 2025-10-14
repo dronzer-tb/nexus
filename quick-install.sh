@@ -97,7 +97,8 @@ echo ""
 
 if [ -f "install.sh" ]; then
     chmod +x install.sh
-    ./install.sh
+    # Execute with proper TTY handling
+    exec ./install.sh
 else
     print_error "install.sh not found in repository"
     exit 1

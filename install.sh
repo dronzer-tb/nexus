@@ -187,8 +187,8 @@ prompt_mode() {
     echo -e "  ${GREEN}3${NC}) ${YELLOW}Node Mode${NC} - Agent Only (No Dashboard)"
     echo -e "     ${BLUE}Runs as monitoring agent, reports to remote server${NC}"
     echo ""
-    echo -e "${YELLOW}Enter your choice [1-3]:${NC} "
-    read -r MODE_CHOICE
+    echo -en "${YELLOW}Enter your choice [1-3]:${NC} "
+    read -r MODE_CHOICE < /dev/tty
     
     case $MODE_CHOICE in
         1)
@@ -304,8 +304,8 @@ display_summary() {
 
 # Prompt to start now
 prompt_start() {
-    echo -e "${YELLOW}Would you like to start Nexus now? (y/n)${NC}"
-    read -r response
+    echo -en "${YELLOW}Would you like to start Nexus now? (y/n)${NC} "
+    read -r response < /dev/tty
     
     if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
         echo ""
