@@ -80,7 +80,7 @@ function Overview({ socket }) {
     setError('');
 
     try {
-      const response = await axios.post('/api/agents/connect', 
+      const response = await axios.post('/api/nodes/connect', 
         { name: agentName, apiKey }
       );
 

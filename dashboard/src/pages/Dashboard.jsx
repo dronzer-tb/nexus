@@ -15,8 +15,8 @@ function Dashboard({ socket }) {
       <main className="flex-1">
         <Routes>
           <Route path="/" element={<Overview socket={socket} />} />
-          <Route path="/agents" element={<AgentsList socket={socket} />} />
-          <Route path="/agents/:agentId" element={<AgentDetails socket={socket} />} />
+          <Route path="/nodes" element={<AgentsList socket={socket} />} />
+          <Route path="/nodes/:agentId" element={<AgentDetails socket={socket} />} />
           <Route path="/processes" element={<ProcessManager socket={socket} />} />
           <Route path="/console" element={<CommandConsole socket={socket} />} />
           <Route path="/logs" element={<Logs socket={socket} />} />

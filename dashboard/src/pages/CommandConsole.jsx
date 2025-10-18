@@ -56,12 +56,13 @@ function CommandConsole({ socket }) {
   const fetchAgents = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('/api/agents', {
+      const response = await axios.get('/api/nodes', {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setAgents(response.data.filter(a => a.status === 'online'));
-      if (response.data.length > 0) {
-        setSelectedAgent(response.data[0].id);
+      const nodes = response.data.nodes || [];
+      setAgents(nodes.filter(a => a.status === 'online'));
+      if (nodes.length > 0) {
+        setSelectedAgent(nodes[0].id);
       }
     } catch (error) {
       console.error('Failed to fetch agents:', error);
@@ -92,7 +93,7 @@ function CommandConsole({ socket }) {
 
     try {
       const token = localStorage.getItem('token');
-      await axios.post(`/api/agents/${selectedAgent}/execute`, 
+      await axios.post(`/api/nodes/${selectedAgent}/execute`, 
         { command },
         { headers: { Authorization: `Bearer ${token}` } }
       );

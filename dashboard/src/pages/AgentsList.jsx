@@ -33,12 +33,16 @@ function AgentsList({ socket }) {
   const fetchAgents = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('/api/agents', {
+      const response = await axios.get('/api/nodes', {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setAgents(response.data);
+      // Extract nodes array from response
+      const nodes = response.data.nodes || [];
+      setAgents(nodes);
     } catch (error) {
       console.error('Failed to fetch agents:', error);
+      // Set empty array on error to prevent .map() error
+      setAgents([]);
     } finally {
       setLoading(false);
     }
