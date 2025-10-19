@@ -1,0 +1,32 @@
+{
+  "name": "${localWorkspaceFolderBasename} with Supermemory",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:20",
+  
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  
+  "containerEnv": {
+    "SUPERMEMORY_API_KEY": "sm_Z6ntFR6tKDHsDWUpmCgRkT_mpgcCNrSZIDNaVXndMBrEUDnPUWMssCiHhKPkpfkdLDHzpWTHtyuDzoSLQIkIdXf",
+    "PROJECT_NAME": "${localWorkspaceFolderBasename}"
+  },
+  
+  "postCreateCommand": "npm install -g supermemory && bash /workspaces/${localWorkspaceFolderBasename}/.devcontainer/setup-mcp.sh",
+  
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "github.copilot.enable": {
+          "*": true
+        },
+        "terminal.integrated.defaultProfile.linux": "bash"
+      },
+      "extensions": [
+        "GitHub.copilot",
+        "GitHub.copilot-chat"
+      ]
+    }
+  },
+  
+  "remoteUser": "node"
+}
