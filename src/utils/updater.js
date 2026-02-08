@@ -245,7 +245,7 @@ async function downloadAndApply() {
 
     return {
       success: true,
-      message: `Updated to v${updateInfo.latestVersion}. Restart Nexus to apply changes.`,
+      message: `Updated to v${updateInfo.latestVersion}. Restarting...`,
       previousVersion: updateInfo.currentVersion,
       newVersion: updateInfo.latestVersion,
       requiresRestart: true,
@@ -264,6 +264,40 @@ async function downloadAndApply() {
       message: `Update failed: ${error.message}`,
     };
   }
+}
+
+/**
+ * Restart the Nexus process after an update.
+ * Tries pm2 first, then falls back to process.exit(0) to let
+ * any process manager (systemd, docker, etc.) restart us.
+ */
+function scheduleRestart() {
+  logger.info('Scheduling restart in 3 seconds...');
+  setTimeout(() => {
+    try {
+      // Try pm2 restart first
+      const pmId = process.env.pm_id;
+      if (pmId !== undefined) {
+        logger.info('Restarting via pm2...');
+        execSync(`pm2 restart ${pmId}`, { encoding: 'utf8', timeout: 10000 });
+        return;
+      }
+      // Try pm2 by process name
+      try {
+        execSync('pm2 pid nexus', { encoding: 'utf8', timeout: 5000 });
+        logger.info('Restarting via pm2 (by name)...');
+        execSync('pm2 restart nexus', { encoding: 'utf8', timeout: 10000 });
+        return;
+      } catch {
+        // pm2 not managing this process
+      }
+    } catch {
+      // pm2 not available
+    }
+    // Fallback: exit and let process manager restart us
+    logger.info('Exiting process for restart...');
+    process.exit(0);
+  }, 3000);
 }
 
 // Generate node update command (instructions to send to connected nodes)
@@ -287,6 +321,7 @@ module.exports = {
   checkForUpdate,
   getAllReleases,
   downloadAndApply,
+  scheduleRestart,
   getNodeUpdateCommand,
   GITHUB_REPO,
 };

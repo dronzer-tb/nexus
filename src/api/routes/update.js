@@ -75,6 +75,8 @@ router.post('/apply', async (req, res) => {
     updater.downloadAndApply().then(result => {
       if (result.success) {
         logger.info(`Update completed: ${result.previousVersion} → ${result.newVersion}`);
+        // Auto-restart to apply the update
+        updater.scheduleRestart();
       } else {
         logger.error(`Update failed: ${result.message}`);
       }
