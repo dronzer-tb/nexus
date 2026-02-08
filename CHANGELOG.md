@@ -51,8 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Command console
 - System logs viewing
 - Three operation modes: Node, Server, Combine
-- Docker support
-- Automated installation scripts
+- Automated setup script
 - Comprehensive documentation
 - Dark theme UI with custom animations
 - Logo and branding integration (later removed)

@@ -1,112 +1,157 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Nexus Quick Start Script
-# This script helps you get started with Nexus quickly
+# ──────────────────────────────────────────────
+#  Nexus Setup — Dronzer Studios
+# ──────────────────────────────────────────────
 
-set -e
+CYAN='\033[0;36m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+BOLD='\033[1m'
+NC='\033[0m'
 
-echo "🚀 Nexus Setup Script"
-echo "===================="
-echo ""
+REQUIRED_NODE_MAJOR=18
 
-# Function to check if command exists
-command_exists() {
-    command -v "$1" >/dev/null 2>&1
+banner() {
+  echo -e "${CYAN}"
+  echo '  ███╗   ██╗███████╗██╗  ██╗██╗   ██╗███████╗'
+  echo '  ████╗  ██║██╔════╝╚██╗██╔╝██║   ██║██╔════╝'
+  echo '  ██╔██╗ ██║█████╗   ╚███╔╝ ██║   ██║███████╗'
+  echo '  ██║╚██╗██║██╔══╝   ██╔██╗ ██║   ██║╚════██║'
+  echo '  ██║ ╚████║███████╗██╔╝ ██╗╚██████╔╝███████║'
+  echo '  ╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝'
+  echo -e "${NC}"
+  echo -e "  ${BOLD}Dronzer Studios${NC} — Setup Script"
+  echo ""
 }
 
-# Check for Node.js
-if ! command_exists node; then
-    echo "❌ Node.js is not installed. Please install Node.js 18+ first."
-    exit 1
-fi
+info()    { echo -e "  ${GREEN}✓${NC} $*"; }
+warn()    { echo -e "  ${YELLOW}!${NC} $*"; }
+fail()    { echo -e "  ${RED}✗${NC} $*"; exit 1; }
+step()    { echo -e "\n  ${CYAN}→${NC} ${BOLD}$*${NC}"; }
 
-NODE_VERSION=$(node -v | cut -d'v' -f2 | cut -d'.' -f1)
-if [ "$NODE_VERSION" -lt 18 ]; then
-    echo "❌ Node.js version 18 or higher is required. Current version: $(node -v)"
-    exit 1
-fi
+# ─── Preflight checks ────────────────────────
 
-echo "✅ Node.js $(node -v) detected"
+check_prerequisites() {
+  step "Checking prerequisites"
 
-# Check for npm
-if ! command_exists npm; then
-    echo "❌ npm is not installed."
-    exit 1
-fi
+  # Node.js
+  if ! command -v node &>/dev/null; then
+    fail "Node.js is not installed. Please install Node.js >= ${REQUIRED_NODE_MAJOR} (https://nodejs.org)"
+  fi
 
-echo "✅ npm $(npm -v) detected"
-echo ""
+  NODE_VER=$(node -v | sed 's/v//' | cut -d. -f1)
+  if [ "$NODE_VER" -lt "$REQUIRED_NODE_MAJOR" ]; then
+    fail "Node.js ${REQUIRED_NODE_MAJOR}+ required (found $(node -v))"
+  fi
+  info "Node.js $(node -v)"
 
-# Ask user what they want to do
-echo "What would you like to do?"
-echo "1) Full setup (install dependencies + build dashboard)"
-echo "2) Start in Combine mode (local monitoring)"
-echo "3) Start in Server mode (dashboard only)"
-echo "4) Start in Node mode (metrics collection only)"
-echo "5) Build Docker image"
-echo ""
-read -p "Enter your choice (1-5): " choice
+  # npm
+  if ! command -v npm &>/dev/null; then
+    fail "npm is not installed"
+  fi
+  info "npm $(npm -v)"
+}
 
-case $choice in
-    1)
-        echo ""
-        echo "📦 Installing backend dependencies..."
-        npm install
-        
-        echo ""
-        echo "📦 Installing frontend dependencies..."
-        cd dashboard && npm install && cd ..
-        
-        echo ""
-        echo "🏗️  Building dashboard..."
-        npm run build:dashboard
-        
-        echo ""
-        echo "✅ Setup complete!"
-        echo ""
-        echo "You can now start Nexus with:"
-        echo "  npm run start:combine  (local monitoring)"
-        echo "  npm run start:server   (dashboard only)"
-        echo "  npm run start:node     (metrics only)"
-        ;;
-    
-    2)
-        echo ""
-        echo "🚀 Starting Nexus in Combine mode..."
-        npm run start:combine
-        ;;
-    
-    3)
-        echo ""
-        echo "🚀 Starting Nexus in Server mode..."
-        npm run start:server
-        ;;
-    
-    4)
-        echo ""
-        echo "🚀 Starting Nexus in Node mode..."
-        npm run start:node
-        ;;
-    
-    5)
-        if ! command_exists docker; then
-            echo "❌ Docker is not installed."
-            exit 1
-        fi
-        
-        echo ""
-        echo "🐳 Building Docker image..."
-        docker build -t dronzer/nexus .
-        
-        echo ""
-        echo "✅ Docker image built successfully!"
-        echo ""
-        echo "You can now run with:"
-        echo "  docker run -d -p 8080:8080 dronzer/nexus --mode=combine"
-        ;;
-    
-    *)
-        echo "Invalid choice"
-        exit 1
-        ;;
-esac
+# ─── Install dependencies ────────────────────
+
+install_deps() {
+  step "Installing backend dependencies"
+  npm install --loglevel=warn
+  info "Backend dependencies installed"
+
+  step "Installing dashboard dependencies"
+  (cd dashboard && npm install --loglevel=warn)
+  info "Dashboard dependencies installed"
+}
+
+# ─── Build dashboard ─────────────────────────
+
+build_dashboard() {
+  step "Building dashboard"
+  (cd dashboard && npm run build)
+  info "Dashboard built successfully"
+}
+
+# ─── Configuration ────────────────────────────
+
+setup_config() {
+  step "Setting up configuration"
+
+  if [ -f config/config.json ]; then
+    info "Config file already exists — keeping current settings"
+  else
+    cp config/config.default.json config/config.json
+    info "Created config/config.json from defaults"
+  fi
+
+  # Ensure data directory
+  mkdir -p data
+  info "Data directory ready"
+}
+
+# ─── Mode selection ──────────────────────────
+
+select_mode() {
+  echo ""
+  echo -e "  ${BOLD}Select a startup mode:${NC}"
+  echo ""
+  echo "    1) ${BOLD}combine${NC}  — Server + local monitoring (recommended)"
+  echo "    2) ${BOLD}server${NC}   — Dashboard & API only"
+  echo "    3) ${BOLD}node${NC}     — Metrics reporter only"
+  echo "    4) ${BOLD}skip${NC}     — Don't start now"
+  echo ""
+
+  while true; do
+    read -rp "  Choice [1-4]: " choice
+    case "$choice" in
+      1) MODE="combine"; break ;;
+      2) MODE="server";  break ;;
+      3) MODE="node";    break ;;
+      4) MODE="skip";    break ;;
+      *) warn "Enter 1, 2, 3, or 4" ;;
+    esac
+  done
+}
+
+# ─── Start Nexus ─────────────────────────────
+
+start_nexus() {
+  if [ "$MODE" = "skip" ]; then
+    echo ""
+    echo -e "  ${GREEN}Setup complete!${NC} Start Nexus later with:"
+    echo ""
+    echo "    npm run start:combine   # Server + local monitoring"
+    echo "    npm run start:server    # Server only"
+    echo "    npm run start:node      # Node reporter only"
+    echo "    npm run dev             # Development mode"
+    echo ""
+    return
+  fi
+
+  echo ""
+  info "Starting Nexus in ${BOLD}${MODE}${NC} mode..."
+  echo ""
+  echo -e "  ${YELLOW}Dashboard:${NC}  http://localhost:8080"
+  echo -e "  ${YELLOW}Login:${NC}      admin / admin123"
+  echo -e "  ${YELLOW}Stop:${NC}       Ctrl+C"
+  echo ""
+
+  exec node src/index.js "--mode=${MODE}"
+}
+
+# ─── Main ─────────────────────────────────────
+
+main() {
+  banner
+  check_prerequisites
+  install_deps
+  build_dashboard
+  setup_config
+  select_mode
+  start_nexus
+}
+
+main "$@"

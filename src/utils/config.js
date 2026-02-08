@@ -42,7 +42,7 @@ class Config {
     }
   }
 
-  get(key) {
+  get(key, defaultValue = undefined) {
     if (!this.config) {
       this.load();
     }
@@ -54,7 +54,7 @@ class Config {
       if (value && typeof value === 'object' && k in value) {
         value = value[k];
       } else {
-        return undefined;
+        return defaultValue;
       }
     }
 

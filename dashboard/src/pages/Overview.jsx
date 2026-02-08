@@ -23,24 +23,15 @@ function Overview({ socket }) {
     fetchAgents();
 
     if (socket) {
-      socket.on('agents:update', (updatedAgents) => {
-        setAgents(updatedAgents);
-        updateStats(updatedAgents);
-      });
-
-      socket.on('agent:status', ({ agentId, status }) => {
-        setAgents(prevAgents =>
-          prevAgents.map(agent =>
-            agent.id === agentId ? { ...agent, status } : agent
-          )
-        );
+      socket.on('nodes:update', (updatedNodes) => {
+        setAgents(updatedNodes);
+        updateStats(updatedNodes);
       });
     }
 
     return () => {
       if (socket) {
-        socket.off('agents:update');
-        socket.off('agent:status');
+        socket.off('nodes:update');
       }
     };
   }, [socket, isAuthenticated]);
@@ -80,7 +71,7 @@ function Overview({ socket }) {
     setError('');
 
     try {
-      const response = await axios.post('/api/nodes/connect', 
+      const response = await axios.post('/api/agents/connect', 
         { name: agentName, apiKey }
       );
 

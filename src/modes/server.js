@@ -13,6 +13,7 @@ const database = require('../utils/database');
 const authRouter = require('../api/routes/auth');
 const agentsRouter = require('../api/routes/agents');
 const nodesRouter = require('../api/routes/nodes');
+const metricsRouter = require('../api/routes/metrics');
 const processesRouter = require('../api/routes/processes');
 const commandsRouter = require('../api/routes/commands');
 const logsRouter = require('../api/routes/logs');
@@ -91,6 +92,7 @@ class ServerMode {
     this.app.use('/api/auth', authRouter);
     this.app.use('/api/agents', agentsRouter);
     this.app.use('/api/nodes', nodesRouter);
+    this.app.use('/api/metrics', metricsRouter);
     this.app.use('/api/processes', processesRouter);
     this.app.use('/api/commands', commandsRouter);
     this.app.use('/api/logs', logsRouter);
@@ -294,18 +296,49 @@ class ServerMode {
   }
 
   setupMetricsBroadcast() {
-    // Broadcast metrics periodically
+    // Broadcast database node data with metrics periodically
     setInterval(() => {
-      const agentsList = Array.from(this.agents.values()).map(a => ({
-        id: a.id,
-        hostname: a.hostname,
-        ip: a.ip,
-        status: a.status,
-        metrics: a.metrics,
-        lastSeen: a.lastSeen
-      }));
+      try {
+        const nodes = database.getAllNodes();
+        const now = Date.now();
+        const offlineThreshold = 30000;
 
-      this.io.emit('agents:update', agentsList);
+        const nodesWithMetrics = nodes.map(node => {
+          if (node.last_seen && (now - node.last_seen) > offlineThreshold) {
+            if (node.status !== 'offline') {
+              database.updateNodeStatus(node.id, 'offline');
+              node.status = 'offline';
+            }
+          }
+
+          const latestMetrics = database.getLatestMetrics(node.id, 1);
+          const metricsData = latestMetrics.length > 0 ? latestMetrics[0].data : null;
+
+          return {
+            id: node.id,
+            hostname: node.hostname,
+            status: node.status,
+            last_seen: node.last_seen,
+            system_info: node.system_info,
+            metrics: metricsData ? {
+              cpu: metricsData.cpu?.usage || 0,
+              memory: metricsData.memory?.usagePercent || 0,
+              memoryUsed: metricsData.memory?.used ? (metricsData.memory.used / 1073741824).toFixed(1) : '0',
+              memoryTotal: metricsData.memory?.total ? (metricsData.memory.total / 1073741824).toFixed(1) : '0',
+              swap: metricsData.swap?.usagePercent || 0,
+              disk: metricsData.disk && metricsData.disk.length > 0 ? metricsData.disk[0].usagePercent : 0,
+              diskUsed: metricsData.disk && metricsData.disk.length > 0 ? (metricsData.disk[0].used / 1073741824).toFixed(1) : '0',
+              diskTotal: metricsData.disk && metricsData.disk.length > 0 ? (metricsData.disk[0].size / 1073741824).toFixed(1) : '0',
+              processes: metricsData.processes || {},
+              timestamp: metricsData.timestamp
+            } : null
+          };
+        });
+
+        this.io.emit('nodes:update', nodesWithMetrics);
+      } catch (error) {
+        logger.error('Error broadcasting node metrics:', error);
+      }
     }, 5000);
   }
 

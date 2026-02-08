@@ -61,7 +61,7 @@ function CommandConsole({ socket }) {
       });
       const nodes = response.data.nodes || [];
       setAgents(nodes.filter(a => a.status === 'online'));
-      if (nodes.length > 0) {
+      if (nodes.length > 0 && !selectedAgent) {
         setSelectedAgent(nodes[0].id);
       }
     } catch (error) {

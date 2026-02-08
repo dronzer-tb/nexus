@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import axios from 'axios';
 
 function AgentsList({ socket }) {
@@ -9,23 +10,14 @@ function AgentsList({ socket }) {
     fetchAgents();
 
     if (socket) {
-      socket.on('agents:update', (updatedAgents) => {
-        setAgents(updatedAgents);
-      });
-
-      socket.on('agent:metrics', ({ agentId, metrics }) => {
-        setAgents(prevAgents =>
-          prevAgents.map(agent =>
-            agent.id === agentId ? { ...agent, metrics } : agent
-          )
-        );
+      socket.on('nodes:update', (updatedNodes) => {
+        setAgents(updatedNodes);
       });
     }
 
     return () => {
       if (socket) {
-        socket.off('agents:update');
-        socket.off('agent:metrics');
+        socket.off('nodes:update');
       }
     };
   }, [socket]);
@@ -51,8 +43,8 @@ function AgentsList({ socket }) {
   return (
     <div className="flex-1 flex flex-col">
       <header className="p-6">
-        <h2 className="text-3xl font-bold text-white">Agents List</h2>
-        <p className="text-white/60">Monitor and manage all connected agents</p>
+        <h2 className="text-3xl font-bold text-white">Nodes List</h2>
+        <p className="text-white/60">Monitor and manage all connected nodes</p>
       </header>
       
       <div className="flex-1 p-6 overflow-y-auto">
@@ -62,10 +54,10 @@ function AgentsList({ socket }) {
               <thead className="text-xs text-gray-400 uppercase bg-primary/10">
                 <tr>
                   <th scope="col" className="px-6 py-3">Hostname</th>
-                  <th scope="col" className="px-6 py-3">IP Address</th>
+                  <th scope="col" className="px-6 py-3">OS</th>
                   <th scope="col" className="px-6 py-3">CPU %</th>
                   <th scope="col" className="px-6 py-3">RAM %</th>
-                  <th scope="col" className="px-6 py-3">Network</th>
+                  <th scope="col" className="px-6 py-3">Disk %</th>
                   <th scope="col" className="px-6 py-3 text-center">Status</th>
                   <th scope="col" className="px-6 py-3 text-center">Actions</th>
                 </tr>
@@ -74,13 +66,13 @@ function AgentsList({ socket }) {
                 {loading ? (
                   <tr>
                     <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
-                      Loading agents...
+                      Loading nodes...
                     </td>
                   </tr>
                 ) : agents.length === 0 ? (
                   <tr>
                     <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
-                      No agents connected
+                      No nodes connected
                     </td>
                   </tr>
                 ) : (
@@ -89,7 +81,9 @@ function AgentsList({ socket }) {
                       <td className="px-6 py-4 font-medium text-white whitespace-nowrap">
                         {agent.hostname || agent.id}
                       </td>
-                      <td className="px-6 py-4">{agent.ip || 'N/A'}</td>
+                      <td className="px-6 py-4 text-white/60">
+                        {agent.system_info?.os?.distro || 'N/A'}
+                      </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
                           <div className="w-24 h-2 rounded-full bg-primary/20">
@@ -101,7 +95,7 @@ function AgentsList({ socket }) {
                               }}
                             ></div>
                           </div>
-                          <span>{agent.metrics?.cpu?.toFixed(0) || 0}%</span>
+                          <span>{(agent.metrics?.cpu || 0).toFixed(0)}%</span>
                         </div>
                       </td>
                       <td className="px-6 py-4">
@@ -115,11 +109,22 @@ function AgentsList({ socket }) {
                               }}
                             ></div>
                           </div>
-                          <span>{agent.metrics?.memory?.toFixed(0) || 0}%</span>
+                          <span>{(agent.metrics?.memory || 0).toFixed(0)}%</span>
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        {agent.metrics?.network ? `${(agent.metrics.network / 1024 / 1024).toFixed(0)} Mbps` : 'N/A'}
+                        <div className="flex items-center gap-2">
+                          <div className="w-24 h-2 rounded-full bg-primary/20">
+                            <div
+                              className="h-2 rounded-full bg-primary"
+                              style={{ 
+                                width: `${agent.metrics?.disk || 0}%`,
+                                boxShadow: '0 0 5px rgba(13, 139, 242, 0.7)'
+                              }}
+                            ></div>
+                          </div>
+                          <span>{(agent.metrics?.disk || 0).toFixed(0)}%</span>
+                        </div>
                       </td>
                       <td className="px-6 py-4 text-center">
                         {agent.status === 'online' ? (
@@ -135,12 +140,12 @@ function AgentsList({ socket }) {
                         )}
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <a
-                          href={`/agents/${agent.id}`}
+                        <Link
+                          to={`/nodes/${agent.id}`}
                           className="text-primary hover:text-primary/80 font-medium transition-colors"
                         >
                           View Details
-                        </a>
+                        </Link>
                       </td>
                     </tr>
                   ))

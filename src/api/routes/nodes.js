@@ -93,19 +93,36 @@ router.get('/', (req, res) => {
       }
     });
 
-    // Remove sensitive data
-    const sanitizedNodes = nodes.map(node => ({
-      id: node.id,
-      hostname: node.hostname,
-      status: node.status,
-      last_seen: node.last_seen,
-      created_at: node.created_at,
-      system_info: node.system_info
-    }));
+    // Include latest metrics for each node
+    const nodesWithMetrics = nodes.map(node => {
+      const latestMetrics = database.getLatestMetrics(node.id, 1);
+      const metricsData = latestMetrics.length > 0 ? latestMetrics[0].data : null;
+
+      return {
+        id: node.id,
+        hostname: node.hostname,
+        status: node.status,
+        last_seen: node.last_seen,
+        created_at: node.created_at,
+        system_info: node.system_info,
+        metrics: metricsData ? {
+          cpu: metricsData.cpu?.usage || 0,
+          memory: metricsData.memory?.usagePercent || 0,
+          memoryUsed: metricsData.memory?.used ? (metricsData.memory.used / 1073741824).toFixed(1) : '0',
+          memoryTotal: metricsData.memory?.total ? (metricsData.memory.total / 1073741824).toFixed(1) : '0',
+          swap: metricsData.swap?.usagePercent || 0,
+          disk: metricsData.disk && metricsData.disk.length > 0 ? metricsData.disk[0].usagePercent : 0,
+          diskUsed: metricsData.disk && metricsData.disk.length > 0 ? (metricsData.disk[0].used / 1073741824).toFixed(1) : '0',
+          diskTotal: metricsData.disk && metricsData.disk.length > 0 ? (metricsData.disk[0].size / 1073741824).toFixed(1) : '0',
+          processes: metricsData.processes || {},
+          timestamp: metricsData.timestamp
+        } : null
+      };
+    });
 
     res.json({
       success: true,
-      nodes: sanitizedNodes
+      nodes: nodesWithMetrics
     });
   } catch (error) {
     logger.error('Error fetching nodes:', error);

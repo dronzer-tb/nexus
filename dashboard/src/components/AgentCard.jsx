@@ -5,7 +5,7 @@ function AgentCard({ agent }) {
 
   return (
     <Link
-      to={`/agents/${agent.id}`}
+      to={`/nodes/${agent.id}`}
       className="bg-background-dark/70 p-6 rounded-xl border border-primary/20 backdrop-blur-sm transform hover:scale-[1.02] transition-transform duration-300 flex flex-col"
     >
       <div className="flex justify-between items-start mb-4">
