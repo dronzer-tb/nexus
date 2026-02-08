@@ -97,6 +97,23 @@ class DatabaseManager {
         updated_at INTEGER DEFAULT (strftime('%s', 'now'))
       )
     `);
+
+    // Users table for multi-user support
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL UNIQUE,
+        password TEXT NOT NULL,
+        role TEXT DEFAULT 'viewer',
+        must_change_password INTEGER DEFAULT 0,
+        created_at INTEGER DEFAULT (strftime('%s', 'now')),
+        updated_at INTEGER DEFAULT (strftime('%s', 'now'))
+      )
+    `);
+
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+    `);
   }
 
   // Node operations
@@ -290,6 +307,67 @@ class DatabaseManager {
   updateApiKeyLastUsed(keyId) {
     const stmt = this.db.prepare('UPDATE api_keys SET last_used = ? WHERE id = ?');
     return stmt.run(Date.now(), keyId);
+  }
+
+  // User operations
+  createUser(userData) {
+    const stmt = this.db.prepare(`
+      INSERT INTO users (username, password, role, must_change_password)
+      VALUES (?, ?, ?, ?)
+    `);
+    return stmt.run(
+      userData.username,
+      userData.password,
+      userData.role || 'viewer',
+      userData.mustChangePassword ? 1 : 0
+    );
+  }
+
+  getUserByUsername(username) {
+    const stmt = this.db.prepare('SELECT * FROM users WHERE username = ?');
+    return stmt.get(username);
+  }
+
+  getUserById(id) {
+    const stmt = this.db.prepare('SELECT * FROM users WHERE id = ?');
+    return stmt.get(id);
+  }
+
+  getAllUsers() {
+    const stmt = this.db.prepare('SELECT id, username, role, must_change_password, created_at, updated_at FROM users ORDER BY created_at DESC');
+    return stmt.all();
+  }
+
+  updateUser(id, userData) {
+    const fields = [];
+    const values = [];
+
+    if (userData.password) {
+      fields.push('password = ?');
+      values.push(userData.password);
+    }
+    if (userData.role) {
+      fields.push('role = ?');
+      values.push(userData.role);
+    }
+    if (typeof userData.mustChangePassword !== 'undefined') {
+      fields.push('must_change_password = ?');
+      values.push(userData.mustChangePassword ? 1 : 0);
+    }
+
+    if (fields.length === 0) return null;
+
+    fields.push('updated_at = ?');
+    values.push(Date.now());
+    values.push(id);
+
+    const stmt = this.db.prepare(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`);
+    return stmt.run(...values);
+  }
+
+  deleteUser(id) {
+    const stmt = this.db.prepare('DELETE FROM users WHERE id = ?');
+    return stmt.run(id);
   }
 
   close() {

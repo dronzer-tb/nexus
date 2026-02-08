@@ -3,12 +3,13 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import io from 'socket.io-client';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import ForcePasswordChange from './components/ForcePasswordChange';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 
 // Protected Route Component
 function ProtectedRoute({ children }) {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, mustChangePassword } = useAuth();
 
   if (loading) {
     return (
@@ -20,7 +21,14 @@ function ProtectedRoute({ children }) {
     );
   }
 
-  return isAuthenticated ? children : <Navigate to="/login" />;
+  if (!isAuthenticated) return <Navigate to="/login" />;
+
+  // Force password change before allowing access
+  if (mustChangePassword) {
+    return <ForcePasswordChange />;
+  }
+
+  return children;
 }
 
 function AppContent() {

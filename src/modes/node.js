@@ -6,6 +6,7 @@ const logger = require('../utils/logger');
 const config = require('../utils/config');
 const metrics = require('../utils/metrics');
 const auth = require('../utils/auth');
+const encryption = require('../utils/encryption');
 
 class NodeMode {
   constructor() {
@@ -82,13 +83,23 @@ class NodeMode {
       const systemInfo = await metrics.getSystemInfo();
       const hostname = config.get('node.hostname') || os.hostname();
 
+      let body = {
+        nodeId: this.nodeId,
+        hostname: hostname,
+        systemInfo: systemInfo
+      };
+
+      // Encrypt payload if encryption is enabled
+      if (encryption.isEnabled()) {
+        body = {
+          encrypted: true,
+          data: encryption.encrypt(body, this.apiKey)
+        };
+      }
+
       const response = await axios.post(
         `${this.serverUrl}/api/nodes/register`,
-        {
-          nodeId: this.nodeId,
-          hostname: hostname,
-          systemInfo: systemInfo
-        },
+        body,
         {
           headers: {
             'X-API-Key': this.apiKey,
@@ -114,12 +125,22 @@ class NodeMode {
     try {
       const metricsData = await metrics.getAllMetrics();
 
+      let body = {
+        nodeId: this.nodeId,
+        metrics: metricsData
+      };
+
+      // Encrypt payload if encryption is enabled
+      if (encryption.isEnabled()) {
+        body = {
+          encrypted: true,
+          data: encryption.encrypt(body, this.apiKey)
+        };
+      }
+
       const response = await axios.post(
         `${this.serverUrl}/api/metrics`,
-        {
-          nodeId: this.nodeId,
-          metrics: metricsData
-        },
+        body,
         {
           headers: {
             'X-API-Key': this.apiKey,

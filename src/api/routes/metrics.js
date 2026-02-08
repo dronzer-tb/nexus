@@ -3,6 +3,7 @@ const database = require('../../utils/database');
 const auth = require('../../utils/auth');
 const authenticate = require('../../middleware/auth');
 const logger = require('../../utils/logger');
+const encryption = require('../../utils/encryption');
 
 const router = express.Router();
 
@@ -10,7 +11,19 @@ const router = express.Router();
 router.post('/', (req, res) => {
   try {
     const apiKey = req.headers['x-api-key'];
-    const { nodeId, metrics } = req.body;
+
+    // Decrypt if encrypted
+    let body = req.body;
+    if (body && body.encrypted === true && body.data && apiKey) {
+      try {
+        body = encryption.decrypt(body.data, apiKey);
+      } catch (decErr) {
+        logger.warn(`Metrics decryption failed from ${req.ip}: ${decErr.message}`);
+        return res.status(400).json({ success: false, error: 'Failed to decrypt metrics data' });
+      }
+    }
+
+    const { nodeId, metrics } = body;
 
     if (!apiKey || !nodeId || !metrics) {
       return res.status(400).json({
@@ -72,10 +85,25 @@ router.get('/:nodeId/latest', authenticate, (req, res) => {
 
     const metrics = database.getLatestMetrics(nodeId, limit);
 
-    res.json({
+    const responseData = {
       success: true,
       metrics: metrics
-    });
+    };
+
+    // Encrypt response for API-key authenticated requests
+    const apiKey = req.headers['x-api-key'];
+    if (apiKey && encryption.isEnabled()) {
+      try {
+        return res.json({
+          encrypted: true,
+          data: encryption.encrypt(responseData, apiKey)
+        });
+      } catch {
+        // Fallback to unencrypted
+      }
+    }
+
+    res.json(responseData);
   } catch (error) {
     logger.error('Error fetching metrics:', error);
     res.status(500).json({

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Palette, Save, Trash2, Check, RotateCcw, Key, Copy, Plus, Shield, Eye, EyeOff, Download, RefreshCw, ArrowUpCircle, Server, Send, Loader2, ExternalLink, AlertTriangle } from 'lucide-react';
+import { Palette, Save, Trash2, Check, RotateCcw, Key, Copy, Plus, Shield, Eye, EyeOff, Download, RefreshCw, ArrowUpCircle, Server, Send, Loader2, ExternalLink, AlertTriangle, Users, UserPlus } from 'lucide-react';
 import { useTheme, BUILT_IN_PRESETS, COLOR_LABELS, luminance } from '../context/ThemeContext';
 import axios from 'axios';
 
@@ -572,6 +572,201 @@ function ApiKeyManager({ showFeedback }) {
   );
 }
 
+/* ─── User Manager Component ─── */
+function UserManager({ showFeedback }) {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [newUser, setNewUser] = useState({ username: '', password: '', role: 'viewer' });
+
+  const fetchUsers = useCallback(async () => {
+    try {
+      const res = await axios.get('/api/auth/users');
+      setUsers(res.data.users || []);
+    } catch (err) {
+      console.error('Failed to fetch users:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+
+  const handleCreate = async () => {
+    if (!newUser.username.trim() || !newUser.password.trim()) return;
+    try {
+      await axios.post('/api/auth/users', newUser);
+      showFeedback(`User '${newUser.username}' created!`);
+      setNewUser({ username: '', password: '', role: 'viewer' });
+      setShowCreate(false);
+      fetchUsers();
+    } catch (err) {
+      showFeedback(err.response?.data?.message || 'Failed to create user');
+    }
+  };
+
+  const handleDelete = async (userId, username) => {
+    if (!confirm(`Delete user '${username}'? This cannot be undone.`)) return;
+    try {
+      await axios.delete(`/api/auth/users/${userId}`);
+      showFeedback(`User '${username}' deleted`);
+      fetchUsers();
+    } catch (err) {
+      showFeedback(err.response?.data?.message || 'Failed to delete user');
+    }
+  };
+
+  const roleBadge = (role) => {
+    const isAdmin = role === 'admin';
+    return (
+      <span className={`px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider border ${
+        isAdmin
+          ? 'border-neon-pink/40 text-neon-pink/80 bg-neon-pink/5'
+          : 'border-neon-cyan/30 text-neon-cyan/60'
+      }`}>
+        {role}
+      </span>
+    );
+  };
+
+  return (
+    <section className="mb-12 border-[3px] border-neon-purple/20 bg-brutal-card shadow-brutal p-6">
+      <header className="mb-6 border-b-[3px] border-neon-purple/20 pb-4">
+        <div className="flex items-center gap-3">
+          <Users className="w-6 h-6 text-neon-purple" />
+          <div>
+            <h2 className="text-xl font-black uppercase tracking-tight">
+              <span className="text-tx">User</span>{' '}
+              <span className="text-neon-purple" style={{ textShadow: '0 0 25px var(--neon-purple)' }}>
+                Management
+              </span>
+            </h2>
+            <div className="font-mono text-[10px] text-tx/30 mt-1 tracking-wider uppercase">
+              Create and manage dashboard user accounts
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Create button */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="font-mono text-[10px] text-tx/30 tracking-wider uppercase">
+          {loading ? 'Loading...' : `${users.length} user${users.length !== 1 ? 's' : ''}`}
+        </div>
+        <button
+          onClick={() => setShowCreate(!showCreate)}
+          className="flex items-center gap-2 px-4 py-2 border-2 border-neon-purple/40 text-neon-purple font-bold uppercase text-[10px] tracking-widest hover:bg-neon-purple transition-all shadow-brutal-sm hover:shadow-none hover:translate-x-[3px] hover:translate-y-[3px]"
+          onMouseEnter={(e) => e.currentTarget.style.color = '#fff'}
+          onMouseLeave={(e) => e.currentTarget.style.color = ''}
+        >
+          <UserPlus className="w-3.5 h-3.5" />
+          New User
+        </button>
+      </div>
+
+      {/* Create form */}
+      <AnimatePresence>
+        {showCreate && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="mb-4 overflow-hidden"
+          >
+            <div className="border-[3px] border-neon-purple/20 bg-brutal-card p-4 space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <div className="text-[9px] font-bold uppercase tracking-widest text-tx/30 mb-1">Username</div>
+                  <input
+                    type="text"
+                    value={newUser.username}
+                    onChange={(e) => setNewUser(prev => ({ ...prev, username: e.target.value }))}
+                    placeholder="min 3 chars"
+                    className="w-full bg-brutal-bg border-2 border-tx/10 px-3 py-2 font-mono text-sm text-tx focus:border-neon-purple/40 focus:outline-none transition-colors"
+                    maxLength={32}
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <div className="text-[9px] font-bold uppercase tracking-widest text-tx/30 mb-1">Password</div>
+                  <input
+                    type="password"
+                    value={newUser.password}
+                    onChange={(e) => setNewUser(prev => ({ ...prev, password: e.target.value }))}
+                    placeholder="min 8 chars"
+                    className="w-full bg-brutal-bg border-2 border-tx/10 px-3 py-2 font-mono text-sm text-tx focus:border-neon-purple/40 focus:outline-none transition-colors"
+                  />
+                </div>
+                <div>
+                  <div className="text-[9px] font-bold uppercase tracking-widest text-tx/30 mb-1">Role</div>
+                  <select
+                    value={newUser.role}
+                    onChange={(e) => setNewUser(prev => ({ ...prev, role: e.target.value }))}
+                    className="w-full bg-brutal-bg border-2 border-tx/10 px-3 py-2 font-mono text-sm text-tx focus:border-neon-purple/40 focus:outline-none transition-colors"
+                  >
+                    <option value="viewer">Viewer</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <button
+                  onClick={handleCreate}
+                  disabled={!newUser.username.trim() || newUser.password.length < 8}
+                  className="px-6 py-2 bg-neon-purple font-bold uppercase text-xs tracking-wider border-2 border-neon-purple hover:translate-x-[2px] hover:translate-y-[2px] shadow-brutal-sm hover:shadow-none transition-all disabled:opacity-30 disabled:cursor-not-allowed text-white"
+                >
+                  Create User
+                </button>
+              </div>
+              <div className="font-mono text-[10px] text-tx/20">
+                New users must change their password on first login.
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Users list */}
+      {users.length === 0 && !loading ? (
+        <div className="border-[3px] border-tx/5 bg-brutal-card p-8 text-center">
+          <Users className="w-8 h-8 text-tx/10 mx-auto mb-3" />
+          <div className="font-mono text-tx/20 text-sm">No users found</div>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {users.map((u) => (
+            <motion.div
+              key={u.id}
+              initial={{ opacity: 0, y: 5 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="border-[3px] border-tx/10 bg-brutal-card p-4 flex items-center gap-4 hover:border-neon-purple/20 transition-colors"
+            >
+              <div className="w-8 h-8 border-2 border-neon-purple/30 bg-neon-purple/10 flex items-center justify-center text-neon-purple font-bold text-sm uppercase">
+                {u.username.charAt(0)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-sm text-tx uppercase tracking-wider truncate">{u.username}</div>
+                <div className="font-mono text-[10px] text-tx/30 mt-0.5">
+                  {u.source === 'file' ? 'Primary Admin' : `Created ${u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—'}`}
+                </div>
+              </div>
+              {roleBadge(u.role)}
+              {u.source !== 'file' && (
+                <button
+                  onClick={() => handleDelete(u.id, u.username)}
+                  className="text-tx/20 hover:text-red-500 transition-colors p-1"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
+            </motion.div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 /* ─── Settings Page ─── */
 function Settings() {
   const {
@@ -880,6 +1075,9 @@ function Settings() {
 
       {/* ─── API Key Management ─── */}
       <ApiKeyManager showFeedback={showFeedback} />
+
+      {/* ─── User Management ─── */}
+      <UserManager showFeedback={showFeedback} />
 
       {/* Footer */}
       <div className="text-center py-4 font-mono text-[9px] text-tx/15 uppercase tracking-widest">

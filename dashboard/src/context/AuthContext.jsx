@@ -41,6 +41,7 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [mustChangePassword, setMustChangePassword] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -78,9 +79,10 @@ export function AuthProvider({ children }) {
       const response = await axios.post('/api/auth/login', { username, password });
       console.log('Login: Response received:', response.status);
       
-      const { token, user } = response.data;
+      const { token, user, mustChangePassword: mcp } = response.data;
       console.log('Login: Token received (length):', token?.length);
       console.log('Login: User received:', user);
+      console.log('Login: mustChangePassword:', mcp);
       
       // Store token in localStorage
       localStorage.setItem('token', token);
@@ -96,6 +98,7 @@ export function AuthProvider({ children }) {
       // Update state immediately without verification
       setUser(user);
       setIsAuthenticated(true);
+      setMustChangePassword(mcp === true);
       console.log('Login: State updated - isAuthenticated set to TRUE');
       
       // Give React time to update
@@ -119,10 +122,15 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('token');
     setUser(null);
     setIsAuthenticated(false);
+    setMustChangePassword(false);
+  };
+
+  const clearForcePasswordChange = () => {
+    setMustChangePassword(false);
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAuthenticated, loading }}>
+    <AuthContext.Provider value={{ user, login, logout, isAuthenticated, loading, mustChangePassword, clearForcePasswordChange }}>
       {children}
     </AuthContext.Provider>
   );

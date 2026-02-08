@@ -80,10 +80,12 @@ class ServerMode {
         const saved = saveAdmin({
           id: 1,
           username: 'admin',
-          password: hashedPassword
+          password: hashedPassword,
+          mustChangePassword: true,
+          createdAt: new Date().toISOString()
         });
         if (saved) {
-          logger.info('Default admin account created (admin / admin123)');
+          logger.info('Default admin account created (admin / admin123) — password change required on first login');
         }
       } catch (error) {
         logger.warn('Could not auto-create admin credentials:', error.message);

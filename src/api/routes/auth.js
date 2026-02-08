@@ -8,6 +8,7 @@ const auth = require('../../utils/auth');
 const database = require('../../utils/database');
 const authenticate = require('../../middleware/auth');
 const { loadAdmin } = require('../../utils/setup-admin');
+const encryption = require('../../utils/encryption');
 
 // Rate limiter: max 10 login attempts per 15 minutes per IP
 const loginLimiter = rateLimit({
@@ -22,17 +23,41 @@ const loginLimiter = rateLimit({
 // Helper function to get users (loads fresh each time to support dynamic changes)
 function getUsers() {
   const admin = loadAdmin();
-  if (admin) {
-    return [admin];
-  }
+  const users = [];
   
-  // Fallback default admin if no file exists (backward compatibility)
-  logger.warn('No admin account found, using default credentials');
-  return [{
-    id: 1,
-    username: 'admin',
-    password: '$2b$10$WgryAySWn0L4KAMvwYjRcORJS8VmNuPf2HDBFv2PL.cgqoUqvHPnG'
-  }];
+  if (admin) {
+    users.push({ ...admin, role: 'admin', source: 'file' });
+  } else {
+    // Fallback default admin if no file exists (backward compatibility)
+    logger.warn('No admin account found, using default credentials');
+    users.push({
+      id: 1,
+      username: 'admin',
+      password: '$2b$10$WgryAySWn0L4KAMvwYjRcORJS8VmNuPf2HDBFv2PL.cgqoUqvHPnG',
+      role: 'admin',
+      source: 'file'
+    });
+  }
+
+  // Also load database users
+  try {
+    const dbUsers = database.getAllUsers();
+    dbUsers.forEach(u => {
+      users.push({
+        id: `db_${u.id}`,
+        dbId: u.id,
+        username: u.username,
+        password: u.password || '',
+        role: u.role || 'viewer',
+        mustChangePassword: u.must_change_password === 1,
+        source: 'database'
+      });
+    });
+  } catch {
+    // Database may not have users table yet
+  }
+
+  return users;
 }
 
 // Login endpoint (rate-limited)
@@ -69,7 +94,8 @@ router.post('/login', loginLimiter, async (req, res) => {
       user: {
         id: user.id,
         username: user.username
-      }
+      },
+      mustChangePassword: user.mustChangePassword === true
     });
   } catch (error) {
     logger.error('Login error:', error);
@@ -147,16 +173,176 @@ router.post('/change-password', async (req, res) => {
     // Hash new password and save
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     user.password = hashedPassword;
+    user.mustChangePassword = false;
     
-    // Save updated admin credentials
-    const { saveAdmin } = require('../../utils/setup-admin');
-    saveAdmin(user);
+    // Save based on user source
+    if (user.source === 'database') {
+      database.updateUser(user.dbId, { password: hashedPassword, mustChangePassword: false });
+    } else {
+      // Save updated admin credentials
+      const { saveAdmin } = require('../../utils/setup-admin');
+      saveAdmin(user);
+    }
 
     logger.info(`Password changed for user: ${user.username}`);
 
     res.json({ message: 'Password changed successfully' });
   } catch (error) {
     logger.error('Change password error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// ─── User Management ───────────────────────────────────────────
+
+// Create a new user (JWT auth required — admin only)
+router.post('/users', authenticate, async (req, res) => {
+  try {
+    if (req.authMethod !== 'jwt') {
+      return res.status(403).json({ message: 'User management requires dashboard login' });
+    }
+
+    const { username, password, role } = req.body;
+
+    if (!username || !password) {
+      return res.status(400).json({ message: 'Username and password are required' });
+    }
+
+    if (username.length < 3 || username.length > 32) {
+      return res.status(400).json({ message: 'Username must be 3-32 characters' });
+    }
+
+    if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
+      return res.status(400).json({ message: 'Username can only contain letters, numbers, underscores and hyphens' });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({ message: 'Password must be at least 8 characters' });
+    }
+
+    const validRoles = ['admin', 'viewer'];
+    const userRole = validRoles.includes(role) ? role : 'viewer';
+
+    // Check for duplicate username (check both file admin and DB)
+    const existingUsers = getUsers();
+    if (existingUsers.some(u => u.username.toLowerCase() === username.toLowerCase())) {
+      return res.status(409).json({ message: 'Username already exists' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    database.createUser({
+      username: username.trim(),
+      password: hashedPassword,
+      role: userRole,
+      mustChangePassword: true
+    });
+
+    logger.info(`User created: ${username} (role: ${userRole})`);
+    res.json({ success: true, message: `User '${username}' created successfully` });
+  } catch (error) {
+    logger.error('Create user error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// List all users (JWT auth required)
+router.get('/users', authenticate, (req, res) => {
+  try {
+    if (req.authMethod !== 'jwt') {
+      return res.status(403).json({ message: 'User management requires dashboard login' });
+    }
+
+    const admin = loadAdmin();
+    const dbUsers = database.getAllUsers();
+
+    const users = [];
+    if (admin) {
+      users.push({
+        id: 'admin',
+        username: admin.username,
+        role: 'admin',
+        source: 'file',
+        createdAt: admin.createdAt || null
+      });
+    }
+
+    dbUsers.forEach(u => {
+      users.push({
+        id: u.id,
+        username: u.username,
+        role: u.role,
+        source: 'database',
+        createdAt: u.created_at ? new Date(u.created_at * 1000).toISOString() : null
+      });
+    });
+
+    res.json({ success: true, users });
+  } catch (error) {
+    logger.error('List users error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Delete a user (JWT auth required — cannot delete file admin)
+router.delete('/users/:userId', authenticate, (req, res) => {
+  try {
+    if (req.authMethod !== 'jwt') {
+      return res.status(403).json({ message: 'User management requires dashboard login' });
+    }
+
+    const { userId } = req.params;
+
+    if (userId === 'admin') {
+      return res.status(403).json({ message: 'Cannot delete the primary admin account' });
+    }
+
+    const parsedId = parseInt(userId);
+    if (isNaN(parsedId)) {
+      return res.status(400).json({ message: 'Invalid user ID' });
+    }
+
+    const user = database.getUserById(parsedId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    database.deleteUser(parsedId);
+    logger.info(`User deleted: ${user.username} (id: ${parsedId})`);
+
+    res.json({ success: true, message: 'User deleted' });
+  } catch (error) {
+    logger.error('Delete user error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// ─── Encryption Info ───────────────────────────────────────────
+
+// Get encryption salt (requires valid API key — used by mobile app for E2E decryption)
+router.get('/encryption-info', (req, res) => {
+  try {
+    const apiKey = req.headers['x-api-key'];
+    if (!apiKey) {
+      return res.status(401).json({ success: false, message: 'API key required' });
+    }
+
+    // Verify the API key is valid
+    const keyHash = auth.hashApiKey(apiKey);
+    const keyRecord = database.getApiKeyByHash(keyHash);
+    if (!keyRecord) {
+      return res.status(401).json({ success: false, message: 'Invalid API key' });
+    }
+
+    res.json({
+      success: true,
+      encryption: {
+        enabled: encryption.isEnabled(),
+        salt: encryption.isEnabled() ? encryption.getInstallationSalt() : null,
+        algorithm: encryption.ALGORITHM
+      }
+    });
+  } catch (error) {
+    logger.error('Encryption info error:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 });

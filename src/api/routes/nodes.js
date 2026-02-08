@@ -3,6 +3,7 @@ const database = require('../../utils/database');
 const auth = require('../../utils/auth');
 const authenticate = require('../../middleware/auth');
 const logger = require('../../utils/logger');
+const encryption = require('../../utils/encryption');
 
 const router = express.Router();
 
@@ -10,7 +11,19 @@ const router = express.Router();
 router.post('/register', (req, res) => {
   try {
     const apiKey = req.headers['x-api-key'];
-    const { nodeId, hostname, systemInfo } = req.body;
+
+    // Decrypt if encrypted
+    let body = req.body;
+    if (body && body.encrypted === true && body.data && apiKey) {
+      try {
+        body = encryption.decrypt(body.data, apiKey);
+      } catch (decErr) {
+        logger.warn(`Node registration decryption failed from ${req.ip}: ${decErr.message}`);
+        return res.status(400).json({ success: false, error: 'Failed to decrypt registration data' });
+      }
+    }
+
+    const { nodeId, hostname, systemInfo } = body;
 
     if (!apiKey || !nodeId || !hostname) {
       return res.status(400).json({
@@ -139,10 +152,25 @@ router.get('/', authenticate, (req, res) => {
       };
     });
 
-    res.json({
+    const responseData = {
       success: true,
       nodes: nodesWithMetrics
-    });
+    };
+
+    // Encrypt response if request was API-key authenticated and encryption is enabled
+    const apiKey = req.headers['x-api-key'];
+    if (apiKey && encryption.isEnabled()) {
+      try {
+        return res.json({
+          encrypted: true,
+          data: encryption.encrypt(responseData, apiKey)
+        });
+      } catch {
+        // Fallback to unencrypted
+      }
+    }
+
+    res.json(responseData);
   } catch (error) {
     logger.error('Error fetching nodes:', error);
     res.status(500).json({
@@ -175,10 +203,25 @@ router.get('/:nodeId', authenticate, (req, res) => {
       system_info: node.system_info
     };
 
-    res.json({
+    const responseData = {
       success: true,
       node: sanitizedNode
-    });
+    };
+
+    // Encrypt response for API-key authenticated requests
+    const apiKeyHeader = req.headers['x-api-key'];
+    if (apiKeyHeader && encryption.isEnabled()) {
+      try {
+        return res.json({
+          encrypted: true,
+          data: encryption.encrypt(responseData, apiKeyHeader)
+        });
+      } catch {
+        // Fallback to unencrypted
+      }
+    }
+
+    res.json(responseData);
   } catch (error) {
     logger.error('Error fetching node:', error);
     res.status(500).json({
