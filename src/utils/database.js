@@ -33,13 +33,16 @@ class DatabaseManager {
   }
 
   createTables() {
+    // Migrate nodes table if it has the old UNIQUE constraint on api_key
+    this.migrateNodesTable();
+
     // Nodes table
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS nodes (
         id TEXT PRIMARY KEY,
         hostname TEXT NOT NULL,
-        api_key TEXT NOT NULL UNIQUE,
-        api_key_hash TEXT NOT NULL,
+        api_key TEXT NOT NULL DEFAULT '***REDACTED***',
+        api_key_hash TEXT NOT NULL UNIQUE,
         status TEXT DEFAULT 'offline',
         last_seen INTEGER,
         created_at INTEGER DEFAULT (strftime('%s', 'now')),
@@ -114,6 +117,50 @@ class DatabaseManager {
     this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
     `);
+  }
+
+  /**
+   * Migrate nodes table: remove UNIQUE from api_key, add UNIQUE to api_key_hash.
+   * The api_key column stored '***REDACTED***' for every node, so UNIQUE on it
+   * prevented registering more than one node. This fixes that.
+   */
+  migrateNodesTable() {
+    try {
+      // Check if nodes table exists
+      const tableExists = this.db.prepare(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='nodes'"
+      ).get();
+      if (!tableExists) return; // Fresh install, createTables() will handle it
+
+      // Check if api_key has a UNIQUE constraint (old schema)
+      const tableInfo = this.db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='nodes'").get();
+      if (!tableInfo || !tableInfo.sql.includes('api_key TEXT NOT NULL UNIQUE')) return; // Already migrated
+
+      logger.info('Migrating nodes table: removing UNIQUE from api_key, adding UNIQUE to api_key_hash...');
+
+      this.db.exec('BEGIN TRANSACTION');
+      this.db.exec(`
+        CREATE TABLE nodes_new (
+          id TEXT PRIMARY KEY,
+          hostname TEXT NOT NULL,
+          api_key TEXT NOT NULL DEFAULT '***REDACTED***',
+          api_key_hash TEXT NOT NULL UNIQUE,
+          status TEXT DEFAULT 'offline',
+          last_seen INTEGER,
+          created_at INTEGER DEFAULT (strftime('%s', 'now')),
+          system_info TEXT
+        )
+      `);
+      this.db.exec('INSERT OR IGNORE INTO nodes_new SELECT * FROM nodes');
+      this.db.exec('DROP TABLE nodes');
+      this.db.exec('ALTER TABLE nodes_new RENAME TO nodes');
+      this.db.exec('COMMIT');
+
+      logger.info('Nodes table migration complete');
+    } catch (error) {
+      try { this.db.exec('ROLLBACK'); } catch (_) {}
+      logger.error('Nodes table migration failed:', error);
+    }
   }
 
   // Node operations
