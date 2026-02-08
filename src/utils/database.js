@@ -132,9 +132,19 @@ class DatabaseManager {
       ).get();
       if (!tableExists) return; // Fresh install, createTables() will handle it
 
-      // Check if api_key has a UNIQUE constraint (old schema)
-      const tableInfo = this.db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='nodes'").get();
-      if (!tableInfo || !tableInfo.sql.includes('api_key TEXT NOT NULL UNIQUE')) return; // Already migrated
+      // Use PRAGMA to reliably detect if api_key has a UNIQUE index
+      // (string matching on sqlite_master.sql is fragile and can miss due to whitespace)
+      const indexes = this.db.pragma('index_list(nodes)');
+      let needsMigration = false;
+      for (const idx of indexes) {
+        if (!idx.unique) continue;
+        const cols = this.db.pragma(`index_info("${idx.name}")`);
+        if (cols.some(c => c.name === 'api_key')) {
+          needsMigration = true;
+          break;
+        }
+      }
+      if (!needsMigration) return; // Already migrated or never had the issue
 
       logger.info('Migrating nodes table: removing UNIQUE from api_key, adding UNIQUE to api_key_hash...');
 
@@ -165,20 +175,41 @@ class DatabaseManager {
 
   // Node operations
   createNode(nodeData) {
-    const stmt = this.db.prepare(`
-      INSERT INTO nodes (id, hostname, api_key, api_key_hash, status, last_seen, system_info)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO nodes (id, hostname, api_key, api_key_hash, status, last_seen, system_info)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `);
 
-    return stmt.run(
-      nodeData.id,
-      nodeData.hostname,
-      '***REDACTED***',
-      nodeData.apiKeyHash,
-      nodeData.status || 'online',
-      Date.now(),
-      JSON.stringify(nodeData.systemInfo || {})
-    );
+      return stmt.run(
+        nodeData.id,
+        nodeData.hostname,
+        '***REDACTED***',
+        nodeData.apiKeyHash,
+        nodeData.status || 'online',
+        Date.now(),
+        JSON.stringify(nodeData.systemInfo || {})
+      );
+    } catch (error) {
+      // Handle UNIQUE constraint failure on api_key (old schema not yet migrated)
+      if (error.message && error.message.includes('UNIQUE constraint failed: nodes.api_key')) {
+        logger.warn('UNIQUE constraint on api_key detected — using unique placeholder for this node');
+        const stmt = this.db.prepare(`
+          INSERT INTO nodes (id, hostname, api_key, api_key_hash, status, last_seen, system_info)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `);
+        return stmt.run(
+          nodeData.id,
+          nodeData.hostname,
+          `***REDACTED_${nodeData.id}***`,
+          nodeData.apiKeyHash,
+          nodeData.status || 'online',
+          Date.now(),
+          JSON.stringify(nodeData.systemInfo || {})
+        );
+      }
+      throw error; // Re-throw if it's a different error
+    }
   }
 
   getNode(nodeId) {
