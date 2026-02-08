@@ -119,7 +119,7 @@ function Overview({ socket }) {
           <h1 className="text-6xl font-black uppercase tracking-tighter leading-[0.85]">
             <span className="text-tx">System</span><br />
             <span className="text-neon-pink" style={{ textShadow: '0 0 30px var(--neon-pink)' }}>
-              Override
+              Overview
             </span>
           </h1>
         </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Cpu, MemoryStick, HardDrive, Activity, Zap } from 'lucide-react';
 import axios from 'axios';
@@ -25,13 +25,14 @@ const formatUptime = (seconds) => {
 };
 
 /* ─── Stat Card ─── */
-const StatCard = ({ label, value, sub, icon: Icon, color, delay = 0 }) => (
+const StatCard = ({ label, value, sub, icon: Icon, color, delay = 0, onClick }) => (
   <motion.div
     initial={{ opacity: 0, y: 15 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ delay }}
-    className="border-[3px] p-5 bg-brutal-card"
+    className="border-[3px] p-5 bg-brutal-card cursor-pointer hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-brutal transition-all"
     style={{ borderColor: `${color}30`, boxShadow: `4px 4px 0 ${color}20` }}
+    onClick={onClick}
   >
     <div className="flex items-center justify-between mb-2">
       <span className="text-[10px] font-bold uppercase tracking-widest text-tx/30">{label}</span>
@@ -65,6 +66,7 @@ const BrutalBar = ({ value, label, color, sub }) => (
 /* ─── Agent Details Page ─── */
 function AgentDetails({ socket }) {
   const { agentId } = useParams();
+  const navigate = useNavigate();
   const [node, setNode] = useState(null);
   const [metrics, setMetrics] = useState([]);
   const [latestMetrics, setLatestMetrics] = useState(null);
@@ -178,15 +180,19 @@ function AgentDetails({ socket }) {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <StatCard label="CPU" value={`${(data.cpu?.usage || 0).toFixed(1)}%`}
             icon={Cpu} color="var(--neon-pink)" delay={0.1}
-            sub={node.system_info?.cpu?.brand} />
+            sub={node.system_info?.cpu?.brand}
+            onClick={() => navigate(`/nodes/${agentId}/processes`)} />
           <StatCard label="Memory" value={`${(data.memory?.usagePercent || 0).toFixed(1)}%`}
             icon={MemoryStick} color="var(--neon-cyan)" delay={0.15}
-            sub={`${formatBytes(data.memory?.active || 0)} used · ${formatBytes(data.memory?.cached || 0)} cached / ${formatBytes(data.memory?.total)}`} />
+            sub={`${formatBytes(data.memory?.active || 0)} used · ${formatBytes(data.memory?.cached || 0)} cached / ${formatBytes(data.memory?.total)}`}
+            onClick={() => navigate(`/nodes/${agentId}/processes`)} />
           <StatCard label="Swap" value={`${(data.swap?.usagePercent || 0).toFixed(1)}%`}
-            icon={Zap} color="var(--neon-purple)" delay={0.2} />
+            icon={Zap} color="var(--neon-purple)" delay={0.2}
+            onClick={() => navigate(`/nodes/${agentId}/processes`)} />
           <StatCard label="Processes" value={data.processes?.all || 0}
             icon={Activity} color="var(--neon-yellow)" delay={0.25}
-            sub={`${data.processes?.running || 0} running`} />
+            sub={`${data.processes?.running || 0} running`}
+            onClick={() => navigate(`/nodes/${agentId}/processes`)} />
         </div>
       )}
 
