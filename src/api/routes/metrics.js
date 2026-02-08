@@ -1,5 +1,7 @@
 const express = require('express');
 const database = require('../../utils/database');
+const auth = require('../../utils/auth');
+const authenticate = require('../../middleware/auth');
 const logger = require('../../utils/logger');
 
 const router = express.Router();
@@ -27,7 +29,7 @@ router.post('/', (req, res) => {
       });
     }
 
-    if (node.api_key !== apiKey) {
+    if (!auth.verifyApiKey(apiKey, node.api_key_hash)) {
       return res.status(401).json({
         success: false,
         error: 'Invalid API key'
@@ -54,11 +56,11 @@ router.post('/', (req, res) => {
   }
 });
 
-// Get latest metrics for a node
-router.get('/:nodeId/latest', (req, res) => {
+// Get latest metrics for a node (requires authentication)
+router.get('/:nodeId/latest', authenticate, (req, res) => {
   try {
     const { nodeId } = req.params;
-    const limit = parseInt(req.query.limit) || 100;
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 100, 1), 1000);
 
     const node = database.getNode(nodeId);
     if (!node) {
@@ -83,8 +85,8 @@ router.get('/:nodeId/latest', (req, res) => {
   }
 });
 
-// Get metrics in time range
-router.get('/:nodeId/range', (req, res) => {
+// Get metrics in time range (requires authentication)
+router.get('/:nodeId/range', authenticate, (req, res) => {
   try {
     const { nodeId } = req.params;
     const { start, end } = req.query;

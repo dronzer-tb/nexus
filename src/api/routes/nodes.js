@@ -1,6 +1,7 @@
 const express = require('express');
 const database = require('../../utils/database');
 const auth = require('../../utils/auth');
+const authenticate = require('../../middleware/auth');
 const logger = require('../../utils/logger');
 
 const router = express.Router();
@@ -18,12 +19,29 @@ router.post('/register', (req, res) => {
       });
     }
 
+    // Validate nodeId format (alphanumeric + underscores/hyphens, max 128 chars)
+    if (!/^[a-zA-Z0-9_-]{1,128}$/.test(nodeId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid nodeId format. Use only alphanumeric characters, underscores, and hyphens (max 128 chars).'
+      });
+    }
+
+    // Sanitize hostname: strip HTML/script tags, limit length
+    const sanitizedHostname = String(hostname).replace(/<[^>]*>/g, '').trim().substring(0, 255);
+    if (!sanitizedHostname) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid hostname'
+      });
+    }
+
     // Check if node already exists
     let existingNode = database.getNode(nodeId);
 
     if (existingNode) {
-      // Verify API key matches
-      if (existingNode.api_key !== apiKey) {
+      // Verify API key matches using secure hash comparison
+      if (!auth.verifyApiKey(apiKey, existingNode.api_key_hash)) {
         return res.status(401).json({
           success: false,
           error: 'Invalid API key for this node'
@@ -38,7 +56,7 @@ router.post('/register', (req, res) => {
         database.updateNodeSystemInfo(nodeId, systemInfo);
       }
 
-      logger.info(`Node ${nodeId} (${hostname}) reconnected`);
+      logger.info(`Node ${nodeId} (${sanitizedHostname}) reconnected`);
       
       return res.json({
         success: true,
@@ -52,14 +70,14 @@ router.post('/register', (req, res) => {
     
     database.createNode({
       id: nodeId,
-      hostname: hostname,
+      hostname: sanitizedHostname,
       apiKey: apiKey,
       apiKeyHash: apiKeyHash,
       status: 'online',
       systemInfo: systemInfo
     });
 
-    logger.info(`New node registered: ${nodeId} (${hostname})`);
+    logger.info(`New node registered: ${nodeId} (${sanitizedHostname})`);
 
     res.json({
       success: true,
@@ -75,8 +93,8 @@ router.post('/register', (req, res) => {
   }
 });
 
-// Get all nodes
-router.get('/', (req, res) => {
+// Get all nodes (requires authentication)
+router.get('/', authenticate, (req, res) => {
   try {
     const nodes = database.getAllNodes();
     
@@ -133,8 +151,8 @@ router.get('/', (req, res) => {
   }
 });
 
-// Get specific node
-router.get('/:nodeId', (req, res) => {
+// Get specific node (requires authentication)
+router.get('/:nodeId', authenticate, (req, res) => {
   try {
     const { nodeId } = req.params;
     const node = database.getNode(nodeId);
@@ -169,8 +187,8 @@ router.get('/:nodeId', (req, res) => {
   }
 });
 
-// Delete a node
-router.delete('/:nodeId', (req, res) => {
+// Delete a node (requires authentication)
+router.delete('/:nodeId', authenticate, (req, res) => {
   try {
     const { nodeId } = req.params;
     const node = database.getNode(nodeId);

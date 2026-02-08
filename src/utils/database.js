@@ -91,7 +91,7 @@ class DatabaseManager {
     return stmt.run(
       nodeData.id,
       nodeData.hostname,
-      nodeData.apiKey,
+      '***REDACTED***',
       nodeData.apiKeyHash,
       nodeData.status || 'online',
       Date.now(),
@@ -110,9 +110,10 @@ class DatabaseManager {
     return node;
   }
 
-  getNodeByApiKey(apiKey) {
-    const stmt = this.db.prepare('SELECT * FROM nodes WHERE api_key = ?');
-    const node = stmt.get(apiKey);
+  // Deprecated: Use api_key_hash lookups instead of plaintext
+  getNodeByApiKeyHash(apiKeyHash) {
+    const stmt = this.db.prepare('SELECT * FROM nodes WHERE api_key_hash = ?');
+    const node = stmt.get(apiKeyHash);
     
     if (node && node.system_info) {
       node.system_info = JSON.parse(node.system_info);

@@ -1,10 +1,20 @@
 const express = require('express');
 const router = express.Router();
-const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
+const rateLimit = require('express-rate-limit');
 const logger = require('../../utils/logger');
-const config = require('../../utils/config');
+const auth = require('../../utils/auth');
 const { loadAdmin } = require('../../utils/setup-admin');
+
+// Rate limiter: max 10 login attempts per 15 minutes per IP
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { message: 'Too many login attempts. Please try again after 15 minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { ip: false }
+});
 
 // Helper function to get users (loads fresh each time to support dynamic changes)
 function getUsers() {
@@ -22,8 +32,8 @@ function getUsers() {
   }];
 }
 
-// Login endpoint
-router.post('/login', async (req, res) => {
+// Login endpoint (rate-limited)
+router.post('/login', loginLimiter, async (req, res) => {
   try {
     const { username, password } = req.body;
 
@@ -47,11 +57,7 @@ router.post('/login', async (req, res) => {
     }
 
     // Generate JWT token
-    const token = jwt.sign(
-      { userId: user.id, username: user.username },
-      config.get('server.jwtSecret', 'nexus-secret-key-change-in-production'),
-      { expiresIn: '24h' }
-    );
+    const token = auth.generateJWT({ userId: user.id, username: user.username });
 
     logger.info(`User logged in: ${username}`);
 
@@ -77,7 +83,10 @@ router.get('/verify', (req, res) => {
       return res.status(401).json({ message: 'No token provided' });
     }
 
-    const decoded = jwt.verify(token, config.get('server.jwtSecret', 'nexus-secret-key-change-in-production'));
+    const decoded = auth.verifyJWT(token);
+    if (!decoded) {
+      return res.status(401).json({ message: 'Invalid or expired token' });
+    }
 
     const users = getUsers();
     const user = users.find(u => u.id === decoded.userId);
@@ -92,12 +101,6 @@ router.get('/verify', (req, res) => {
       }
     });
   } catch (error) {
-    if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({ message: 'Token expired' });
-    }
-    if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({ message: 'Invalid token' });
-    }
     logger.error('Token verification error:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
@@ -117,7 +120,14 @@ router.post('/change-password', async (req, res) => {
       return res.status(400).json({ message: 'Current and new password are required' });
     }
 
-    const decoded = jwt.verify(token, config.get('server.jwtSecret', 'nexus-secret-key-change-in-production'));
+    if (newPassword.length < 8) {
+      return res.status(400).json({ message: 'New password must be at least 8 characters long' });
+    }
+
+    const decoded = auth.verifyJWT(token);
+    if (!decoded) {
+      return res.status(401).json({ message: 'Invalid or expired token' });
+    }
     const users = getUsers();
     const user = users.find(u => u.id === decoded.userId);
 

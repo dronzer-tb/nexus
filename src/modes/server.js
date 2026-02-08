@@ -4,10 +4,10 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const helmet = require('helmet');
 const path = require('path');
-const jwt = require('jsonwebtoken');
 const logger = require('../utils/logger');
 const config = require('../utils/config');
 const database = require('../utils/database');
+const auth = require('../utils/auth');
 
 // Import routes
 const authRouter = require('../api/routes/auth');
@@ -70,9 +70,21 @@ class ServerMode {
       contentSecurityPolicy: false,
     }));
 
-    // CORS
+    // CORS — restrict to same origin; override via config if needed
+    const allowedOrigins = config.get('server.corsOrigins') || [];
     this.app.use(cors({
-      origin: '*',
+      origin: (origin, callback) => {
+        // Allow requests with no origin (same-origin, curl, mobile apps)
+        if (!origin) return callback(null, true);
+        // Allow configured origins
+        if (allowedOrigins.includes(origin)) return callback(null, true);
+        // Allow same-host requests (dashboard served from same server)
+        const selfOrigin = `http://${this.host === '0.0.0.0' ? 'localhost' : this.host}:${this.port}`;
+        if (origin === selfOrigin || origin === `http://localhost:${this.port}`) {
+          return callback(null, true);
+        }
+        callback(new Error('CORS not allowed'));
+      },
       credentials: true
     }));
 
@@ -153,13 +165,30 @@ class ServerMode {
   setupWebSocket() {
     this.io = new Server(this.server, {
       cors: {
-        origin: '*',
+        origin: (origin, callback) => {
+          if (!origin) return callback(null, true);
+          const allowedOrigins = config.get('server.corsOrigins') || [];
+          const selfOrigin = `http://localhost:${this.port}`;
+          if (allowedOrigins.includes(origin) || origin === selfOrigin) {
+            return callback(null, true);
+          }
+          callback(new Error('CORS not allowed'));
+        },
         methods: ['GET', 'POST']
       }
     });
 
-    // Agent namespace for agent connections
+    // Agent namespace for agent connections (requires API key)
     const agentNamespace = this.io.of('/agent');
+
+    agentNamespace.use((socket, next) => {
+      const apiKey = socket.handshake.auth.apiKey;
+      if (!apiKey || typeof apiKey !== 'string' || apiKey.length < 32) {
+        return next(new Error('Valid API key required'));
+      }
+      socket.apiKey = apiKey;
+      next();
+    });
     
     agentNamespace.on('connection', (socket) => {
       logger.info(`Agent connected: ${socket.id}`);
@@ -266,7 +295,8 @@ class ServerMode {
       }
 
       try {
-        const decoded = jwt.verify(token, config.get('server.jwtSecret', 'nexus-secret-key'));
+        const decoded = auth.verifyJWT(token);
+        if (!decoded) return next(new Error('Invalid token'));
         socket.user = decoded;
         next();
       } catch (error) {

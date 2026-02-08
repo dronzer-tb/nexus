@@ -40,8 +40,8 @@ class NodeMode {
 
     logger.info(`Node mode started. Reporting to ${this.serverUrl} every ${this.reportInterval}ms`);
     logger.info(`Node ID: ${this.nodeId}`);
-    logger.info(`API Key: ${this.apiKey}`);
-    logger.info('Keep this API key safe - you will need it to identify this node.');
+    logger.info(`API Key: ${this.apiKey.substring(0, 8)}...[REDACTED]`);
+    logger.info('The full API key is stored in data/node-info.json');
   }
 
   async loadOrCreateNodeInfo() {

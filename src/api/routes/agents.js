@@ -145,6 +145,28 @@ router.post('/:agentId/execute', async (req, res) => {
       return res.status(400).json({ message: 'Command is required' });
     }
 
+    // Security: validate command length and block dangerous patterns
+    if (command.length > 2000) {
+      return res.status(400).json({ message: 'Command too long (max 2000 characters)' });
+    }
+
+    const dangerousPatterns = [
+      /rm\s+(-rf?|--no-preserve-root)\s+\//i,  // rm -rf /
+      /mkfs\./i,                                  // filesystem format
+      /dd\s+if=.*of=\/dev\//i,                   // overwrite devices
+      />(\/dev\/[sh]d|\/dev\/nvme)/i,             // redirect to disk devices
+      /:(){ :\|:& };:/,                           // fork bomb
+    ];
+
+    for (const pattern of dangerousPatterns) {
+      if (pattern.test(command)) {
+        logger.warn(`Blocked dangerous command from user ${req.user.userId}: ${command}`);
+        return res.status(403).json({ message: 'Command blocked by security policy' });
+      }
+    }
+
+    logger.info(`Command requested by user ${req.user.userId} on agent ${agentId}: ${command.substring(0, 100)}`);
+
     // Send command to agent
     agent.socket.emit('command:execute', { command, userId: req.user.userId }, (response) => {
       if (response.error) {
