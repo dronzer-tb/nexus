@@ -310,7 +310,7 @@ function loadSetupConfig() {
 }
 
 // ─── Update main config ─────────────────────
-function updateMainConfig(domain, ssl) {
+function updateMainConfig(domain, ssl, port) {
   const configPath = path.join(__dirname, '../../config/config.json');
   const defaultConfigPath = path.join(__dirname, '../../config/config.default.json');
   
@@ -328,7 +328,7 @@ function updateMainConfig(domain, ssl) {
   // Server should bind to localhost when behind nginx
   config.server = config.server || {};
   config.server.host = '127.0.0.1';
-  config.server.port = config.server.port || 8080;
+  config.server.port = parseInt(port, 10) || 8080;
 
   // Store nginx/domain info
   config.nginx = {
@@ -575,7 +575,7 @@ async function runWizard() {
     }
 
     // Update main Nexus config
-    updateMainConfig(fullDomain, ssl);
+    updateMainConfig(fullDomain, ssl, port);
 
     // Run certbot if selected
     if (ssl.type === 'certbot' && certbotEmail) {
