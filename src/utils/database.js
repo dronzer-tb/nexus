@@ -71,6 +71,24 @@ class DatabaseManager {
       CREATE INDEX IF NOT EXISTS idx_nodes_status ON nodes(status);
     `);
 
+    // Dashboard API keys table (for mobile app / external access)
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS api_keys (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        key_hash TEXT NOT NULL UNIQUE,
+        key_preview TEXT NOT NULL,
+        permissions TEXT DEFAULT 'read',
+        created_at INTEGER DEFAULT (strftime('%s', 'now')),
+        last_used INTEGER,
+        expires_at INTEGER
+      )
+    `);
+
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash);
+    `);
+
     // Settings table for server configuration
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS settings (
@@ -236,6 +254,42 @@ class DatabaseManager {
       VALUES (?, ?, ?)
     `);
     return stmt.run(key, value, Date.now());
+  }
+
+  // API Key operations
+  createApiKey(keyData) {
+    const stmt = this.db.prepare(`
+      INSERT INTO api_keys (id, name, key_hash, key_preview, permissions, last_used, expires_at)
+      VALUES (?, ?, ?, ?, ?, NULL, ?)
+    `);
+    return stmt.run(
+      keyData.id,
+      keyData.name,
+      keyData.keyHash,
+      keyData.keyPreview,
+      keyData.permissions || 'read',
+      keyData.expiresAt || null
+    );
+  }
+
+  getApiKeyByHash(keyHash) {
+    const stmt = this.db.prepare('SELECT * FROM api_keys WHERE key_hash = ?');
+    return stmt.get(keyHash);
+  }
+
+  getAllApiKeys() {
+    const stmt = this.db.prepare('SELECT id, name, key_preview, permissions, created_at, last_used, expires_at FROM api_keys ORDER BY created_at DESC');
+    return stmt.all();
+  }
+
+  deleteApiKey(keyId) {
+    const stmt = this.db.prepare('DELETE FROM api_keys WHERE id = ?');
+    return stmt.run(keyId);
+  }
+
+  updateApiKeyLastUsed(keyId) {
+    const stmt = this.db.prepare('UPDATE api_keys SET last_used = ? WHERE id = ?');
+    return stmt.run(Date.now(), keyId);
   }
 
   close() {

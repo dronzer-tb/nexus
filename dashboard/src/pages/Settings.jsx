@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Palette, Save, Trash2, Check, RotateCcw } from 'lucide-react';
+import { Palette, Save, Trash2, Check, RotateCcw, Key, Copy, Plus, Shield, Eye, EyeOff } from 'lucide-react';
 import { useTheme, BUILT_IN_PRESETS, COLOR_LABELS, luminance } from '../context/ThemeContext';
+import axios from 'axios';
 
 /* ─── Color Swatch Row ─── */
 const SwatchRow = ({ colors }) => (
@@ -87,6 +88,217 @@ const ColorInput = ({ label, value, onChange }) => (
     </div>
   </div>
 );
+
+/* ─── API Key Manager Component ─── */
+function ApiKeyManager({ showFeedback }) {
+  const [keys, setKeys] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [newKeyName, setNewKeyName] = useState('');
+  const [showCreate, setShowCreate] = useState(false);
+  const [newlyCreatedKey, setNewlyCreatedKey] = useState(null);
+  const [showKey, setShowKey] = useState(false);
+
+  const token = localStorage.getItem('token');
+  const api = axios.create({
+    baseURL: window.location.origin,
+    headers: { Authorization: `Bearer ${token}` }
+  });
+
+  const fetchKeys = async () => {
+    try {
+      const res = await api.get('/api/auth/api-keys');
+      setKeys(res.data.keys || []);
+    } catch {
+      /* ignore */
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchKeys(); }, []);
+
+  const handleCreate = async () => {
+    if (!newKeyName.trim()) return;
+    try {
+      const res = await api.post('/api/auth/api-keys', { name: newKeyName.trim() });
+      setNewlyCreatedKey(res.data.key);
+      setNewKeyName('');
+      setShowCreate(false);
+      setShowKey(true);
+      fetchKeys();
+      showFeedback('API key created!');
+    } catch (err) {
+      showFeedback(err.response?.data?.message || 'Failed to create key');
+    }
+  };
+
+  const handleDelete = async (keyId) => {
+    try {
+      await api.delete(`/api/auth/api-keys/${keyId}`);
+      setKeys(keys.filter(k => k.id !== keyId));
+      if (newlyCreatedKey?.id === keyId) setNewlyCreatedKey(null);
+      showFeedback('API key revoked');
+    } catch {
+      showFeedback('Failed to delete key');
+    }
+  };
+
+  const copyKey = (text) => {
+    navigator.clipboard.writeText(text);
+    showFeedback('Copied to clipboard!');
+  };
+
+  return (
+    <section className="mt-10 mb-8">
+      <header className="mb-6 border-b-[3px] border-neon-cyan/20 pb-4">
+        <div className="flex items-center gap-4">
+          <Key className="w-8 h-8 text-neon-cyan" strokeWidth={2.5} />
+          <div>
+            <h2 className="text-3xl font-black uppercase tracking-tighter leading-[0.9]">
+              <span className="text-tx">API</span>{' '}
+              <span className="text-neon-cyan" style={{ textShadow: '0 0 25px var(--neon-cyan)' }}>
+                Keys
+              </span>
+            </h2>
+            <div className="font-mono text-[10px] text-tx/30 mt-1 tracking-wider uppercase">
+              Manage keys for mobile app & external access
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Newly created key warning */}
+      <AnimatePresence>
+        {newlyCreatedKey && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="mb-4 overflow-hidden"
+          >
+            <div className="border-[3px] border-neon-yellow/60 bg-neon-yellow/5 p-4">
+              <div className="flex items-start gap-3">
+                <Shield className="w-5 h-5 text-neon-yellow shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <div className="font-bold text-xs uppercase tracking-wider text-neon-yellow mb-2">
+                    Save this key — it won't be shown again!
+                  </div>
+                  <div className="flex items-center gap-2 bg-brutal-bg border-2 border-tx/10 p-3">
+                    <code className="flex-1 font-mono text-sm text-tx break-all">
+                      {showKey ? newlyCreatedKey.rawKey : '•'.repeat(40)}
+                    </code>
+                    <button onClick={() => setShowKey(!showKey)}
+                      className="text-tx/30 hover:text-neon-cyan p-1 transition-colors">
+                      {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                    <button onClick={() => copyKey(newlyCreatedKey.rawKey)}
+                      className="text-tx/30 hover:text-neon-pink p-1 transition-colors">
+                      <Copy className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="font-mono text-[10px] text-tx/20 mt-2">
+                    Key name: {newlyCreatedKey.name} · ID: {newlyCreatedKey.id}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Create new key */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="font-mono text-[10px] text-tx/30 tracking-wider uppercase">
+          {loading ? 'Loading...' : `${keys.length} key${keys.length !== 1 ? 's' : ''}`}
+        </div>
+        <button
+          onClick={() => setShowCreate(!showCreate)}
+          className="flex items-center gap-2 px-4 py-2 border-2 border-neon-cyan/40 text-neon-cyan font-bold uppercase text-[10px] tracking-widest hover:bg-neon-cyan transition-all shadow-brutal-sm hover:shadow-none hover:translate-x-[3px] hover:translate-y-[3px]"
+          onMouseEnter={(e) => e.currentTarget.style.color = 'var(--on-neon-cyan)'}
+          onMouseLeave={(e) => e.currentTarget.style.color = ''}
+        >
+          <Plus className="w-3.5 h-3.5" />
+          New Key
+        </button>
+      </div>
+
+      <AnimatePresence>
+        {showCreate && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="mb-4 overflow-hidden"
+          >
+            <div className="border-[3px] border-neon-cyan/20 bg-brutal-card p-4 flex gap-3 items-end">
+              <div className="flex-1">
+                <div className="text-[9px] font-bold uppercase tracking-widest text-tx/30 mb-1">Key Name</div>
+                <input
+                  type="text"
+                  value={newKeyName}
+                  onChange={(e) => setNewKeyName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+                  placeholder="e.g. My Phone, Tablet..."
+                  className="w-full bg-brutal-bg border-2 border-tx/10 px-3 py-2 font-mono text-sm text-tx focus:border-neon-cyan/40 focus:outline-none transition-colors"
+                  maxLength={64}
+                  autoFocus
+                />
+              </div>
+              <button
+                onClick={handleCreate}
+                disabled={!newKeyName.trim()}
+                className="px-6 py-2 bg-neon-cyan font-bold uppercase text-xs tracking-wider border-2 border-neon-cyan hover:translate-x-[2px] hover:translate-y-[2px] shadow-brutal-sm hover:shadow-none transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                style={{ color: 'var(--on-neon-cyan)' }}
+              >
+                Create
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Keys list */}
+      {keys.length === 0 && !loading ? (
+        <div className="border-[3px] border-tx/5 bg-brutal-card p-8 text-center">
+          <Key className="w-8 h-8 text-tx/10 mx-auto mb-3" />
+          <div className="font-mono text-tx/20 text-sm">No API keys yet</div>
+          <div className="font-mono text-tx/10 text-[10px] mt-1">
+            Create a key to connect the Nexus mobile app
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {keys.map((key) => (
+            <motion.div
+              key={key.id}
+              initial={{ opacity: 0, y: 5 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="border-[3px] border-tx/10 bg-brutal-card p-4 flex items-center gap-4 hover:border-neon-cyan/20 transition-colors"
+            >
+              <Key className="w-4 h-4 text-neon-cyan shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-sm text-tx uppercase tracking-wider truncate">{key.name}</div>
+                <div className="font-mono text-[10px] text-tx/30 mt-0.5">
+                  {key.key_preview} · Created {new Date(key.created_at * 1000).toLocaleDateString()}
+                  {key.last_used ? ` · Last used ${new Date(key.last_used).toLocaleDateString()}` : ' · Never used'}
+                </div>
+              </div>
+              <span className="px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider border border-neon-cyan/30 text-neon-cyan/60">
+                {key.permissions}
+              </span>
+              <button
+                onClick={() => handleDelete(key.id)}
+                className="text-tx/20 hover:text-red-500 transition-colors p-1"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </motion.div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
 
 /* ─── Settings Page ─── */
 function Settings() {
@@ -390,6 +602,9 @@ function Settings() {
           </div>
         </div>
       </section>
+
+      {/* ─── API Key Management ─── */}
+      <ApiKeyManager showFeedback={showFeedback} />
 
       {/* Footer */}
       <div className="text-center py-4 font-mono text-[9px] text-tx/15 uppercase tracking-widest">

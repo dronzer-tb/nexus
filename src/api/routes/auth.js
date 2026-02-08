@@ -1,9 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const logger = require('../../utils/logger');
 const auth = require('../../utils/auth');
+const database = require('../../utils/database');
+const authenticate = require('../../middleware/auth');
 const { loadAdmin } = require('../../utils/setup-admin');
 
 // Rate limiter: max 10 login attempts per 15 minutes per IP
@@ -154,6 +157,122 @@ router.post('/change-password', async (req, res) => {
     res.json({ message: 'Password changed successfully' });
   } catch (error) {
     logger.error('Change password error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// ─── API Key Management ────────────────────────────────────────
+
+// Create a new API key (JWT auth required — dashboard admin only)
+router.post('/api-keys', authenticate, (req, res) => {
+  try {
+    if (req.authMethod !== 'jwt') {
+      return res.status(403).json({ message: 'API key management requires dashboard login' });
+    }
+
+    const { name } = req.body;
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+      return res.status(400).json({ message: 'A name for the API key is required' });
+    }
+
+    const keyId = `key_${crypto.randomBytes(8).toString('hex')}`;
+    const rawKey = `nxk_${crypto.randomBytes(32).toString('hex')}`;
+    const keyHash = auth.hashApiKey(rawKey);
+    const keyPreview = rawKey.substring(0, 8) + '...' + rawKey.substring(rawKey.length - 4);
+
+    database.createApiKey({
+      id: keyId,
+      name: name.trim().substring(0, 64),
+      keyHash,
+      keyPreview,
+      permissions: 'read',
+      expiresAt: null
+    });
+
+    logger.info(`API key created: ${name} (${keyId})`);
+
+    // Return the raw key ONLY on creation — it cannot be retrieved later
+    res.json({
+      success: true,
+      key: {
+        id: keyId,
+        name: name.trim(),
+        rawKey,
+        preview: keyPreview,
+        permissions: 'read'
+      }
+    });
+  } catch (error) {
+    logger.error('Create API key error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// List all API keys (JWT auth required)
+router.get('/api-keys', authenticate, (req, res) => {
+  try {
+    if (req.authMethod !== 'jwt') {
+      return res.status(403).json({ message: 'API key management requires dashboard login' });
+    }
+
+    const keys = database.getAllApiKeys();
+    res.json({ success: true, keys });
+  } catch (error) {
+    logger.error('List API keys error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Verify an API key (used by mobile app to test connection)
+router.get('/api-keys/verify', (req, res) => {
+  try {
+    const apiKey = req.headers['x-api-key'];
+    if (!apiKey) {
+      return res.status(401).json({ success: false, message: 'No API key provided' });
+    }
+
+    const keyHash = auth.hashApiKey(apiKey);
+    const keyRecord = database.getApiKeyByHash(keyHash);
+
+    if (!keyRecord) {
+      return res.status(401).json({ success: false, message: 'Invalid API key' });
+    }
+
+    if (keyRecord.expires_at && Date.now() > keyRecord.expires_at) {
+      return res.status(401).json({ success: false, message: 'API key expired' });
+    }
+
+    database.updateApiKeyLastUsed(keyRecord.id);
+
+    res.json({
+      success: true,
+      name: keyRecord.name,
+      permissions: keyRecord.permissions
+    });
+  } catch (error) {
+    logger.error('Verify API key error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Delete an API key (JWT auth required)
+router.delete('/api-keys/:keyId', authenticate, (req, res) => {
+  try {
+    if (req.authMethod !== 'jwt') {
+      return res.status(403).json({ message: 'API key management requires dashboard login' });
+    }
+
+    const { keyId } = req.params;
+    const result = database.deleteApiKey(keyId);
+
+    if (result.changes === 0) {
+      return res.status(404).json({ message: 'API key not found' });
+    }
+
+    logger.info(`API key deleted: ${keyId}`);
+    res.json({ success: true, message: 'API key revoked' });
+  } catch (error) {
+    logger.error('Delete API key error:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 });
