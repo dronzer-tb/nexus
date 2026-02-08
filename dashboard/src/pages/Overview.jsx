@@ -1,214 +1,252 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import {
+  Server, Cpu, MemoryStick, AlertOctagon,
+  Activity, ArrowUpRight
+} from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
-import AgentCard from '../components/AgentCard';
 
+/* ─── Brutalist Card ─── */
+const BrutalCard = ({ title, value, sub, icon: Icon, color = 'neon-pink', delay = 0, className = '' }) => (
+  <motion.div
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ delay, duration: 0.4 }}
+    className={`border-[3px] p-5 shadow-brutal hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-brutal-lg transition-all ${className}`}
+    style={{ borderColor: `var(--${color})`, backgroundColor: 'var(--brutal-card)' }}
+  >
+    <div className="flex justify-between items-start mb-3">
+      <h3 className="font-bold text-xs uppercase tracking-widest px-2 py-0.5 inline-block transform -rotate-1"
+        style={{ backgroundColor: `var(--${color})`, color: color === 'neon-yellow' ? '#0a001a' : '#fff' }}>
+        {title}
+      </h3>
+      {Icon && <Icon className="w-6 h-6 stroke-[2.5]" style={{ color: `var(--${color})` }} />}
+    </div>
+    <div className="text-4xl font-black mb-1 tracking-tighter" style={{ color: `var(--${color})` }}>{value}</div>
+    {sub && (
+      <div className="font-mono text-[10px] uppercase border-t-2 pt-2 mt-2 flex justify-between text-white/30"
+        style={{ borderColor: `var(--${color})20` }}>
+        <span>{sub}</span>
+        <span>/// RAW</span>
+      </div>
+    )}
+  </motion.div>
+);
+
+/* ─── Node Row ─── */
+const NodeRow = ({ node, index }) => {
+  const cpu = node.metrics?.cpu || 0;
+  const isOnline = node.status === 'online';
+  return (
+    <Link to={`/nodes/${node.id}`}>
+      <motion.div
+        initial={{ opacity: 0, x: -10 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ delay: index * 0.05 + 0.3 }}
+        className="border-b-2 border-neon-pink/10 p-4 flex items-center justify-between hover:bg-neon-pink/[0.04] transition-colors group cursor-pointer"
+      >
+        <div className="flex items-center gap-4">
+          <div className={`w-5 h-5 border-2 ${isOnline ? 'bg-neon-cyan border-neon-cyan/60' : 'bg-red-500 border-red-500/60'}`} />
+          <div>
+            <div className="font-bold uppercase text-base text-white group-hover:text-neon-pink transition-colors">
+              {node.hostname || node.id?.substring(0, 12)}
+            </div>
+            <div className="font-mono text-[10px] text-white/30 tracking-wider">
+              {node.system_info?.os?.distro || 'Unknown OS'}
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-6">
+          <div className="text-right">
+            <div className="font-mono font-bold text-lg group-hover:text-neon-pink transition-colors"
+              style={{ color: cpu > 80 ? 'var(--neon-pink)' : cpu > 50 ? 'var(--neon-yellow)' : 'var(--neon-cyan)' }}>
+              {cpu.toFixed(0)}%
+            </div>
+            <div className="text-[9px] text-white/30 uppercase tracking-wider">CPU</div>
+          </div>
+          <ArrowUpRight className="w-4 h-4 text-white/20 group-hover:text-neon-pink transition-colors" />
+        </div>
+      </motion.div>
+    </Link>
+  );
+};
+
+/* ─── Overview Page ─── */
 function Overview({ socket }) {
   const [agents, setAgents] = useState([]);
-  const [stats, setStats] = useState({ online: 0, offline: 0, total: 0 });
-  const [showAddAgent, setShowAddAgent] = useState(false);
-  const [agentName, setAgentName] = useState('');
-  const [apiKey, setApiKey] = useState('');
-  const [connecting, setConnecting] = useState(false);
-  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
   const { user, isAuthenticated } = useAuth();
 
   useEffect(() => {
-    // Only fetch agents if authenticated
-    if (!isAuthenticated) {
-      console.log('Overview: Not authenticated, skipping fetch');
-      return;
-    }
-    
+    if (!isAuthenticated) return;
     fetchAgents();
 
     if (socket) {
       socket.on('nodes:update', (updatedNodes) => {
         setAgents(updatedNodes);
-        updateStats(updatedNodes);
       });
     }
-
-    return () => {
-      if (socket) {
-        socket.off('nodes:update');
-      }
-    };
+    return () => { if (socket) socket.off('nodes:update'); };
   }, [socket, isAuthenticated]);
 
   const fetchAgents = async () => {
     try {
-      // Debug: Log token and auth state before fetch
-      console.log('DASHBOARD: About to fetch agents', {
-        hasToken: !!localStorage.getItem('token'),
-        tokenLength: localStorage.getItem('token')?.length,
-        axiosDefaultHeaders: axios.defaults.headers.common['Authorization']
-      });
-      
       const response = await axios.get('/api/nodes');
-      // Extract nodes array from response and map to agent format
-      const nodes = response.data.nodes || [];
-      setAgents(nodes);
-      updateStats(nodes);
-    } catch (error) {
-      console.error('Failed to fetch agents:', error);
-    }
-  };
-
-  const updateStats = (agentsList) => {
-    const online = agentsList.filter(a => a.status === 'online').length;
-    const offline = agentsList.filter(a => a.status === 'offline').length;
-    setStats({ online, offline, total: agentsList.length });
-  };
-
-  const handleAddAgent = async () => {
-    if (!agentName || !apiKey) {
-      setError('Agent name and API key are required');
-      return;
-    }
-
-    setConnecting(true);
-    setError('');
-
-    try {
-      const response = await axios.post('/api/agents/connect', 
-        { name: agentName, apiKey }
-      );
-
-      if (response.data.success) {
-        setShowAddAgent(false);
-        setAgentName('');
-        setApiKey('');
-        fetchAgents();
-      } else {
-        setError(response.data.message || 'Failed to connect agent');
-      }
+      setAgents(response.data.nodes || []);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to connect agent');
+      console.error('Failed to fetch agents:', err);
     } finally {
-      setConnecting(false);
+      setLoading(false);
     }
   };
+
+  const online = agents.filter(a => a.status === 'online');
+  const offline = agents.filter(a => a.status === 'offline');
+  const avgCpu = online.length > 0
+    ? online.reduce((s, a) => s + (a.metrics?.cpu || 0), 0) / online.length
+    : 0;
+  const avgMem = online.length > 0
+    ? online.reduce((s, a) => s + (a.metrics?.memory || 0), 0) / online.length
+    : 0;
 
   return (
-    <div className="flex-1 flex flex-col">
-      <header className="p-8">
-        <h2 className="text-4xl font-bold text-white">
-          Welcome back, {user?.username || 'User'}
-        </h2>
-        <p className="text-base text-white/70">Here's a look at your connected agents.</p>
-      </header>
-      
-      <div className="flex-1 p-8">
-        <h3 className="text-2xl font-bold text-white mb-6">At a Glance</h3>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {agents.map((agent) => (
-            <AgentCard key={agent.id} agent={agent} />
-          ))}
-          
-          {/* Add New Agent Card */}
-          <div 
-            onClick={() => setShowAddAgent(true)}
-            className="bg-background-dark/70 p-6 rounded-xl border border-dashed border-primary/40 backdrop-blur-sm flex flex-col gap-4 items-center justify-center text-center hover:bg-primary/10 transition-colors duration-300 cursor-pointer"
-          >
-            <svg className="w-12 h-12 text-primary/60" fill="currentColor" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
-              <path d="M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"></path>
-            </svg>
-            <h4 className="text-lg font-bold text-white/80">Add New Agent</h4>
-            <p className="text-sm text-white/60">Click to connect a new agent</p>
-          </div>
+    <div className="max-w-7xl mx-auto">
+      {/* Header */}
+      <header className="mb-10 flex items-end gap-6 border-b-[3px] border-neon-pink/20 pb-6">
+        <div>
+          <h1 className="text-6xl font-black uppercase tracking-tighter leading-[0.85]">
+            <span className="text-white">System</span><br />
+            <span className="text-neon-pink" style={{ textShadow: '0 0 30px rgba(255,45,149,0.3)' }}>
+              Override
+            </span>
+          </h1>
         </div>
+        <div className="mb-2 font-mono text-[10px] bg-brutal-card border-2 border-neon-cyan/20 text-neon-cyan/60 p-3 tracking-wider">
+          USER: {user?.username?.toUpperCase() || 'ADMIN'}<br />
+          SESSION: #{Math.floor(Math.random() * 99999).toString().padStart(5, '0')}
+        </div>
+      </header>
+
+      {/* Stat Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+        <BrutalCard title="Nodes" value={agents.length} icon={Server} color="neon-cyan" delay={0.05}
+          sub={`${online.length} online`} />
+        <BrutalCard title="Avg CPU" value={`${avgCpu.toFixed(0)}%`} icon={Cpu} color="neon-pink" delay={0.1}
+          sub="Fleet average" />
+        <BrutalCard title="Avg Memory" value={`${avgMem.toFixed(0)}%`} icon={MemoryStick} color="neon-purple" delay={0.15}
+          sub="Fleet average" />
+        <BrutalCard title="Offline" value={offline.length} icon={AlertOctagon} color={offline.length > 0 ? 'neon-yellow' : 'neon-cyan'} delay={0.2}
+          sub={offline.length > 0 ? 'Needs attention' : 'All clear'} />
       </div>
 
-      {/* Add Agent Modal */}
-      {showAddAgent && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-background-light border border-primary/20 rounded-xl p-8 max-w-md w-full shadow-2xl">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-2xl font-bold text-white">Add New Agent</h3>
-              <button
-                onClick={() => {
-                  setShowAddAgent(false);
-                  setAgentName('');
-                  setApiKey('');
-                  setError('');
-                }}
-                className="text-white/60 hover:text-white transition-colors"
-              >
-                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"></path>
-                </svg>
-              </button>
-            </div>
-
-            {error && (
-              <div className="bg-red-500/20 border border-red-500/50 text-red-300 px-4 py-3 rounded-lg mb-4">
-                {error}
+      {/* Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Node List */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25 }}
+          className="lg:col-span-2 border-[3px] border-neon-pink/20 bg-brutal-card shadow-brutal"
+        >
+          <div className="bg-neon-pink/10 border-b-[3px] border-neon-pink/20 p-4 flex justify-between items-center">
+            <h2 className="font-bold text-lg uppercase tracking-tight text-neon-pink">Active Nodes</h2>
+            <button
+              onClick={fetchAgents}
+              className="border-2 border-neon-pink/40 px-4 py-1 text-neon-pink hover:bg-neon-pink hover:text-white transition-colors font-bold uppercase text-[10px] tracking-widest"
+            >
+              Refresh
+            </button>
+          </div>
+          <div>
+            {loading ? (
+              <div className="p-8 text-center font-mono text-white/30 text-sm">Scanning network...</div>
+            ) : agents.length === 0 ? (
+              <div className="p-8 text-center">
+                <div className="font-mono text-white/30 text-sm mb-2">No nodes connected</div>
+                <div className="text-[10px] text-white/20">Run `nexus --mode=node` on target machines</div>
               </div>
+            ) : (
+              <>
+                {agents.slice(0, 6).map((node, i) => (
+                  <NodeRow key={node.id} node={node} index={i} />
+                ))}
+                {agents.length > 6 && (
+                  <Link to="/nodes"
+                    className="block p-4 text-center font-mono text-xs uppercase cursor-pointer hover:bg-neon-pink/[0.06] text-neon-pink/60 hover:text-neon-pink transition-colors tracking-widest border-t-2 border-neon-pink/10"
+                  >
+                    View All {agents.length} Nodes ///
+                  </Link>
+                )}
+              </>
             )}
+          </div>
+        </motion.div>
 
+        {/* Right column */}
+        <div className="space-y-6">
+          {/* Resource Overview */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.35 }}
+            className="border-[3px] border-neon-cyan/20 bg-brutal-card p-6 shadow-brutal-cyan"
+          >
+            <h2 className="font-black text-2xl uppercase mb-4 text-neon-cyan"
+              style={{ textShadow: '0 0 15px rgba(0,240,255,0.2)' }}>
+              Fleet<br />Resources
+            </h2>
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-white/80 mb-2">
-                  Agent Name
-                </label>
-                <input
-                  type="text"
-                  value={agentName}
-                  onChange={(e) => setAgentName(e.target.value)}
-                  placeholder="e.g., Production Server 1"
-                  className="w-full px-4 py-3 bg-background-dark border border-primary/30 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                  disabled={connecting}
-                />
-              </div>
+              {[
+                { label: 'CPU', value: avgCpu, color: 'var(--neon-pink)' },
+                { label: 'RAM', value: avgMem, color: 'var(--neon-cyan)' },
+              ].map((m, i) => (
+                <div key={i}>
+                  <div className="flex justify-between font-mono font-bold text-xs mb-1.5">
+                    <span className="text-white/50">{m.label}</span>
+                    <span style={{ color: m.color }}>{m.value.toFixed(1)}%</span>
+                  </div>
+                  <div className="h-3 border-2 overflow-hidden" style={{ borderColor: `${m.color}40`, backgroundColor: `${m.color}10` }}>
+                    <motion.div
+                      className="h-full"
+                      style={{ backgroundColor: m.color, boxShadow: `0 0 8px ${m.color}` }}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${m.value}%` }}
+                      transition={{ duration: 1, delay: 0.5 }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-between font-mono font-bold text-xs mt-4 pt-3 border-t-2 border-neon-cyan/10 text-white/30">
+              <span>IN: {online.length} nodes</span>
+              <span>OUT: {offline.length} nodes</span>
+            </div>
+          </motion.div>
 
+          {/* Status Block */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="border-[3px] border-neon-purple/20 bg-brutal-card p-6 shadow-brutal-purple"
+          >
+            <div className="flex items-start gap-4">
+              <Activity className="w-10 h-10 border-2 border-neon-purple/30 p-1.5 bg-neon-purple/10 text-neon-purple rounded-none flex-shrink-0" />
               <div>
-                <label className="block text-sm font-medium text-white/80 mb-2">
-                  Agent API Key
-                </label>
-                <input
-                  type="text"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="Enter the agent's API key"
-                  className="w-full px-4 py-3 bg-background-dark border border-primary/30 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent font-mono text-sm"
-                  disabled={connecting}
-                />
-                <p className="text-xs text-white/50 mt-2">
-                  You can find this key in the agent's console output or in data/node-credentials.json
+                <h3 className="font-bold uppercase text-lg text-neon-purple">System Status</h3>
+                <p className="font-mono text-[10px] mt-2 leading-relaxed border-l-2 border-neon-purple/30 pl-3 text-white/40">
+                  {offline.length > 0
+                    ? `Warning: ${offline.length} node${offline.length > 1 ? 's' : ''} offline. Check connectivity on affected systems.`
+                    : 'All systems nominal. No alerts detected across monitored infrastructure.'
+                  }
                 </p>
               </div>
-
-              <div className="flex gap-3 mt-6">
-                <button
-                  onClick={handleAddAgent}
-                  disabled={connecting || !agentName || !apiKey}
-                  className="flex-1 py-3 px-4 bg-primary text-white font-bold rounded-lg hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                >
-                  {connecting ? 'Connecting...' : 'Add Agent'}
-                </button>
-                <button
-                  onClick={() => {
-                    setShowAddAgent(false);
-                    setAgentName('');
-                    setApiKey('');
-                    setError('');
-                  }}
-                  disabled={connecting}
-                  className="px-6 py-3 bg-background-dark text-white/80 font-medium rounded-lg hover:bg-background-dark/80 focus:outline-none focus:ring-2 focus:ring-white/20 disabled:opacity-50 transition-all"
-                >
-                  Cancel
-                </button>
-              </div>
             </div>
-          </div>
+          </motion.div>
         </div>
-      )}
-      
-      <footer className="p-6 text-center">
-        <p className="text-sm text-white/50">Powered by Dronzer Studios</p>
-      </footer>
+      </div>
     </div>
   );
 }
