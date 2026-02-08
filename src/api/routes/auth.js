@@ -16,7 +16,7 @@ const loginLimiter = rateLimit({
   message: { message: 'Too many login attempts. Please try again after 15 minutes.' },
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { ip: false }
+  validate: { ip: false, xForwardedForHeader: false }
 });
 
 // Helper function to get users (loads fresh each time to support dynamic changes)

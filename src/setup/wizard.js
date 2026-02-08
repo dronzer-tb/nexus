@@ -330,6 +330,10 @@ function updateMainConfig(domain, ssl, port) {
   config.server.host = '127.0.0.1';
   config.server.port = parseInt(port, 10) || 8080;
 
+  // Update node serverUrl to match the actual server port
+  config.node = config.node || {};
+  config.node.serverUrl = `http://127.0.0.1:${config.server.port}`;
+
   // Store nginx/domain info
   config.nginx = {
     enabled: true,

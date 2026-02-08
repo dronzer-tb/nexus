@@ -35,6 +35,9 @@ class ServerMode {
     // Initialize database
     database.init();
 
+    // Ensure admin credentials file exists (auto-create on fresh install)
+    this.ensureAdminCredentials();
+
     // Load configuration
     this.port = config.get('server.port') || 8080;
     this.host = config.get('server.host') || '0.0.0.0';
@@ -68,7 +71,34 @@ class ServerMode {
     this.setupGracefulShutdown();
   }
 
+  ensureAdminCredentials() {
+    const { adminExists, saveAdmin } = require('../utils/setup-admin');
+    if (!adminExists()) {
+      try {
+        const bcrypt = require('bcrypt');
+        const hashedPassword = bcrypt.hashSync('admin123', 10);
+        const saved = saveAdmin({
+          id: 1,
+          username: 'admin',
+          password: hashedPassword
+        });
+        if (saved) {
+          logger.info('Default admin account created (admin / admin123)');
+        }
+      } catch (error) {
+        logger.warn('Could not auto-create admin credentials:', error.message);
+      }
+    }
+  }
+
   setupMiddleware() {
+    // Trust proxy when behind nginx (required for express-rate-limit, correct IPs)
+    const nginxEnabled = config.get('nginx.enabled');
+    if (nginxEnabled) {
+      this.app.set('trust proxy', 1);
+      logger.info('Trust proxy enabled (behind nginx)');
+    }
+
     // Security
     this.app.use(helmet({
       contentSecurityPolicy: false,
