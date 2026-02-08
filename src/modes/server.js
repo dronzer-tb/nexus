@@ -143,7 +143,12 @@ class ServerMode {
     this.app.use(express.static(dashboardPath));
 
     // Dashboard fallback for client-side routing
-    this.app.get('*', (req, res) => {
+    // Only serve index.html for non-API routes (SPA client-side routing)
+    this.app.get('*', (req, res, next) => {
+      // Skip API routes — let them 404 naturally instead of serving HTML
+      if (req.path.startsWith('/api/')) {
+        return res.status(404).json({ success: false, error: 'Endpoint not found' });
+      }
       const indexPath = path.join(dashboardPath, 'index.html');
       res.sendFile(indexPath, (err) => {
         if (err) {
