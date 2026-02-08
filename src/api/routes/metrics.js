@@ -11,19 +11,7 @@ const router = express.Router();
 router.post('/', (req, res) => {
   try {
     const apiKey = req.headers['x-api-key'];
-
-    // Decrypt if encrypted
-    let body = req.body;
-    if (body && body.encrypted === true && body.data && apiKey) {
-      try {
-        body = encryption.decrypt(body.data, apiKey);
-      } catch (decErr) {
-        logger.warn(`Metrics decryption failed from ${req.ip}: ${decErr.message}`);
-        return res.status(400).json({ success: false, error: 'Failed to decrypt metrics data' });
-      }
-    }
-
-    const { nodeId, metrics } = body;
+    const { nodeId, metrics } = req.body;
 
     if (!apiKey || !nodeId || !metrics) {
       return res.status(400).json({

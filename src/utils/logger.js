@@ -57,19 +57,31 @@ class Logger {
   }
 
   info(message, meta = {}) {
-    this.get().info(message, meta);
+    this.get().info(this._formatMessage(message, meta));
   }
 
   error(message, meta = {}) {
-    this.get().error(message, meta);
+    this.get().error(this._formatMessage(message, meta));
   }
 
   warn(message, meta = {}) {
-    this.get().warn(message, meta);
+    this.get().warn(this._formatMessage(message, meta));
   }
 
   debug(message, meta = {}) {
-    this.get().debug(message, meta);
+    this.get().debug(this._formatMessage(message, meta));
+  }
+
+  /**
+   * Format message + meta into a single string so winston printf always prints it.
+   * Handles: strings, Error objects, and plain objects.
+   */
+  _formatMessage(message, meta) {
+    if (meta === undefined || meta === null) return message;
+    if (typeof meta === 'string') return `${message} ${meta}`;
+    if (meta instanceof Error) return `${message} ${meta.message}${meta.stack ? '\n' + meta.stack : ''}`;
+    if (typeof meta === 'object' && Object.keys(meta).length > 0) return `${message} ${JSON.stringify(meta)}`;
+    return message;
   }
 }
 

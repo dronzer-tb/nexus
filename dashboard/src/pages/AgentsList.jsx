@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowUpRight, RefreshCw, Plus, X, Terminal, Copy, Check, Server } from 'lucide-react';
+import { ArrowUpRight, RefreshCw, Plus, X, Terminal, Copy, Check, Server, Key } from 'lucide-react';
 import axios from 'axios';
 
 /* ─── Brutalist Node Row ─── */
@@ -280,8 +280,13 @@ function AgentsList({ socket }) {
                 </div>
 
                 {/* Info */}
-                <div className="font-mono text-[10px] text-tx/20 text-center uppercase tracking-widest">
-                  The node will auto-generate credentials and register with this server
+                <div className="border-[3px] border-neon-cyan/10 bg-neon-cyan/5 p-4 space-y-2">
+                  <div className="font-bold text-[10px] text-neon-cyan uppercase tracking-widest flex items-center gap-1">
+                    <Key className="w-3 h-3" /> How it works
+                  </div>
+                  <div className="font-mono text-[11px] text-tx/50 leading-relaxed">
+                    The node <span className="text-neon-cyan">auto-generates</span> its own unique API key on first run and registers itself with this server. No manual API key setup is needed — just clone, configure the URL, and start. The credentials are saved in <span className="text-neon-cyan">data/node-info.json</span> on the node machine.
+                  </div>
                 </div>
               </div>
             </motion.div>

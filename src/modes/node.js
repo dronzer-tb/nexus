@@ -104,8 +104,14 @@ class NodeMode {
     } catch (error) {
       if (error.code === 'ECONNREFUSED') {
         logger.error(`Cannot connect to server at ${this.serverUrl}`);
+      } else if (error.response) {
+        // Server responded with an error status
+        logger.error(`Failed to register with server: HTTP ${error.response.status} — ${JSON.stringify(error.response.data)}`);
+      } else if (error.request) {
+        // Request was made but no response received
+        logger.error(`No response from server at ${this.serverUrl}: ${error.message || error.code || 'unknown error'}`);
       } else {
-        logger.error('Failed to send system info:', error.message);
+        logger.error(`Failed to send system info: ${error.message || 'unknown error'}`);
       }
     }
   }
@@ -137,8 +143,10 @@ class NodeMode {
         logger.debug('Server unavailable, will retry...');
       } else if (error.response?.status === 401) {
         logger.error('Authentication failed - invalid API key');
+      } else if (error.response) {
+        logger.debug(`Failed to send metrics: HTTP ${error.response.status} — ${JSON.stringify(error.response.data)}`);
       } else {
-        logger.debug('Failed to send metrics:', error.message);
+        logger.debug(`Failed to send metrics: ${error.message || error.code || 'unknown error'}`);
       }
     }
   }
