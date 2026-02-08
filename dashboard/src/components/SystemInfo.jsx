@@ -15,7 +15,7 @@ function SystemInfo({ node, currentMetrics, formatBytes }) {
   const InfoRow = ({ label, value }) => (
     <div className="flex justify-between py-2 border-b border-dark-lightest last:border-0">
       <span className="text-gray-400 text-sm">{label}</span>
-      <span className="text-white text-sm font-medium">{value || 'N/A'}</span>
+      <span className="text-tx text-sm font-medium">{value || 'N/A'}</span>
     </div>
   );
 
@@ -86,7 +86,7 @@ function SystemInfo({ node, currentMetrics, formatBytes }) {
                         style={{ width: `${disk.usagePercent}%` }}
                       />
                     </div>
-                    <span className="text-white text-sm font-medium">{disk.usagePercent}%</span>
+                    <span className="text-tx text-sm font-medium">{disk.usagePercent}%</span>
                   </div>
                 </div>
               </div>

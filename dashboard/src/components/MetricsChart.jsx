@@ -12,6 +12,7 @@ import {
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
 import { format } from 'date-fns';
+import { useTheme } from '../context/ThemeContext';
 
 ChartJS.register(
   CategoryScale,
@@ -25,12 +26,12 @@ ChartJS.register(
 );
 
 function MetricsChart({ metrics }) {
-  const chartData = useMemo(() => {
-    if (!metrics || metrics.length === 0) {
-      return null;
-    }
+  const { theme } = useTheme();
+  const c = theme.colors;
 
-    // Reverse to show oldest to newest
+  const chartData = useMemo(() => {
+    if (!metrics || metrics.length === 0) return null;
+
     const sortedMetrics = [...metrics].reverse();
 
     const labels = sortedMetrics.map(m => {
@@ -59,32 +60,32 @@ function MetricsChart({ metrics }) {
         {
           label: 'CPU Usage (%)',
           data: cpuData,
-          borderColor: 'rgb(59, 130, 246)',
-          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+          borderColor: c.accent1,
+          backgroundColor: c.accent1 + '1a',
           fill: true,
           tension: 0.4,
         },
         {
           label: 'Memory Usage (%)',
           data: memoryData,
-          borderColor: 'rgb(34, 197, 94)',
-          backgroundColor: 'rgba(34, 197, 94, 0.1)',
+          borderColor: c.accent2,
+          backgroundColor: c.accent2 + '1a',
           fill: true,
           tension: 0.4,
         },
         {
           label: 'Swap Usage (%)',
           data: swapData,
-          borderColor: 'rgb(234, 179, 8)',
-          backgroundColor: 'rgba(234, 179, 8, 0.1)',
+          borderColor: c.accent4,
+          backgroundColor: c.accent4 + '1a',
           fill: true,
           tension: 0.4,
         },
       ],
     };
-  }, [metrics]);
+  }, [metrics, c]);
 
-  const options = {
+  const options = useMemo(() => ({
     responsive: true,
     maintainAspectRatio: false,
     interaction: {
@@ -95,54 +96,48 @@ function MetricsChart({ metrics }) {
       legend: {
         position: 'top',
         labels: {
-          color: '#e5e7eb',
-          font: {
-            size: 12
-          }
+          color: c.text,
+          font: { size: 12, family: 'Space Mono' }
         }
       },
-      title: {
-        display: false,
-      },
+      title: { display: false },
       tooltip: {
-        backgroundColor: 'rgba(15, 23, 42, 0.9)',
-        titleColor: '#e5e7eb',
-        bodyColor: '#e5e7eb',
-        borderColor: '#334155',
+        backgroundColor: c.bgCard + 'ee',
+        titleColor: c.text,
+        bodyColor: c.text,
+        borderColor: c.textMuted,
         borderWidth: 1,
+        titleFont: { family: 'Space Mono' },
+        bodyFont: { family: 'Space Mono' },
       }
     },
     scales: {
       x: {
-        grid: {
-          color: 'rgba(51, 65, 85, 0.5)',
-        },
+        grid: { color: c.textMuted + '30' },
         ticks: {
-          color: '#9ca3af',
+          color: c.textSecondary,
           maxTicksLimit: 10,
+          font: { family: 'Space Mono', size: 10 }
         }
       },
       y: {
         min: 0,
         max: 100,
-        grid: {
-          color: 'rgba(51, 65, 85, 0.5)',
-        },
+        grid: { color: c.textMuted + '30' },
         ticks: {
-          color: '#9ca3af',
-          callback: function(value) {
-            return value + '%';
-          }
+          color: c.textSecondary,
+          font: { family: 'Space Mono', size: 10 },
+          callback: (value) => value + '%'
         }
       },
     },
-  };
+  }), [c]);
 
   if (!chartData) {
     return (
       <div className="card">
         <h3 className="card-header">Resource Usage</h3>
-        <div className="h-64 flex items-center justify-center text-gray-500">
+        <div className="h-64 flex items-center justify-center text-tx/40">
           <p>Waiting for metrics data...</p>
         </div>
       </div>

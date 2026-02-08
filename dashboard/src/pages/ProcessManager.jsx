@@ -78,14 +78,14 @@ function ProcessManager({ socket }) {
     <main className="flex-1 p-8">
       <header className="mb-8 flex justify-between items-center">
         <div>
-          <h2 className="text-3xl font-bold text-white">Process Manager</h2>
-          <p className="text-white/60">Monitor and manage processes across all agents</p>
+          <h2 className="text-3xl font-bold text-tx">Process Manager</h2>
+          <p className="text-tx/60">Monitor and manage processes across all agents</p>
         </div>
         
         <select
           value={selectedAgent}
           onChange={(e) => setSelectedAgent(e.target.value)}
-          className="bg-background-dark/70 border border-primary/30 text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+          className="bg-background-dark/70 border border-primary/30 text-tx rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
         >
           <option value="all">All Agents</option>
           {agents.map(agent => (
@@ -96,7 +96,7 @@ function ProcessManager({ socket }) {
         </select>
       </header>
 
-      <div className="bg-background-light/10 rounded-xl border border-white/10">
+      <div className="bg-background-light/10 rounded-xl border border-tx/10">
         {loading ? (
           <div className="p-8 text-center text-gray-400">Loading processes...</div>
         ) : (

@@ -17,7 +17,7 @@ function Header({ connected, nodeCount }) {
           <div className="flex items-center space-x-6">
             <div className="flex items-center space-x-2">
               <span className="text-gray-400 text-sm">Nodes:</span>
-              <span className="text-white font-semibold">{nodeCount}</span>
+              <span className="text-tx font-semibold">{nodeCount}</span>
             </div>
             
             <div className="flex items-center space-x-2">

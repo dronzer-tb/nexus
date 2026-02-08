@@ -3,23 +3,50 @@
 @tailwind utilities;
 
 :root {
-  --neon-pink: #ff2d95;
-  --neon-cyan: #00f0ff;
-  --neon-purple: #b026ff;
-  --neon-yellow: #ffd319;
-  --brutal-bg: #0a001a;
-  --brutal-surface: #110025;
-  --brutal-card: #16002e;
-  --primary: #ff2d95;
+  /* ─── Default theme: Midnight Hacker ─── */
+  --brutal-bg: #0a0a0a;
+  --brutal-bg-rgb: 10 10 10;
+  --brutal-surface: #0f0f0f;
+  --brutal-surface-rgb: 15 15 15;
+  --brutal-card: #161616;
+  --brutal-card-rgb: 22 22 22;
+  --neon-pink: #00ff41;
+  --neon-pink-rgb: 0 255 65;
+  --neon-cyan: #00d4aa;
+  --neon-cyan-rgb: 0 212 170;
+  --neon-purple: #a0ff00;
+  --neon-purple-rgb: 160 255 0;
+  --neon-yellow: #ff9500;
+  --neon-yellow-rgb: 255 149 0;
+  --theme-text: #c8c8c8;
+  --theme-text-rgb: 200 200 200;
+  --theme-text-secondary: #555555;
+  --theme-text-secondary-rgb: 85 85 85;
+  --theme-text-muted: #2a2a2a;
+  --theme-text-muted-rgb: 42 42 42;
+  --theme-danger: #ff1744;
+  --theme-danger-rgb: 255 23 68;
+  --theme-success: #00ff41;
+  --theme-success-rgb: 0 255 65;
+  --on-primary: #000000;
+  --on-neon-pink: #000000;
+  --on-neon-cyan: #000000;
+  --on-neon-purple: #000000;
+  --on-neon-yellow: #ffffff;
+  --primary: #00ff41;
+  --accent-1: #00ff41;
+  --accent-2: #00d4aa;
+  --accent-3: #a0ff00;
+  --accent-4: #ff9500;
 }
 
 /* ─── Glow effects ─── */
 .glow {
-  box-shadow: 0 0 5px var(--neon-pink), 0 0 10px rgba(255, 45, 149, 0.5), 0 0 20px rgba(255, 45, 149, 0.3);
+  box-shadow: 0 0 5px var(--neon-pink), 0 0 10px rgb(var(--neon-pink-rgb) / 0.5), 0 0 20px rgb(var(--neon-pink-rgb) / 0.3);
 }
 
 .glow-cyan {
-  box-shadow: 0 0 5px var(--neon-cyan), 0 0 10px rgba(0, 240, 255, 0.3);
+  box-shadow: 0 0 5px var(--neon-cyan), 0 0 10px rgb(var(--neon-cyan-rgb) / 0.3);
 }
 
 /* ─── Body ─── */
@@ -28,7 +55,8 @@ body {
   font-family: 'Space Mono', 'JetBrains Mono', monospace;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  @apply bg-brutal-bg text-gray-100;
+  background-color: rgb(var(--brutal-bg-rgb));
+  color: rgb(var(--theme-text-rgb));
 }
 
 code {
@@ -46,12 +74,12 @@ code {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 45, 149, 0.2);
-  border: 1px solid rgba(255, 45, 149, 0.1);
+  background: rgb(var(--neon-pink-rgb) / 0.2);
+  border: 1px solid rgb(var(--neon-pink-rgb) / 0.1);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 45, 149, 0.4);
+  background: rgb(var(--neon-pink-rgb) / 0.4);
 }
 
 /* ─── Animations ─── */
@@ -80,12 +108,19 @@ code {
 
 /* ─── Card styles (compat with MetricsChart, SystemInfo, ProcessList) ─── */
 .card {
-  @apply bg-brutal-card p-6 border-[3px] border-neon-pink/10;
-  box-shadow: 4px 4px 0px 0px rgba(255,45,149,0.15);
+  background-color: rgb(var(--brutal-card-rgb));
+  padding: 1.5rem;
+  border: 3px solid rgb(var(--neon-pink-rgb) / 0.1);
+  box-shadow: 4px 4px 0px 0px rgb(var(--neon-pink-rgb) / 0.15);
 }
 
 .card-header {
-  @apply text-sm font-bold mb-4 text-white/80 uppercase tracking-wider;
+  font-size: 0.875rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  color: rgb(var(--theme-text-rgb) / 0.8);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 /* ─── Status indicators ─── */
@@ -94,18 +129,18 @@ code {
 }
 
 .status-online {
-  background: var(--neon-cyan);
-  box-shadow: 0 0 8px rgba(0, 240, 255, 0.5);
+  background: var(--theme-success);
+  box-shadow: 0 0 8px rgb(var(--theme-success-rgb) / 0.5);
 }
 
 .status-offline {
-  background: #ff4444;
-  box-shadow: 0 0 8px rgba(255, 68, 68, 0.3);
+  background: var(--theme-danger);
+  box-shadow: 0 0 8px rgb(var(--theme-danger-rgb) / 0.3);
 }
 
 .status-warning {
   background: var(--neon-yellow);
-  box-shadow: 0 0 8px rgba(255, 211, 25, 0.3);
+  box-shadow: 0 0 8px rgb(var(--neon-yellow-rgb) / 0.3);
 }
 
 /* ─── Brutal utility classes ─── */
@@ -123,6 +158,6 @@ code {
 
 /* ─── Selection color ─── */
 ::selection {
-  background: rgba(255, 45, 149, 0.3);
+  background: rgb(var(--neon-pink-rgb) / 0.3);
   color: white;
 }

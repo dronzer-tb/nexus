@@ -47,7 +47,7 @@ function Login() {
       
       <main className="relative z-10 w-full max-w-md p-8 space-y-8 bg-background-light/10 backdrop-blur-sm border border-primary/20 rounded-xl shadow-2xl">
         <div className="text-center">
-          <h1 className="text-4xl font-bold text-white drop-shadow-lg">
+          <h1 className="text-4xl font-bold text-tx drop-shadow-lg">
             <span className="text-primary">NEXUS</span>
           </h1>
           <p className="mt-2 text-gray-300">System Monitoring &amp; Management</p>
@@ -69,7 +69,7 @@ function Login() {
               required
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-4 py-3 bg-background-light/20 border border-primary/30 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300"
+              className="w-full px-4 py-3 bg-background-light/20 border border-primary/30 rounded-lg text-tx placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300"
               placeholder="Username"
               disabled={loading}
             />
@@ -84,7 +84,7 @@ function Login() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 bg-background-light/20 border border-primary/30 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300"
+              className="w-full px-4 py-3 bg-background-light/20 border border-primary/30 rounded-lg text-tx placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300"
               placeholder="Password"
               disabled={loading}
             />
@@ -94,7 +94,8 @@ function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 px-4 bg-primary text-white font-bold rounded-lg hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-background-dark focus:ring-primary transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed glow"
+              className="w-full py-3 px-4 bg-primary font-bold rounded-lg hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-background-dark focus:ring-primary transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed glow"
+              style={{ color: 'var(--on-primary)' }}
             >
               {loading ? 'Logging in...' : 'Login'}
             </button>

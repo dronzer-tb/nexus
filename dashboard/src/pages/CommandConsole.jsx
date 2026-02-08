@@ -142,14 +142,14 @@ function CommandConsole({ socket }) {
     <main className="flex-1 p-8">
       <header className="mb-8 flex justify-between items-center">
         <div>
-          <h2 className="text-3xl font-bold text-white">Command Console</h2>
-          <p className="text-white/60">Execute commands on remote agents</p>
+          <h2 className="text-3xl font-bold text-tx">Command Console</h2>
+          <p className="text-tx/60">Execute commands on remote agents</p>
         </div>
         
         <select
           value={selectedAgent}
           onChange={(e) => setSelectedAgent(e.target.value)}
-          className="bg-background-dark/70 border border-primary/30 text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+          className="bg-background-dark/70 border border-primary/30 text-tx rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
           disabled={executing}
         >
           <option value="">Select Agent</option>
@@ -163,7 +163,7 @@ function CommandConsole({ socket }) {
 
       <div className="bg-background-dark/70 rounded-xl border border-primary/20 p-6 mb-4">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-bold text-white">Output</h3>
+          <h3 className="text-lg font-bold text-tx">Output</h3>
           <button
             onClick={clearOutput}
             className="text-sm text-primary hover:text-primary/80 transition-colors"
@@ -202,14 +202,15 @@ function CommandConsole({ socket }) {
             onChange={(e) => setCommand(e.target.value)}
             onKeyDown={handleKeyDown}
             disabled={executing || !selectedAgent}
-            className="flex-grow bg-black/50 border-white/20 rounded-lg p-3 text-white font-mono focus:ring-2 focus:ring-primary focus:outline-none transition-shadow duration-200 border disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-grow bg-black/50 border-tx/20 rounded-lg p-3 text-tx font-mono focus:ring-2 focus:ring-primary focus:outline-none transition-shadow duration-200 border disabled:opacity-50 disabled:cursor-not-allowed"
             placeholder={selectedAgent ? "> Enter command..." : "Select an agent first"}
             type="text"
           />
           <button
             onClick={handleExecute}
             disabled={executing || !command.trim() || !selectedAgent}
-            className="bg-primary text-white font-bold py-3 px-6 rounded-lg hover:bg-primary/90 transition-colors duration-200 glow disabled:opacity-50 disabled:cursor-not-allowed"
+            className="bg-primary font-bold py-3 px-6 rounded-lg hover:bg-primary/90 transition-colors duration-200 glow disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ color: 'var(--on-primary)' }}
           >
             {executing ? 'Executing...' : 'Execute'}
           </button>

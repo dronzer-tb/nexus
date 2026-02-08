@@ -8,22 +8,22 @@ export default {
   theme: {
     extend: {
       colors: {
-        'primary': '#ff2d95',
-        'background-light': '#1a0030',
-        'background-dark': '#0a001a',
-        secondary: '#b026ff',
-        dark: '#0a001a',
-        'dark-lighter': '#110025',
-        'dark-lightest': '#1e0040',
-        // Brutalist theme tokens
-        'brutal-bg': '#0a001a',
-        'brutal-surface': '#110025',
-        'brutal-card': '#16002e',
-        // Neon accent tokens
-        'neon-pink': '#ff2d95',
-        'neon-cyan': '#00f0ff',
-        'neon-purple': '#b026ff',
-        'neon-yellow': '#ffd319',
+        'primary': 'rgb(var(--neon-pink-rgb) / <alpha-value>)',
+        'background-light': 'rgb(var(--brutal-surface-rgb) / <alpha-value>)',
+        'background-dark': 'rgb(var(--brutal-bg-rgb) / <alpha-value>)',
+        secondary: 'rgb(var(--neon-purple-rgb) / <alpha-value>)',
+        dark: 'rgb(var(--brutal-bg-rgb) / <alpha-value>)',
+        'dark-lighter': 'rgb(var(--brutal-surface-rgb) / <alpha-value>)',
+        'dark-lightest': 'rgb(var(--brutal-card-rgb) / <alpha-value>)',
+        'brutal-bg': 'rgb(var(--brutal-bg-rgb) / <alpha-value>)',
+        'brutal-surface': 'rgb(var(--brutal-surface-rgb) / <alpha-value>)',
+        'brutal-card': 'rgb(var(--brutal-card-rgb) / <alpha-value>)',
+        'neon-pink': 'rgb(var(--neon-pink-rgb) / <alpha-value>)',
+        'neon-cyan': 'rgb(var(--neon-cyan-rgb) / <alpha-value>)',
+        'neon-purple': 'rgb(var(--neon-purple-rgb) / <alpha-value>)',
+        'neon-yellow': 'rgb(var(--neon-yellow-rgb) / <alpha-value>)',
+        'tx': 'rgb(var(--theme-text-rgb) / <alpha-value>)',
+        'on-primary': 'var(--on-primary)',
       },
       fontFamily: {
         'display': ['Space Grotesk', 'sans-serif'],
@@ -37,12 +37,12 @@ export default {
         'full': '9999px'
       },
       boxShadow: {
-        'brutal': '4px 4px 0px 0px rgba(255,45,149,0.4)',
-        'brutal-sm': '3px 3px 0px 0px rgba(255,45,149,0.3)',
-        'brutal-lg': '8px 8px 0px 0px rgba(255,45,149,0.4)',
-        'brutal-cyan': '4px 4px 0px 0px rgba(0,240,255,0.3)',
-        'brutal-purple': '4px 4px 0px 0px rgba(176,38,255,0.3)',
-        'brutal-yellow': '4px 4px 0px 0px rgba(255,211,25,0.3)',
+        'brutal': '4px 4px 0px 0px rgb(var(--neon-pink-rgb) / 0.4)',
+        'brutal-sm': '3px 3px 0px 0px rgb(var(--neon-pink-rgb) / 0.3)',
+        'brutal-lg': '8px 8px 0px 0px rgb(var(--neon-pink-rgb) / 0.4)',
+        'brutal-cyan': '4px 4px 0px 0px rgb(var(--neon-cyan-rgb) / 0.3)',
+        'brutal-purple': '4px 4px 0px 0px rgb(var(--neon-purple-rgb) / 0.3)',
+        'brutal-yellow': '4px 4px 0px 0px rgb(var(--neon-yellow-rgb) / 0.3)',
       },
       animation: {
         'marquee': 'marquee 30s linear infinite',

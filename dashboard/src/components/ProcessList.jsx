@@ -18,7 +18,7 @@ function ProcessList({ currentMetrics }) {
       
       <div className="mb-4 grid grid-cols-4 gap-2 text-xs text-gray-400">
         <div className="bg-dark-lightest rounded p-2 text-center">
-          <p className="text-lg font-semibold text-white">{processes.all}</p>
+          <p className="text-lg font-semibold text-tx">{processes.all}</p>
           <p>Total</p>
         </div>
         <div className="bg-dark-lightest rounded p-2 text-center">
@@ -52,7 +52,7 @@ function ProcessList({ currentMetrics }) {
                 className="border-b border-dark-lightest last:border-0 hover:bg-dark-lightest"
               >
                 <td className="py-2 px-2 text-gray-300">{proc.pid}</td>
-                <td className="py-2 px-2 text-white truncate max-w-xs" title={proc.name}>
+                <td className="py-2 px-2 text-tx truncate max-w-xs" title={proc.name}>
                   {proc.name}
                 </td>
                 <td className="py-2 px-2 text-right">

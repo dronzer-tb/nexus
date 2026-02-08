@@ -34,11 +34,11 @@ const StatCard = ({ label, value, sub, icon: Icon, color, delay = 0 }) => (
     style={{ borderColor: `${color}30`, boxShadow: `4px 4px 0 ${color}20` }}
   >
     <div className="flex items-center justify-between mb-2">
-      <span className="text-[10px] font-bold uppercase tracking-widest text-white/30">{label}</span>
+      <span className="text-[10px] font-bold uppercase tracking-widest text-tx/30">{label}</span>
       {Icon && <Icon className="w-5 h-5" style={{ color }} />}
     </div>
     <div className="text-3xl font-black tracking-tighter" style={{ color }}>{value}</div>
-    {sub && <div className="text-[10px] font-mono text-white/25 mt-1">{sub}</div>}
+    {sub && <div className="text-[10px] font-mono text-tx/25 mt-1">{sub}</div>}
   </motion.div>
 );
 
@@ -46,7 +46,7 @@ const StatCard = ({ label, value, sub, icon: Icon, color, delay = 0 }) => (
 const BrutalBar = ({ value, label, color, sub }) => (
   <div>
     <div className="flex justify-between font-bold text-xs mb-1.5">
-      <span className="text-white/50 uppercase tracking-wider">{label}</span>
+      <span className="text-tx/50 uppercase tracking-wider">{label}</span>
       <span style={{ color }}>{value.toFixed(1)}%</span>
     </div>
     <div className="h-4 border-2 overflow-hidden" style={{ borderColor: `${color}40`, backgroundColor: `${color}08` }}>
@@ -58,7 +58,7 @@ const BrutalBar = ({ value, label, color, sub }) => (
         transition={{ duration: 1 }}
       />
     </div>
-    {sub && <div className="text-[10px] font-mono text-white/25 mt-1">{sub}</div>}
+    {sub && <div className="text-[10px] font-mono text-tx/25 mt-1">{sub}</div>}
   </div>
 );
 
@@ -117,7 +117,7 @@ function AgentDetails({ socket }) {
 
   if (loading) return (
     <div className="flex items-center justify-center h-96">
-      <div className="font-mono text-white/30">Loading node data...</div>
+      <div className="font-mono text-tx/30">Loading node data...</div>
     </div>
   );
 
@@ -151,7 +151,7 @@ function AgentDetails({ socket }) {
         <div className="flex items-start justify-between">
           <div>
             <div className="flex items-center gap-3 mb-2">
-              <h1 className="text-4xl font-black uppercase tracking-tighter text-white">{node.hostname}</h1>
+              <h1 className="text-4xl font-black uppercase tracking-tighter text-tx">{node.hostname}</h1>
               <span className={`px-3 py-1 text-[10px] font-bold uppercase tracking-widest border-2 ${
                 isOnline
                   ? 'border-neon-cyan/40 text-neon-cyan bg-neon-cyan/10'
@@ -160,13 +160,13 @@ function AgentDetails({ socket }) {
                 {isOnline ? '● ONLINE' : '● OFFLINE'}
               </span>
             </div>
-            <div className="font-mono text-[10px] text-white/30 flex gap-4 tracking-wider uppercase">
+            <div className="font-mono text-[10px] text-tx/30 flex gap-4 tracking-wider uppercase">
               <span>ID: {node.id.substring(0, 24)}...</span>
               <span>{node.system_info?.os?.distro || '—'}</span>
               {node.system_info?.uptime && <span>Uptime: {formatUptime(node.system_info.uptime)}</span>}
             </div>
           </div>
-          <div className="font-mono text-[10px] bg-brutal-bg border-2 border-neon-pink/10 text-white/25 p-3 tracking-wider">
+          <div className="font-mono text-[10px] bg-brutal-bg border-2 border-neon-pink/10 text-tx/25 p-3 tracking-wider">
             ARCH: {node.system_info?.os?.arch || '—'}<br />
             KERNEL: {node.system_info?.os?.kernel || '—'}
           </div>
@@ -193,8 +193,8 @@ function AgentDetails({ socket }) {
       {!data && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
           className="border-[3px] border-neon-pink/10 bg-brutal-card p-10 mb-6 text-center">
-          <div className="font-mono text-white/30 text-sm">Awaiting metrics data...</div>
-          <div className="font-mono text-white/15 text-[10px] mt-1">Metrics appear once the node starts reporting.</div>
+          <div className="font-mono text-tx/30 text-sm">Awaiting metrics data...</div>
+          <div className="font-mono text-tx/15 text-[10px] mt-1">Metrics appear once the node starts reporting.</div>
         </motion.div>
       )}
 
@@ -203,7 +203,8 @@ function AgentDetails({ socket }) {
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}
           className="border-[3px] border-neon-pink/15 bg-brutal-card p-6 mb-6 shadow-brutal">
           <h3 className="font-bold text-sm uppercase tracking-widest text-neon-pink mb-4">
-            <span className="bg-neon-pink text-white px-2 py-0.5 text-[10px] mr-2">LIVE</span>
+            <span className="bg-neon-pink px-2 py-0.5 text-[10px] mr-2"
+              style={{ color: 'var(--on-neon-pink)' }}>LIVE</span>
             Metrics History
           </h3>
           <MetricsChart metrics={metrics} />
@@ -214,7 +215,7 @@ function AgentDetails({ socket }) {
       {data?.disk && data.disk.length > 0 && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.35 }}
           className="border-[3px] border-neon-cyan/15 bg-brutal-card p-6 mb-6 shadow-brutal-cyan">
-          <h3 className="text-[10px] font-bold uppercase tracking-widest text-white/30 mb-4">
+          <h3 className="text-[10px] font-bold uppercase tracking-widest text-tx/30 mb-4">
             <HardDrive className="w-4 h-4 inline mr-2 text-neon-cyan" />
             Disk Partitions
           </h3>
@@ -238,13 +239,13 @@ function AgentDetails({ socket }) {
           className="border-[3px] border-neon-purple/15 bg-brutal-card shadow-brutal-purple mb-6">
           <div className="px-5 py-3 border-b-[3px] border-neon-purple/10 bg-neon-purple/[0.04] flex justify-between items-center">
             <h3 className="font-bold text-sm uppercase tracking-wider text-neon-purple">Top Processes</h3>
-            <span className="font-mono text-[10px] text-white/25">
+            <span className="font-mono text-[10px] text-tx/25">
               {data.processes.all} total · {data.processes.running} running
             </span>
           </div>
 
           {/* Process grid header */}
-          <div className="grid grid-cols-12 gap-2 px-5 py-2 text-[9px] font-bold uppercase tracking-widest text-white/20 border-b-2 border-neon-purple/[0.06]">
+          <div className="grid grid-cols-12 gap-2 px-5 py-2 text-[9px] font-bold uppercase tracking-widest text-tx/20 border-b-2 border-neon-purple/[0.06]">
             <div className="col-span-2">PID</div>
             <div className="col-span-6">Name</div>
             <div className="col-span-2 text-right">CPU %</div>
@@ -255,13 +256,13 @@ function AgentDetails({ socket }) {
             <div key={i}
               className="grid grid-cols-12 gap-2 px-5 py-2.5 text-xs border-b border-neon-purple/[0.04] hover:bg-neon-purple/[0.03] transition-colors"
             >
-              <div className="col-span-2 font-mono text-white/30">{proc.pid}</div>
-              <div className="col-span-6 font-bold text-white/80 truncate">{proc.name}</div>
+              <div className="col-span-2 font-mono text-tx/30">{proc.pid}</div>
+              <div className="col-span-6 font-bold text-tx/80 truncate">{proc.name}</div>
               <div className="col-span-2 text-right font-mono font-bold"
                 style={{ color: proc.cpu > 50 ? 'var(--neon-pink)' : 'var(--neon-cyan)' }}>
                 {proc.cpu?.toFixed(1)}
               </div>
-              <div className="col-span-2 text-right font-mono text-white/40">
+              <div className="col-span-2 text-right font-mono text-tx/40">
                 {proc.mem?.toFixed(1)}
               </div>
             </div>
@@ -280,21 +281,21 @@ function AgentDetails({ socket }) {
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b-2 border-neon-yellow/[0.06]">
-                  <th className="text-left py-2 px-5 text-white/25 font-bold uppercase tracking-wider text-[9px]">Interface</th>
-                  <th className="text-right py-2 px-5 text-white/25 font-bold uppercase tracking-wider text-[9px]">RX/s</th>
-                  <th className="text-right py-2 px-5 text-white/25 font-bold uppercase tracking-wider text-[9px]">TX/s</th>
-                  <th className="text-right py-2 px-5 text-white/25 font-bold uppercase tracking-wider text-[9px]">Total RX</th>
-                  <th className="text-right py-2 px-5 text-white/25 font-bold uppercase tracking-wider text-[9px]">Total TX</th>
+                  <th className="text-left py-2 px-5 text-tx/25 font-bold uppercase tracking-wider text-[9px]">Interface</th>
+                  <th className="text-right py-2 px-5 text-tx/25 font-bold uppercase tracking-wider text-[9px]">RX/s</th>
+                  <th className="text-right py-2 px-5 text-tx/25 font-bold uppercase tracking-wider text-[9px]">TX/s</th>
+                  <th className="text-right py-2 px-5 text-tx/25 font-bold uppercase tracking-wider text-[9px]">Total RX</th>
+                  <th className="text-right py-2 px-5 text-tx/25 font-bold uppercase tracking-wider text-[9px]">Total TX</th>
                 </tr>
               </thead>
               <tbody>
                 {data.network.map((iface, i) => (
                   <tr key={i} className="border-b border-neon-yellow/[0.04] hover:bg-neon-yellow/[0.02] transition-colors">
-                    <td className="py-2 px-5 font-bold text-white/70">{iface.iface}</td>
+                    <td className="py-2 px-5 font-bold text-tx/70">{iface.iface}</td>
                     <td className="py-2 px-5 text-right font-mono text-neon-cyan">{formatBytes(iface.rx_sec || 0)}/s</td>
                     <td className="py-2 px-5 text-right font-mono text-neon-pink">{formatBytes(iface.tx_sec || 0)}/s</td>
-                    <td className="py-2 px-5 text-right font-mono text-white/30">{formatBytes(iface.rx_bytes || 0)}</td>
-                    <td className="py-2 px-5 text-right font-mono text-white/30">{formatBytes(iface.tx_bytes || 0)}</td>
+                    <td className="py-2 px-5 text-right font-mono text-tx/30">{formatBytes(iface.rx_bytes || 0)}</td>
+                    <td className="py-2 px-5 text-right font-mono text-tx/30">{formatBytes(iface.tx_bytes || 0)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -304,7 +305,7 @@ function AgentDetails({ socket }) {
       )}
 
       {/* Footer */}
-      <div className="text-center py-4 font-mono text-[9px] text-white/15 uppercase tracking-widest">
+      <div className="text-center py-4 font-mono text-[9px] text-tx/15 uppercase tracking-widest">
         Nexus Fleet Monitor /// Dronzer Studios
       </div>
     </div>

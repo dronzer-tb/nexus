@@ -2,7 +2,7 @@ import { Routes, Route, Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   LayoutGrid, Terminal, Server,
-  FileText, ListTree, LogOut
+  FileText, ListTree, LogOut, Settings as SettingsIcon
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../context/AuthContext';
@@ -12,20 +12,20 @@ import AgentDetails from './AgentDetails';
 import ProcessManager from './ProcessManager';
 import CommandConsole from './CommandConsole';
 import Logs from './Logs';
+import Settings from './Settings';
 
-/* ─────── SYNTHWAVE BRUTALIST DASHBOARD ───────
-   Brutalist structure + V3 Synthwave palette.
-   Hot pink, electric cyan, deep purple.
-   Hard shadows, thick borders, raw energy. */
+/* ─────── BRUTALIST DASHBOARD ─────── */
 
 const SidebarItem = ({ icon: Icon, label, path, active }) => (
   <Link to={path} className="block mb-[-2px] relative z-10 group">
     <div className={clsx(
       "flex items-center gap-3 px-5 py-3.5 border-2 transition-all duration-100 font-bold text-sm uppercase tracking-tight",
       active
-        ? "bg-neon-pink text-white translate-x-[-4px] translate-y-[-4px] shadow-brutal border-neon-pink"
-        : "bg-brutal-card text-white/60 border-white/[0.06] hover:border-neon-pink/40 hover:text-white"
-    )}>
+        ? "bg-neon-pink translate-x-[-4px] translate-y-[-4px] shadow-brutal border-neon-pink"
+        : "bg-brutal-card text-tx/60 border-tx/[0.06] hover:border-neon-pink/40 hover:text-tx"
+    )}
+      style={active ? { color: 'var(--on-neon-pink)' } : undefined}
+    >
       <Icon className="w-5 h-5" strokeWidth={2.5} />
       <span>{label}</span>
     </div>
@@ -47,10 +47,11 @@ function Dashboard({ socket }) {
     { icon: ListTree, label: 'Processes', path: '/processes' },
     { icon: Terminal, label: 'Console', path: '/console' },
     { icon: FileText, label: 'Logs', path: '/logs' },
+    { icon: SettingsIcon, label: 'Settings', path: '/settings' },
   ];
 
   return (
-    <div className="min-h-screen bg-brutal-bg text-white font-brutal selection:bg-neon-pink selection:text-white">
+    <div className="min-h-screen bg-brutal-bg text-tx font-brutal selection:bg-neon-pink selection:text-white">
       <div className="flex h-screen overflow-hidden">
 
         {/* ── Sidebar ── */}
@@ -59,7 +60,7 @@ function Dashboard({ socket }) {
           <div className="p-6 border-b-[3px] border-neon-pink/20 bg-gradient-to-br from-neon-pink/10 to-neon-purple/10">
             <h1
               className="text-4xl font-black tracking-tighter italic text-neon-pink"
-              style={{ textShadow: '0 0 30px rgba(255,45,149,0.35)' }}
+              style={{ textShadow: '0 0 30px var(--neon-pink)' }}
             >
               NEXUS
             </h1>
@@ -71,7 +72,8 @@ function Dashboard({ socket }) {
           {/* Navigation */}
           <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
             <div className="space-y-4">
-              <div className="bg-neon-pink text-white px-2 py-1 text-[10px] font-bold uppercase inline-block rotate-[-2deg] tracking-widest">
+              <div className="bg-neon-pink px-2 py-1 text-[10px] font-bold uppercase inline-block rotate-[-2deg] tracking-widest"
+                style={{ color: 'var(--on-neon-pink)' }}>
                 Navigation
               </div>
               <div className="space-y-0">
@@ -89,7 +91,8 @@ function Dashboard({ socket }) {
 
             {/* System status block */}
             <div className="mt-10 space-y-3">
-              <div className="bg-neon-cyan/80 text-brutal-bg px-2 py-1 text-[10px] font-bold uppercase inline-block rotate-[1deg] tracking-widest">
+              <div className="bg-neon-cyan/80 px-2 py-1 text-[10px] font-bold uppercase inline-block rotate-[1deg] tracking-widest"
+                style={{ color: 'var(--on-neon-cyan)' }}>
                 System
               </div>
               <div className="border-[3px] border-neon-cyan/20 p-4 bg-brutal-card shadow-brutal-cyan">
@@ -97,7 +100,7 @@ function Dashboard({ socket }) {
                   <div className="w-2.5 h-2.5 bg-neon-cyan border border-neon-cyan/60 rounded-none animate-pulse" />
                   Online
                 </div>
-                <div className="text-[10px] uppercase leading-relaxed text-white/40 font-mono">
+                <div className="text-[10px] uppercase leading-relaxed text-tx/40 font-mono">
                   Protocol: WSS/HTTPS<br />
                   Stream: 5s interval<br />
                   Auth: JWT secured
@@ -115,7 +118,7 @@ function Dashboard({ socket }) {
               <LogOut className="w-4 h-4" />
               Disconnect
             </button>
-            <div className="text-center text-[8px] mt-3 tracking-[0.4em] text-white/15 font-bold uppercase">
+            <div className="text-center text-[8px] mt-3 tracking-[0.4em] text-tx/15 font-bold uppercase">
               Dronzer Studios
             </div>
           </div>
@@ -153,6 +156,7 @@ function Dashboard({ socket }) {
                 <Route path="/processes" element={<ProcessManager socket={socket} />} />
                 <Route path="/console" element={<CommandConsole socket={socket} />} />
                 <Route path="/logs" element={<Logs socket={socket} />} />
+                <Route path="/settings" element={<Settings />} />
               </Routes>
             </motion.div>
           </div>

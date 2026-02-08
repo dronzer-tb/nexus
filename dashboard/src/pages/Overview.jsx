@@ -19,14 +19,14 @@ const BrutalCard = ({ title, value, sub, icon: Icon, color = 'neon-pink', delay 
   >
     <div className="flex justify-between items-start mb-3">
       <h3 className="font-bold text-xs uppercase tracking-widest px-2 py-0.5 inline-block transform -rotate-1"
-        style={{ backgroundColor: `var(--${color})`, color: color === 'neon-yellow' ? '#0a001a' : '#fff' }}>
+        style={{ backgroundColor: `var(--${color})`, color: `var(--on-${color})` }}>
         {title}
       </h3>
       {Icon && <Icon className="w-6 h-6 stroke-[2.5]" style={{ color: `var(--${color})` }} />}
     </div>
     <div className="text-4xl font-black mb-1 tracking-tighter" style={{ color: `var(--${color})` }}>{value}</div>
     {sub && (
-      <div className="font-mono text-[10px] uppercase border-t-2 pt-2 mt-2 flex justify-between text-white/30"
+      <div className="font-mono text-[10px] uppercase border-t-2 pt-2 mt-2 flex justify-between text-tx/30"
         style={{ borderColor: `var(--${color})20` }}>
         <span>{sub}</span>
         <span>/// RAW</span>
@@ -50,10 +50,10 @@ const NodeRow = ({ node, index }) => {
         <div className="flex items-center gap-4">
           <div className={`w-5 h-5 border-2 ${isOnline ? 'bg-neon-cyan border-neon-cyan/60' : 'bg-red-500 border-red-500/60'}`} />
           <div>
-            <div className="font-bold uppercase text-base text-white group-hover:text-neon-pink transition-colors">
+            <div className="font-bold uppercase text-base text-tx group-hover:text-neon-pink transition-colors">
               {node.hostname || node.id?.substring(0, 12)}
             </div>
-            <div className="font-mono text-[10px] text-white/30 tracking-wider">
+            <div className="font-mono text-[10px] text-tx/30 tracking-wider">
               {node.system_info?.os?.distro || 'Unknown OS'}
             </div>
           </div>
@@ -64,9 +64,9 @@ const NodeRow = ({ node, index }) => {
               style={{ color: cpu > 80 ? 'var(--neon-pink)' : cpu > 50 ? 'var(--neon-yellow)' : 'var(--neon-cyan)' }}>
               {cpu.toFixed(0)}%
             </div>
-            <div className="text-[9px] text-white/30 uppercase tracking-wider">CPU</div>
+            <div className="text-[9px] text-tx/30 uppercase tracking-wider">CPU</div>
           </div>
-          <ArrowUpRight className="w-4 h-4 text-white/20 group-hover:text-neon-pink transition-colors" />
+          <ArrowUpRight className="w-4 h-4 text-tx/20 group-hover:text-neon-pink transition-colors" />
         </div>
       </motion.div>
     </Link>
@@ -117,8 +117,8 @@ function Overview({ socket }) {
       <header className="mb-10 flex items-end gap-6 border-b-[3px] border-neon-pink/20 pb-6">
         <div>
           <h1 className="text-6xl font-black uppercase tracking-tighter leading-[0.85]">
-            <span className="text-white">System</span><br />
-            <span className="text-neon-pink" style={{ textShadow: '0 0 30px rgba(255,45,149,0.3)' }}>
+            <span className="text-tx">System</span><br />
+            <span className="text-neon-pink" style={{ textShadow: '0 0 30px var(--neon-pink)' }}>
               Override
             </span>
           </h1>
@@ -154,18 +154,21 @@ function Overview({ socket }) {
             <h2 className="font-bold text-lg uppercase tracking-tight text-neon-pink">Active Nodes</h2>
             <button
               onClick={fetchAgents}
-              className="border-2 border-neon-pink/40 px-4 py-1 text-neon-pink hover:bg-neon-pink hover:text-white transition-colors font-bold uppercase text-[10px] tracking-widest"
+              className="border-2 border-neon-pink/40 px-4 py-1 text-neon-pink hover:bg-neon-pink transition-colors font-bold uppercase text-[10px] tracking-widest"
+              style={{ '--hover-color': 'var(--on-neon-pink)' }}
+              onMouseEnter={(e) => e.currentTarget.style.color = 'var(--on-neon-pink)'}
+              onMouseLeave={(e) => e.currentTarget.style.color = ''}
             >
               Refresh
             </button>
           </div>
           <div>
             {loading ? (
-              <div className="p-8 text-center font-mono text-white/30 text-sm">Scanning network...</div>
+              <div className="p-8 text-center font-mono text-tx/30 text-sm">Scanning network...</div>
             ) : agents.length === 0 ? (
               <div className="p-8 text-center">
-                <div className="font-mono text-white/30 text-sm mb-2">No nodes connected</div>
-                <div className="text-[10px] text-white/20">Run `nexus --mode=node` on target machines</div>
+                <div className="font-mono text-tx/30 text-sm mb-2">No nodes connected</div>
+                <div className="text-[10px] text-tx/20">Run `nexus --mode=node` on target machines</div>
               </div>
             ) : (
               <>
@@ -194,7 +197,7 @@ function Overview({ socket }) {
             className="border-[3px] border-neon-cyan/20 bg-brutal-card p-6 shadow-brutal-cyan"
           >
             <h2 className="font-black text-2xl uppercase mb-4 text-neon-cyan"
-              style={{ textShadow: '0 0 15px rgba(0,240,255,0.2)' }}>
+              style={{ textShadow: '0 0 15px var(--neon-cyan)' }}>
               Fleet<br />Resources
             </h2>
             <div className="space-y-4">
@@ -204,7 +207,7 @@ function Overview({ socket }) {
               ].map((m, i) => (
                 <div key={i}>
                   <div className="flex justify-between font-mono font-bold text-xs mb-1.5">
-                    <span className="text-white/50">{m.label}</span>
+                    <span className="text-tx/50">{m.label}</span>
                     <span style={{ color: m.color }}>{m.value.toFixed(1)}%</span>
                   </div>
                   <div className="h-3 border-2 overflow-hidden" style={{ borderColor: `${m.color}40`, backgroundColor: `${m.color}10` }}>
@@ -219,7 +222,7 @@ function Overview({ socket }) {
                 </div>
               ))}
             </div>
-            <div className="flex justify-between font-mono font-bold text-xs mt-4 pt-3 border-t-2 border-neon-cyan/10 text-white/30">
+            <div className="flex justify-between font-mono font-bold text-xs mt-4 pt-3 border-t-2 border-neon-cyan/10 text-tx/30">
               <span>IN: {online.length} nodes</span>
               <span>OUT: {offline.length} nodes</span>
             </div>
@@ -236,7 +239,7 @@ function Overview({ socket }) {
               <Activity className="w-10 h-10 border-2 border-neon-purple/30 p-1.5 bg-neon-purple/10 text-neon-purple rounded-none flex-shrink-0" />
               <div>
                 <h3 className="font-bold uppercase text-lg text-neon-purple">System Status</h3>
-                <p className="font-mono text-[10px] mt-2 leading-relaxed border-l-2 border-neon-purple/30 pl-3 text-white/40">
+                <p className="font-mono text-[10px] mt-2 leading-relaxed border-l-2 border-neon-purple/30 pl-3 text-tx/40">
                   {offline.length > 0
                     ? `Warning: ${offline.length} node${offline.length > 1 ? 's' : ''} offline. Check connectivity on affected systems.`
                     : 'All systems nominal. No alerts detected across monitored infrastructure.'

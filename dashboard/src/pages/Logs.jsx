@@ -93,8 +93,8 @@ function Logs({ socket }) {
   return (
     <main className="flex-1 p-8">
       <header className="mb-8">
-        <h2 className="text-3xl font-bold text-white">System Logs</h2>
-        <p className="text-white/60">View and monitor system logs in real-time</p>
+        <h2 className="text-3xl font-bold text-tx">System Logs</h2>
+        <p className="text-tx/60">View and monitor system logs in real-time</p>
       </header>
 
       <div className="bg-background-dark/70 rounded-xl border border-primary/20 p-6 mb-4">
@@ -103,7 +103,7 @@ function Logs({ socket }) {
             <select
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
-              className="bg-black/50 border border-primary/30 text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+              className="bg-black/50 border border-primary/30 text-tx rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
             >
               <option value="all">All Levels</option>
               <option value="error">Error</option>
@@ -117,10 +117,10 @@ function Logs({ socket }) {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search logs..."
-              className="bg-black/50 border border-primary/30 text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+              className="bg-black/50 border border-primary/30 text-tx rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
             />
 
-            <label className="flex items-center gap-2 text-white cursor-pointer">
+            <label className="flex items-center gap-2 text-tx cursor-pointer">
               <input
                 type="checkbox"
                 checked={autoScroll}

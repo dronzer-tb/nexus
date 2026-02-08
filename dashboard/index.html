@@ -7,6 +7,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Nexus Dashboard - Remote Resource Management</title>
     
+    <!-- Prevent theme flash: apply saved theme before React mounts -->
+    <script>
+    try{var t=JSON.parse(localStorage.getItem('nexus-theme'));if(t&&t.colors){var c=t.colors,s=document.documentElement.style,h=function(x){var m=x.match(/[a-f\d]{2}/gi);return m?m.map(function(v){return parseInt(v,16)}).join(' '):'0 0 0'},p=function(n,v){s.setProperty(n,v);s.setProperty(n+'-rgb',h(v))};p('--brutal-bg',c.bgPrimary);p('--brutal-surface',c.bgSecondary);p('--brutal-card',c.bgCard);p('--neon-pink',c.accent1);p('--neon-cyan',c.accent2);p('--neon-purple',c.accent3);p('--neon-yellow',c.accent4);p('--theme-text',c.text);p('--theme-text-secondary',c.textSecondary);p('--theme-text-muted',c.textMuted);p('--theme-danger',c.danger);p('--theme-success',c.success)}}catch(e){}
+    </script>
+    
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

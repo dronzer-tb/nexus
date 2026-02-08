@@ -76,7 +76,7 @@ function NodeDetails({ node, socket }) {
       <div className="card">
         <div className="flex items-start justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-white mb-2">{node.hostname}</h2>
+            <h2 className="text-2xl font-bold text-tx mb-2">{node.hostname}</h2>
             <div className="flex items-center space-x-4 text-sm text-gray-400">
               <span className="flex items-center">
                 <span className={`status-dot ${node.status === 'online' ? 'status-online' : 'status-offline'}`} />
