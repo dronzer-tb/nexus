@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Palette, Save, Trash2, Check, RotateCcw, Key, Copy, Plus, Shield, Eye, EyeOff } from 'lucide-react';
+import { Palette, Save, Trash2, Check, RotateCcw, Key, Copy, Plus, Shield, Eye, EyeOff, Download, RefreshCw, ArrowUpCircle, Server, Send, Loader2, ExternalLink, AlertTriangle } from 'lucide-react';
 import { useTheme, BUILT_IN_PRESETS, COLOR_LABELS, luminance } from '../context/ThemeContext';
 import axios from 'axios';
 
@@ -88,6 +88,278 @@ const ColorInput = ({ label, value, onChange }) => (
     </div>
   </div>
 );
+
+/* ─── Update Manager Component ─── */
+function UpdateManager({ showFeedback }) {
+  const [updateInfo, setUpdateInfo] = useState(null);
+  const [checking, setChecking] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const [pushingNodes, setPushingNodes] = useState(false);
+  const [releases, setReleases] = useState([]);
+  const [showChangelog, setShowChangelog] = useState(false);
+
+  const token = localStorage.getItem('token');
+  const api = axios.create({
+    baseURL: window.location.origin,
+    headers: { Authorization: `Bearer ${token}` }
+  });
+
+  const checkForUpdate = useCallback(async () => {
+    setChecking(true);
+    try {
+      const res = await api.get('/api/update/check');
+      setUpdateInfo(res.data);
+      if (res.data.error) {
+        showFeedback(res.data.error);
+      } else if (res.data.hasUpdate) {
+        showFeedback(`Update available: v${res.data.latestVersion}`);
+      } else {
+        showFeedback('You\'re on the latest version!');
+      }
+    } catch {
+      showFeedback('Failed to check for updates');
+    } finally {
+      setChecking(false);
+    }
+  }, []);
+
+  const fetchReleases = async () => {
+    try {
+      const res = await api.get('/api/update/releases?limit=5');
+      setReleases(res.data.releases || []);
+      setShowChangelog(true);
+    } catch {
+      showFeedback('Failed to load changelog');
+    }
+  };
+
+  const applyUpdate = async () => {
+    setUpdating(true);
+    try {
+      const res = await api.post('/api/update/apply');
+      showFeedback(res.data.message || 'Update started...');
+    } catch {
+      showFeedback('Failed to start update');
+    } finally {
+      // Keep updating state for a while since it's async
+      setTimeout(() => {
+        setUpdating(false);
+        checkForUpdate(); // Re-check to see new version
+      }, 30000);
+    }
+  };
+
+  const pushNodeUpdate = async () => {
+    setPushingNodes(true);
+    try {
+      const res = await api.post('/api/update/nodes');
+      showFeedback(res.data.message || 'Update sent to nodes');
+    } catch {
+      showFeedback('Failed to push update to nodes');
+    } finally {
+      setPushingNodes(false);
+    }
+  };
+
+  useEffect(() => {
+    // Auto-check on mount
+    checkForUpdate();
+  }, []);
+
+  return (
+    <section className="mt-10 mb-8">
+      <header className="mb-6 border-b-[3px] border-neon-purple/20 pb-4">
+        <div className="flex items-center gap-4">
+          <ArrowUpCircle className="w-8 h-8 text-neon-purple" strokeWidth={2.5} />
+          <div>
+            <h2 className="text-3xl font-black uppercase tracking-tighter leading-[0.9]">
+              <span className="text-tx">System</span>{' '}
+              <span className="text-neon-purple" style={{ textShadow: '0 0 25px var(--neon-purple)' }}>
+                Updates
+              </span>
+            </h2>
+            <div className="font-mono text-[10px] text-tx/30 mt-1 tracking-wider uppercase">
+              Check for updates · Download & install · Push to nodes
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Version info card */}
+      <div className="border-[3px] border-tx/10 bg-brutal-card p-6 mb-4">
+        <div className="flex items-start justify-between flex-wrap gap-4">
+          <div>
+            <div className="text-[9px] font-bold uppercase tracking-widest text-tx/30 mb-1">Current Version</div>
+            <div className="text-3xl font-black text-tx tracking-tight">
+              v{updateInfo?.currentVersion || '...'}
+            </div>
+          </div>
+
+          {updateInfo?.hasUpdate && (
+            <div className="text-right">
+              <div className="text-[9px] font-bold uppercase tracking-widest text-neon-purple/60 mb-1">Latest Available</div>
+              <div className="text-3xl font-black text-neon-purple tracking-tight" style={{ textShadow: '0 0 15px var(--neon-purple)' }}>
+                v{updateInfo.latestVersion}
+              </div>
+            </div>
+          )}
+
+          {updateInfo && !updateInfo.hasUpdate && !updateInfo.error && (
+            <div className="flex items-center gap-2 px-4 py-2 border-2 border-green-500/30 bg-green-500/5">
+              <Check className="w-4 h-4 text-green-500" />
+              <span className="text-xs font-bold uppercase tracking-wider text-green-500">Up to date</span>
+            </div>
+          )}
+        </div>
+
+        {/* Release name & date */}
+        {updateInfo?.hasUpdate && updateInfo.releaseName && (
+          <div className="mt-4 pt-4 border-t-2 border-tx/5">
+            <div className="font-bold text-sm text-tx uppercase tracking-wider">{updateInfo.releaseName}</div>
+            {updateInfo.publishedAt && (
+              <div className="font-mono text-[10px] text-tx/30 mt-0.5">
+                Released {new Date(updateInfo.publishedAt).toLocaleDateString()}
+              </div>
+            )}
+            {updateInfo.releaseNotes && (
+              <div className="mt-3 font-mono text-xs text-tx/50 whitespace-pre-wrap leading-relaxed max-h-40 overflow-y-auto border-l-2 border-neon-purple/20 pl-3">
+                {updateInfo.releaseNotes.slice(0, 500)}
+                {updateInfo.releaseNotes.length > 500 && '...'}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Error state */}
+        {updateInfo?.error && (
+          <div className="mt-4 flex items-center gap-2 text-yellow-500">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            <span className="font-mono text-xs">{updateInfo.error}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Action buttons */}
+      <div className="flex flex-wrap gap-3 mb-4">
+        {/* Check for updates */}
+        <button
+          onClick={checkForUpdate}
+          disabled={checking}
+          className="flex items-center gap-2 px-4 py-2.5 border-2 border-neon-purple/40 text-neon-purple font-bold uppercase text-[10px] tracking-widest hover:bg-neon-purple transition-all shadow-brutal-sm hover:shadow-none hover:translate-x-[3px] hover:translate-y-[3px] disabled:opacity-40 disabled:cursor-not-allowed"
+          onMouseEnter={(e) => !checking && (e.currentTarget.style.color = 'var(--on-neon-purple)')}
+          onMouseLeave={(e) => (e.currentTarget.style.color = '')}
+        >
+          {checking ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+          {checking ? 'Checking...' : 'Check for Updates'}
+        </button>
+
+        {/* Download & Install */}
+        {updateInfo?.hasUpdate && (
+          <button
+            onClick={applyUpdate}
+            disabled={updating}
+            className="flex items-center gap-2 px-4 py-2.5 bg-neon-purple border-2 border-neon-purple font-bold uppercase text-[10px] tracking-widest hover:translate-x-[3px] hover:translate-y-[3px] shadow-brutal-sm hover:shadow-none transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ color: 'var(--on-neon-purple)' }}
+          >
+            {updating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+            {updating ? 'Updating...' : `Download & Install v${updateInfo.latestVersion}`}
+          </button>
+        )}
+
+        {/* Push to nodes */}
+        <button
+          onClick={pushNodeUpdate}
+          disabled={pushingNodes}
+          className="flex items-center gap-2 px-4 py-2.5 border-2 border-neon-cyan/40 text-neon-cyan font-bold uppercase text-[10px] tracking-widest hover:bg-neon-cyan transition-all shadow-brutal-sm hover:shadow-none hover:translate-x-[3px] hover:translate-y-[3px] disabled:opacity-40 disabled:cursor-not-allowed"
+          onMouseEnter={(e) => !pushingNodes && (e.currentTarget.style.color = 'var(--on-neon-cyan)')}
+          onMouseLeave={(e) => (e.currentTarget.style.color = '')}
+        >
+          {pushingNodes ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+          {pushingNodes ? 'Sending...' : 'Update All Nodes'}
+        </button>
+
+        {/* Changelog */}
+        <button
+          onClick={fetchReleases}
+          className="flex items-center gap-2 px-4 py-2.5 border-2 border-tx/10 text-tx/40 font-bold uppercase text-[10px] tracking-widest hover:border-neon-purple/30 hover:text-neon-purple transition-all"
+        >
+          <ExternalLink className="w-3.5 h-3.5" />
+          Changelog
+        </button>
+      </div>
+
+      {/* Update in progress warning */}
+      <AnimatePresence>
+        {updating && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="mb-4 overflow-hidden"
+          >
+            <div className="border-[3px] border-neon-yellow/60 bg-neon-yellow/5 p-4">
+              <div className="flex items-start gap-3">
+                <Loader2 className="w-5 h-5 text-neon-yellow shrink-0 mt-0.5 animate-spin" />
+                <div>
+                  <div className="font-bold text-xs uppercase tracking-wider text-neon-yellow mb-1">
+                    Update in progress
+                  </div>
+                  <div className="font-mono text-[10px] text-tx/40">
+                    Downloading update, installing dependencies, and rebuilding dashboard.
+                    This may take a few minutes. The server will need to be restarted after the update completes.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Changelog modal */}
+      <AnimatePresence>
+        {showChangelog && releases.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="mb-4 overflow-hidden"
+          >
+            <div className="border-[3px] border-neon-purple/20 bg-brutal-card p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div className="text-xs font-bold uppercase tracking-widest text-neon-purple">Recent Releases</div>
+                <button onClick={() => setShowChangelog(false)} className="text-tx/20 hover:text-tx text-xs">✕</button>
+              </div>
+              <div className="space-y-4 max-h-60 overflow-y-auto pr-2">
+                {releases.map((release, i) => (
+                  <div key={i} className="border-l-2 border-neon-purple/20 pl-3">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-sm text-tx">v{release.version}</span>
+                      {release.version === updateInfo?.currentVersion && (
+                        <span className="px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider bg-neon-cyan/10 text-neon-cyan border border-neon-cyan/30">current</span>
+                      )}
+                    </div>
+                    {release.name && release.name !== `v${release.version}` && (
+                      <div className="font-mono text-xs text-tx/50 mt-0.5">{release.name}</div>
+                    )}
+                    <div className="font-mono text-[10px] text-tx/20 mt-0.5">
+                      {new Date(release.publishedAt).toLocaleDateString()}
+                    </div>
+                    {release.notes && (
+                      <div className="font-mono text-[10px] text-tx/30 mt-1 whitespace-pre-wrap leading-relaxed">
+                        {release.notes.slice(0, 200)}
+                        {release.notes.length > 200 && '...'}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </section>
+  );
+}
 
 /* ─── API Key Manager Component ─── */
 function ApiKeyManager({ showFeedback }) {
@@ -602,6 +874,9 @@ function Settings() {
           </div>
         </div>
       </section>
+
+      {/* ─── System Updates ─── */}
+      <UpdateManager showFeedback={showFeedback} />
 
       {/* ─── API Key Management ─── */}
       <ApiKeyManager showFeedback={showFeedback} />

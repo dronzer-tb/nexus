@@ -2,7 +2,8 @@
   "server": {
     "port": 8080,
     "host": "0.0.0.0",
-    "jwtSecret": ""
+    "jwtSecret": "",
+    "corsOrigins": []
   },
   "node": {
     "serverUrl": "http://localhost:8080",
@@ -11,6 +12,12 @@
   },
   "database": {
     "path": "./data/nexus.db"
+  },
+  "nginx": {
+    "enabled": false,
+    "domain": "",
+    "ssl": false,
+    "sslType": "none"
   },
   "security": {
     "enableHttps": false,

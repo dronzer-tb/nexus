@@ -33,9 +33,11 @@ const COMPANY = 'Dronzer Studios';
 function parseArgs() {
   const args = process.argv.slice(2);
   const mode = args.find(arg => arg.startsWith('--mode='))?.split('=')[1];
+  const setup = args.includes('--setup');
   
   return {
-    mode: mode || 'combine' // Default to combine mode
+    mode: mode || 'combine', // Default to combine mode
+    setup,
   };
 }
 
@@ -57,7 +59,14 @@ async function main() {
     logger.init();
 
     // Parse arguments
-    const { mode } = parseArgs();
+    const { mode, setup } = parseArgs();
+
+    // Run setup wizard if --setup flag is passed
+    if (setup) {
+      const { runWizard } = require('./setup/wizard');
+      await runWizard();
+      return;
+    }
 
     // Display banner
     displayBanner(mode);

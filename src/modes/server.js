@@ -17,6 +17,7 @@ const metricsRouter = require('../api/routes/metrics');
 const processesRouter = require('../api/routes/processes');
 const commandsRouter = require('../api/routes/commands');
 const logsRouter = require('../api/routes/logs');
+const updateRouter = require('../api/routes/update');
 
 class ServerMode {
   constructor() {
@@ -49,6 +50,9 @@ class ServerMode {
 
     // Setup Socket.IO
     this.setupWebSocket();
+
+    // Expose io on express app for route handlers (e.g., update push to nodes)
+    this.app.set('io', this.io);
 
     // Setup metrics broadcast
     this.setupMetricsBroadcast();
@@ -83,6 +87,13 @@ class ServerMode {
         if (origin === selfOrigin || origin === `http://localhost:${this.port}`) {
           return callback(null, true);
         }
+        // Allow nginx domain if configured
+        const nginxDomain = config.get('nginx.domain');
+        if (nginxDomain) {
+          if (origin === `https://${nginxDomain}` || origin === `http://${nginxDomain}`) {
+            return callback(null, true);
+          }
+        }
         callback(new Error('CORS not allowed'));
       },
       credentials: true
@@ -108,6 +119,7 @@ class ServerMode {
     this.app.use('/api/processes', processesRouter);
     this.app.use('/api/commands', commandsRouter);
     this.app.use('/api/logs', logsRouter);
+    this.app.use('/api/update', updateRouter);
 
     // Health check
     this.app.get('/health', (req, res) => {

@@ -116,6 +116,35 @@ select_mode() {
   done
 }
 
+# ─── Nginx setup (optional) ──────────────────
+
+setup_nginx() {
+  echo ""
+  echo -e "  ${BOLD}Would you like to configure nginx reverse proxy?${NC}"
+  echo ""
+  echo "    This will set up:"
+  echo "    • nginx as a reverse proxy for Nexus"
+  echo "    • Custom domain/subdomain"
+  echo "    • SSL via Certbot or custom certificate"
+  echo ""
+
+  while true; do
+    read -rp "  Configure nginx? [y/N]: " nginx_choice
+    case "$nginx_choice" in
+      [yY]|[yY][eE][sS])
+        step "Launching nginx setup wizard..."
+        node src/setup/wizard.js
+        break
+        ;;
+      [nN]|[nN][oO]|"")
+        info "Skipping nginx setup — you can run it later with: npm run setup:nginx"
+        break
+        ;;
+      *) warn "Enter y or n" ;;
+    esac
+  done
+}
+
 # ─── Start Nexus ─────────────────────────────
 
 start_nexus() {
@@ -150,6 +179,7 @@ main() {
   install_deps
   build_dashboard
   setup_config
+  setup_nginx
   select_mode
   start_nexus
 }
