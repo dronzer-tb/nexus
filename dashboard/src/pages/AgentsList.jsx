@@ -265,8 +265,8 @@ function AgentsList({ socket }) {
                   </div>
                   <div className="bg-brutal-bg border-2 border-tx/10 p-3 font-mono text-sm text-tx/80 flex items-center">
                     <Terminal className="w-4 h-4 text-neon-cyan/40 mr-2 shrink-0" />
-                    <code className="flex-1">node nexus.js --mode=node</code>
-                    <CopyButton text="node nexus.js --mode=node" label="start" />
+                    <code className="flex-1">node src/index.js --mode=node</code>
+                    <CopyButton text="node src/index.js --mode=node" label="start" />
                   </div>
                 </div>
 
@@ -274,8 +274,8 @@ function AgentsList({ socket }) {
                 <div className="border-[3px] border-neon-pink/20 bg-neon-pink/5 p-4">
                   <div className="font-bold text-xs uppercase tracking-wider text-neon-pink mb-2">⚡ Quick one-liner</div>
                   <div className="bg-brutal-bg border-2 border-tx/10 p-3 font-mono text-xs text-tx/80 flex items-start">
-                    <code className="flex-1 break-all whitespace-pre-wrap">{`git clone https://github.com/dronzer-tb/nexus.git && cd nexus && npm install && node -e "const c=require('./src/utils/config');c.set('node.serverUrl','${serverUrl}');console.log('Configured!')" && node nexus.js --mode=node`}</code>
-                    <CopyButton text={`git clone https://github.com/dronzer-tb/nexus.git && cd nexus && npm install && node -e "const c=require('./src/utils/config');c.set('node.serverUrl','${serverUrl}');console.log('Configured!')" && node nexus.js --mode=node`} label="oneliner" />
+                    <code className="flex-1 break-all whitespace-pre-wrap">{`git clone https://github.com/dronzer-tb/nexus.git && cd nexus && npm install && node -e "const c=require('./src/utils/config');c.set('node.serverUrl','${serverUrl}');console.log('Configured!')" && node src/index.js --mode=node`}</code>
+                    <CopyButton text={`git clone https://github.com/dronzer-tb/nexus.git && cd nexus && npm install && node -e "const c=require('./src/utils/config');c.set('node.serverUrl','${serverUrl}');console.log('Configured!')" && node src/index.js --mode=node`} label="oneliner" />
                   </div>
                 </div>
 
