@@ -126,7 +126,8 @@ router.get('/', authenticate, (req, res) => {
         metrics: metricsData ? {
           cpu: metricsData.cpu?.usage || 0,
           memory: metricsData.memory?.usagePercent || 0,
-          memoryUsed: metricsData.memory?.used ? (metricsData.memory.used / 1073741824).toFixed(1) : '0',
+          memoryUsed: metricsData.memory?.active ? (metricsData.memory.active / 1073741824).toFixed(1) : '0',
+          memoryCached: metricsData.memory?.cached ? (metricsData.memory.cached / 1073741824).toFixed(1) : '0',
           memoryTotal: metricsData.memory?.total ? (metricsData.memory.total / 1073741824).toFixed(1) : '0',
           swap: metricsData.swap?.usagePercent || 0,
           disk: metricsData.disk && metricsData.disk.length > 0 ? metricsData.disk[0].usagePercent : 0,

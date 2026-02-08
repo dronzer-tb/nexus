@@ -55,7 +55,8 @@ function SystemInfo({ node, currentMetrics, formatBytes }) {
             <h4 className="text-sm font-semibold text-gray-300 mb-2">Memory</h4>
             <div className="bg-dark-lightest rounded p-3">
               <InfoRow label="Total" value={formatBytes(currentMetrics.memory.total)} />
-              <InfoRow label="Used" value={formatBytes(currentMetrics.memory.used)} />
+              <InfoRow label="Active (Used)" value={formatBytes(currentMetrics.memory.active)} />
+              <InfoRow label="Cached / Buffers" value={formatBytes(currentMetrics.memory.cached)} />
               <InfoRow label="Free" value={formatBytes(currentMetrics.memory.free)} />
               <InfoRow label="Available" value={formatBytes(currentMetrics.memory.available)} />
             </div>

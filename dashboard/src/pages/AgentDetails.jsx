@@ -181,7 +181,7 @@ function AgentDetails({ socket }) {
             sub={node.system_info?.cpu?.brand} />
           <StatCard label="Memory" value={`${(data.memory?.usagePercent || 0).toFixed(1)}%`}
             icon={MemoryStick} color="var(--neon-cyan)" delay={0.15}
-            sub={`${formatBytes(data.memory?.used)} / ${formatBytes(data.memory?.total)}`} />
+            sub={`${formatBytes(data.memory?.active || 0)} used · ${formatBytes(data.memory?.cached || 0)} cached / ${formatBytes(data.memory?.total)}`} />
           <StatCard label="Swap" value={`${(data.swap?.usagePercent || 0).toFixed(1)}%`}
             icon={Zap} color="var(--neon-purple)" delay={0.2} />
           <StatCard label="Processes" value={data.processes?.all || 0}

@@ -22,17 +22,26 @@ class MetricsCollector {
   async getMemoryMetrics() {
     try {
       const mem = await si.mem();
-      
+
+      // mem.used on Linux = total - free (includes cache/buffers — misleading)
+      // mem.active = actually consumed by applications (excludes reclaimable cache)
+      // mem.buffcache = buffers + cached (reclaimable by OS when needed)
+      const active = mem.active || 0;
+      const cached = mem.buffcache || (mem.used - mem.active) || 0;
+
       return {
         total: mem.total,
         used: mem.used,
+        active: active,
+        cached: cached,
         free: mem.free,
-        active: mem.active,
         available: mem.available,
-        usagePercent: parseFloat(((mem.used / mem.total) * 100).toFixed(2))
+        usagePercent: mem.total > 0
+          ? parseFloat(((active / mem.total) * 100).toFixed(2))
+          : 0
       };
     } catch (error) {
-      return { total: 0, used: 0, free: 0, active: 0, available: 0, usagePercent: 0 };
+      return { total: 0, used: 0, active: 0, cached: 0, free: 0, available: 0, usagePercent: 0 };
     }
   }
 
