@@ -119,7 +119,11 @@ router.post('/verify', async (req, res) => {
     }
 
     // Check if code matches and hasn't expired
-    if (user.reset_token !== trimmedCode || !user.reset_token_expires || user.reset_token_expires < Date.now()) {
+    // Handle both snake_case (DB) and camelCase (file admin)
+    const resetToken = user.reset_token || user.resetToken;
+    const resetTokenExpires = user.reset_token_expires || user.resetTokenExpires;
+    
+    if (resetToken !== trimmedCode || !resetTokenExpires || resetTokenExpires < Date.now()) {
       return res.status(400).json({ 
         error: 'Invalid or expired reset code. Codes expire after 10 minutes.',
         code: 'INVALID_CODE'
@@ -176,7 +180,11 @@ router.post('/reset', async (req, res) => {
     }
 
     // Verify code and expiration
-    if (user.reset_token !== trimmedCode || !user.reset_token_expires || user.reset_token_expires < Date.now()) {
+    // Handle both snake_case (DB) and camelCase (file admin)
+    const resetToken = user.reset_token || user.resetToken;
+    const resetTokenExpires = user.reset_token_expires || user.resetTokenExpires;
+    
+    if (resetToken !== trimmedCode || !resetTokenExpires || resetTokenExpires < Date.now()) {
       return res.status(400).json({ 
         error: 'Invalid or expired reset code. Codes expire after 10 minutes.',
         code: 'INVALID_CODE'
