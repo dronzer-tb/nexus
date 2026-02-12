@@ -167,6 +167,9 @@ class ServerMode {
     // Authentication routes (no auth required for login, but required for others)
     this.app.use('/api/auth', require('../api/routes/auth'));
     
+    // Mobile pairing routes (require authentication)
+    this.app.use('/api/mobile', require('../api/routes/mobile'));
+    
     // API routes - Require authentication (session or API key)
     this.app.use('/api/system', require('../api/routes/system'));
     this.app.use('/api/agents', agentsRouter);
