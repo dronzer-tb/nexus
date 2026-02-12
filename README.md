@@ -23,7 +23,7 @@
 - 📊 **Live Charts** — Visualizations powered by Chart.js
 - 🔄 **WebSocket Updates** — Instant metrics without page refresh
 - 🎯 **Three Modes** — Node, Server, or Combine
-- 🔒 **Enterprise Security** — Authentik OAuth2/OIDC + 2FA support (v1.9.1+)
+- 🔒 **Simple Security** — API key authentication for nodes (v1.9.1+)
 - 🔐 **Flexible Auth** — Legacy JWT + API keys for backward compatibility
 - 💻 **Modern UI** — Dark-themed React dashboard with TailwindCSS
 - 📱 **Responsive** — Desktop, tablet, and mobile
@@ -54,29 +54,7 @@ npm run setup              # install deps + build frontend
 npm run start:combine      # start server + local monitoring
 ```
 
-Visit **http://localhost:8080** — login with `admin` / `admin123`.
-
-### 🔐 Optional: Authentik Authentication (v1.9.1+)
-
-Install Authentik for enterprise-grade authentication:
-
-```bash
-# Install Authentik (Docker-based)
-bash scripts/install-authentik.sh
-
-# Then follow the manual setup guide
-cat scripts/AUTHENTIK_MANUAL_SETUP.md
-```
-
-**Benefits:**
-- ✅ OAuth2/OpenID Connect standards
-- ✅ Built-in 2FA/MFA with TOTP
-- ✅ Centralized user management
-- ✅ Password policies and secure reset flows
-- ✅ Audit logging and session management
-- ✅ Docker-based deployment
-
-See [scripts/AUTHENTIK_MANUAL_SETUP.md](scripts/AUTHENTIK_MANUAL_SETUP.md) for detailed setup instructions.
+Visit **http://localhost:8080** — direct access to dashboard (no login required).
 
 ---
 
@@ -145,20 +123,13 @@ nexus/
 
 ### Authentication
 
-**Legacy JWT:**
+**API Key Only (v1.9.1+):**
 ```
-POST /api/auth/login          { username, password } → { token, user }
-GET  /api/auth/verify         Authorization: Bearer <token>
+All API requests require X-API-Key header
+X-API-Key: your-api-key
 ```
 
-**Authentik OAuth2 (v1.9.1+):**
-```
-GET  /api/authentik/config     — Get Authentik configuration
-POST /api/authentik/callback   { code, redirectUri } → { accessToken, refreshToken }
-POST /api/authentik/refresh    { refresh_token } → { accessToken }
-POST /api/authentik/logout     { token } → success
-GET  /api/authentik/userinfo   Authorization: Bearer <token>
-```
+No user login - Dashboard has direct access. API keys are for node-to-server communication only.
 
 ### Nodes
 ```

@@ -135,9 +135,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## 🔐 Authentik Authentication (v1.9.1+)
+## 🔐 Authentication (v1.9.1+)
 
-Nexus now supports enterprise-grade authentication via Authentik integration, providing:
+Nexus v1.9.1 uses a simplified authentication model:
 
 - **OAuth2/OpenID Connect** - Industry-standard authentication protocol
 - **Centralized User Management** - Single source of truth for users

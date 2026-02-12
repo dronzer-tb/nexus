@@ -161,11 +161,7 @@ class ServerMode {
   }
 
   setupRoutes() {
-    // API routes
-    this.app.use('/api/auth', authRouter);
-    this.app.use('/api/authentik', require('../api/routes/authentik'));
-    this.app.use('/api/2fa', require('../api/routes/2fa'));
-    this.app.use('/api/password-reset', require('../api/routes/password-reset'));
+    // API routes - Only API key authenticated endpoints
     this.app.use('/api/system', require('../api/routes/system'));
     this.app.use('/api/agents', agentsRouter);
     this.app.use('/api/nodes', nodesRouter);
