@@ -161,6 +161,9 @@ class ServerMode {
   }
 
   setupRoutes() {
+    // Onboarding routes (no auth required - only for initial setup)
+    this.app.use('/api/onboarding', require('../api/routes/onboarding'));
+    
     // API routes - Only API key authenticated endpoints
     this.app.use('/api/system', require('../api/routes/system'));
     this.app.use('/api/agents', agentsRouter);
