@@ -4,6 +4,7 @@ const speakeasy = require('speakeasy');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { spawn } = require('child_process');
 const authMiddleware = require('../../middleware/auth');
 const database = require('../../utils/database');
 const logger = require('../../utils/logger');
@@ -62,17 +63,48 @@ router.post('/uninstall', authMiddleware, async (req, res) => {
 
     logger.warn(`UNINSTALLATION INITIATED by user: ${req.user.username}`);
 
-    // Schedule server shutdown in 10 seconds
-    setTimeout(() => {
-      logger.warn('Shutting down server for uninstallation...');
-      process.exit(0);
-    }, 10000);
+    // Execute the uninstall script automatically
+    const uninstallScriptPath = path.join(__dirname, '../../../uninstall.sh');
+    
+    if (!fs.existsSync(uninstallScriptPath)) {
+      return res.status(500).json({ 
+        error: 'Uninstall script not found. Please run manually: bash uninstall.sh' 
+      });
+    }
 
+    // Send response before starting uninstall
     res.json({
       success: true,
-      message: 'Uninstallation initiated. Server will shut down in 10 seconds.',
-      shutdownIn: 10
+      message: 'Uninstallation process starting. The server will shut down and all data will be removed.',
+      shutdownIn: 5
     });
+
+    // Give client time to receive response, then execute uninstall script
+    setTimeout(() => {
+      logger.warn('Executing uninstall script...');
+      
+      // Make script executable
+      try {
+        fs.chmodSync(uninstallScriptPath, 0o755);
+      } catch (err) {
+        logger.error('Failed to make uninstall script executable:', err);
+      }
+
+      // Execute uninstall script with auto-confirm flags
+      // We'll need to modify uninstall.sh to accept --auto-confirm flag
+      const uninstallProcess = spawn('bash', [uninstallScriptPath, '--auto-confirm'], {
+        detached: true,
+        stdio: 'ignore',
+        cwd: path.join(__dirname, '../../..')
+      });
+
+      uninstallProcess.unref();
+      
+      // Exit the Node.js process to allow script to complete
+      setTimeout(() => {
+        process.exit(0);
+      }, 2000);
+    }, 5000);
   } catch (error) {
     logger.error('Uninstall error:', error);
     res.status(500).json({ error: 'Failed to initiate uninstallation' });

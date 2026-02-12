@@ -5,6 +5,12 @@
 
 set -e
 
+# Check for auto-confirm flag
+AUTO_CONFIRM=false
+if [ "$1" == "--auto-confirm" ]; then
+  AUTO_CONFIRM=true
+fi
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -42,19 +48,23 @@ echo -e "${YELLOW}This action is ${BOLD}IRREVERSIBLE${NC}${YELLOW}. All data wil
 echo ""
 
 # Confirmation
-read -p "Are you ABSOLUTELY sure you want to uninstall Nexus? (type 'yes' to confirm): " confirm
-if [ "$confirm" != "yes" ]; then
-  echo ""
-  echo -e "${GREEN}Uninstallation cancelled.${NC}"
-  exit 0
-fi
+if [ "$AUTO_CONFIRM" = false ]; then
+  read -p "Are you ABSOLUTELY sure you want to uninstall Nexus? (type 'yes' to confirm): " confirm
+  if [ "$confirm" != "yes" ]; then
+    echo ""
+    echo -e "${GREEN}Uninstallation cancelled.${NC}"
+    exit 0
+  fi
 
-echo ""
-read -p "Type 'DELETE ALL DATA' to confirm data deletion: " confirm2
-if [ "$confirm2" != "DELETE ALL DATA" ]; then
   echo ""
-  echo -e "${GREEN}Uninstallation cancelled.${NC}"
-  exit 0
+  read -p "Type 'DELETE ALL DATA' to confirm data deletion: " confirm2
+  if [ "$confirm2" != "DELETE ALL DATA" ]; then
+    echo ""
+    echo -e "${GREEN}Uninstallation cancelled.${NC}"
+    exit 0
+  fi
+else
+  echo -e "${YELLOW}Auto-confirm mode enabled - proceeding with uninstallation...${NC}"
 fi
 
 echo ""
@@ -105,7 +115,7 @@ fi
 # Step 4: Backup option
 echo -e "${BLUE}[4/6]${NC} Data backup option..."
 INSTALL_DIR=$(pwd)
-if [ -d "$INSTALL_DIR/data" ]; then
+if [ -d "$INSTALL_DIR/data" ] && [ "$AUTO_CONFIRM" = false ]; then
   read -p "Create a backup of databases before deletion? (y/N): " backup
   if [[ "$backup" =~ ^[Yy]$ ]]; then
     BACKUP_DIR="$HOME/nexus_backup_$(date +%Y%m%d_%H%M%S)"
@@ -114,17 +124,26 @@ if [ -d "$INSTALL_DIR/data" ]; then
     cp "$INSTALL_DIR/config.json" "$BACKUP_DIR/" 2>/dev/null || true
     echo -e "${GREEN}✓ Backup created at: $BACKUP_DIR${NC}"
   fi
+elif [ "$AUTO_CONFIRM" = true ]; then
+  echo -e "${YELLOW}⚠ Skipping backup in auto-confirm mode${NC}"
 fi
 
 # Step 5: Remove installation directory
 echo -e "${BLUE}[5/6]${NC} Removing installation directory..."
-read -p "Installation directory: $INSTALL_DIR - Remove? (y/N): " remove_dir
-if [[ "$remove_dir" =~ ^[Yy]$ ]]; then
+if [ "$AUTO_CONFIRM" = false ]; then
+  read -p "Installation directory: $INSTALL_DIR - Remove? (y/N): " remove_dir
+  if [[ "$remove_dir" =~ ^[Yy]$ ]]; then
+    cd ..
+    rm -rf "$INSTALL_DIR"
+    echo -e "${GREEN}✓ Installation directory removed${NC}"
+  else
+    echo -e "${YELLOW}⚠ Installation directory preserved${NC}"
+  fi
+else
+  # Auto-confirm mode - always remove
   cd ..
   rm -rf "$INSTALL_DIR"
   echo -e "${GREEN}✓ Installation directory removed${NC}"
-else
-  echo -e "${YELLOW}⚠ Installation directory preserved${NC}"
 fi
 
 # Step 6: Clean up additional files
