@@ -163,6 +163,7 @@ class ServerMode {
   setupRoutes() {
     // API routes
     this.app.use('/api/auth', authRouter);
+    this.app.use('/api/keycloak', require('../api/routes/keycloak'));
     this.app.use('/api/2fa', require('../api/routes/2fa'));
     this.app.use('/api/password-reset', require('../api/routes/password-reset'));
     this.app.use('/api/system', require('../api/routes/system'));
