@@ -23,7 +23,7 @@
 - 📊 **Live Charts** — Visualizations powered by Chart.js
 - 🔄 **WebSocket Updates** — Instant metrics without page refresh
 - 🎯 **Three Modes** — Node, Server, or Combine
-- 🔒 **Enterprise Security** — Keycloak OAuth2/OIDC + 2FA support (v1.9.1+)
+- 🔒 **Enterprise Security** — Authentik OAuth2/OIDC + 2FA support (v1.9.1+)
 - 🔐 **Flexible Auth** — Legacy JWT + API keys for backward compatibility
 - 💻 **Modern UI** — Dark-themed React dashboard with TailwindCSS
 - 📱 **Responsive** — Desktop, tablet, and mobile
@@ -56,12 +56,16 @@ npm run start:combine      # start server + local monitoring
 
 Visit **http://localhost:8080** — login with `admin` / `admin123`.
 
-### 🔐 Optional: Keycloak Authentication (v1.9.1+)
+### 🔐 Optional: Authentik Authentication (v1.9.1+)
 
-During setup, you'll be prompted to install Keycloak for enterprise-grade authentication:
+Install Authentik for enterprise-grade authentication:
 
 ```bash
-Install and configure Keycloak? (y/N): y
+# Install Authentik (Docker-based)
+bash scripts/install-authentik.sh
+
+# Then follow the manual setup guide
+cat scripts/AUTHENTIK_MANUAL_SETUP.md
 ```
 
 **Benefits:**
@@ -70,8 +74,9 @@ Install and configure Keycloak? (y/N): y
 - ✅ Centralized user management
 - ✅ Password policies and secure reset flows
 - ✅ Audit logging and session management
+- ✅ Docker-based deployment
 
-See [KEYCLOAK_MIGRATION_GUIDE.md](KEYCLOAK_MIGRATION_GUIDE.md) for detailed setup and migration instructions.
+See [scripts/AUTHENTIK_MANUAL_SETUP.md](scripts/AUTHENTIK_MANUAL_SETUP.md) for detailed setup instructions.
 
 ---
 
@@ -146,13 +151,13 @@ POST /api/auth/login          { username, password } → { token, user }
 GET  /api/auth/verify         Authorization: Bearer <token>
 ```
 
-**Keycloak OAuth2 (v1.9.1+):**
+**Authentik OAuth2 (v1.9.1+):**
 ```
-GET  /api/keycloak/config     — Get Keycloak configuration
-POST /api/keycloak/callback   { code, redirectUri } → { accessToken, refreshToken }
-POST /api/keycloak/refresh    { refreshToken } → { accessToken }
-POST /api/keycloak/logout     { refreshToken } → success
-GET  /api/keycloak/userinfo   Authorization: Bearer <token>
+GET  /api/authentik/config     — Get Authentik configuration
+POST /api/authentik/callback   { code, redirectUri } → { accessToken, refreshToken }
+POST /api/authentik/refresh    { refresh_token } → { accessToken }
+POST /api/authentik/logout     { token } → success
+GET  /api/authentik/userinfo   Authorization: Bearer <token>
 ```
 
 ### Nodes

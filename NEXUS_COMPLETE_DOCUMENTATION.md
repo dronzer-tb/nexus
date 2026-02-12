@@ -8,17 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.9.1] - 2026-02-12
 
 ### Added
-- **Keycloak Authentication Integration** - Enterprise-grade authentication system
-  - OAuth2/OpenID Connect support
-  - Centralized user management
+- **Authentik Authentication Integration** - Enterprise-grade authentication system
+  - OAuth2/OpenID Connect support via Docker-based deployment
+  - Centralized user management with modern web UI
   - Built-in 2FA/MFA support with TOTP
   - Password policies and secure reset flows
-  - Role-based access control (admin, viewer, operator)
-  - Social login integration support
+  - Role-based access control (admin, operator, viewer)
+  - Group-based role mapping (nexus-admins, nexus-operators, nexus-viewers)
   - Session management and token refresh
-  - Automated installation scripts (`install-keycloak.sh`, `setup-keycloak-realm.sh`)
-  - User migration utility (`migrate-users-to-keycloak.sh`)
+  - Automated installation script (`install-authentik.sh`)
+  - Manual setup guide for application configuration
   - Backward compatibility with legacy authentication
+  - Beautiful OAuth2 login button in dashboard
 - **Auto-executing Uninstaller** - Uninstall process now runs automatically
   - Added `--auto-confirm` flag to uninstall.sh for non-interactive execution
   - Backend automatically spawns uninstall script after shutdown
@@ -134,9 +135,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## 🔐 Keycloak Authentication (v1.9.1+)
+## 🔐 Authentik Authentication (v1.9.1+)
 
-Nexus now supports enterprise-grade authentication via Keycloak integration, providing:
+Nexus now supports enterprise-grade authentication via Authentik integration, providing:
 
 - **OAuth2/OpenID Connect** - Industry-standard authentication protocol
 - **Centralized User Management** - Single source of truth for users
