@@ -21,7 +21,7 @@ function Login() {
   const [resetStep, setResetStep] = useState(1); // 1: request code, 2: enter code & password
   const [resetSuccess, setResetSuccess] = useState('');
   const navigate = useNavigate();
-  const { login, isAuthenticated } = useAuth();
+  const { login, loginWithAuthentik, handleAuthentikCallback, isAuthentik, isAuthenticated, authentikConfig } = useAuth();
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -31,6 +31,27 @@ function Login() {
       navigate('/', { replace: true });
     }
   }, [isAuthenticated, navigate]);
+
+  // Handle OAuth callback
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    const state = params.get('state');
+    
+    if (code && state && handleAuthentikCallback) {
+      setLoading(true);
+      handleAuthentikCallback(code, state).then(result => {
+        if (result.success) {
+          navigate('/');
+        } else {
+          setError('OAuth authentication failed: ' + result.error);
+          setLoading(false);
+          // Clean up URL
+          window.history.replaceState({}, document.title, '/login');
+        }
+      });
+    }
+  }, [handleAuthentikCallback, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -239,6 +260,30 @@ function Login() {
             >
               {loading ? 'Logging in...' : 'Login'}
             </button>
+
+            {/* Authentik OAuth2 Login */}
+            {authentikConfig && (
+              <>
+                <div className="relative my-4">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-gray-600"></div>
+                  </div>
+                  <div className="relative flex justify-center text-sm">
+                    <span className="px-2 bg-background-dark text-gray-400">OR</span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={loginWithAuthentik}
+                  disabled={loading}
+                  className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-purple-600 font-bold rounded-lg hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-background-dark focus:ring-blue-500 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  <Shield className="w-5 h-5" />
+                  Login with Authentik
+                </button>
+              </>
+            )}
           </div>
 
           <div className="text-center">
