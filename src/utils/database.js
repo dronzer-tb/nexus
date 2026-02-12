@@ -126,6 +126,27 @@ class DatabaseManager {
 
     // Migrate existing users table to add 2FA columns if they don't exist
     this.migrate2FAColumns();
+
+    // Sessions table for authentication
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        token TEXT UNIQUE NOT NULL,
+        created_at INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL,
+        last_activity INTEGER NOT NULL,
+        ip_address TEXT,
+        user_agent TEXT,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);
+      CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
+      CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
+    `);
   }
 
   /**
@@ -524,6 +545,48 @@ class DatabaseManager {
   deleteUser(id) {
     const stmt = this.db.prepare('DELETE FROM users WHERE id = ?');
     return stmt.run(id);
+  }
+
+  // Session operations
+  createSession(sessionData) {
+    const stmt = this.db.prepare(`
+      INSERT INTO sessions (user_id, token, created_at, expires_at, last_activity, ip_address, user_agent)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+    return stmt.run(
+      sessionData.userId,
+      sessionData.token,
+      sessionData.createdAt || Date.now(),
+      sessionData.expiresAt,
+      sessionData.lastActivity || Date.now(),
+      sessionData.ipAddress || null,
+      sessionData.userAgent || null
+    );
+  }
+
+  getSessionByToken(token) {
+    const stmt = this.db.prepare('SELECT * FROM sessions WHERE token = ? AND expires_at > ?');
+    return stmt.get(token, Date.now());
+  }
+
+  updateSessionActivity(token) {
+    const stmt = this.db.prepare('UPDATE sessions SET last_activity = ? WHERE token = ?');
+    return stmt.run(Date.now(), token);
+  }
+
+  deleteSession(token) {
+    const stmt = this.db.prepare('DELETE FROM sessions WHERE token = ?');
+    return stmt.run(token);
+  }
+
+  deleteUserSessions(userId) {
+    const stmt = this.db.prepare('DELETE FROM sessions WHERE user_id = ?');
+    return stmt.run(userId);
+  }
+
+  cleanExpiredSessions() {
+    const stmt = this.db.prepare('DELETE FROM sessions WHERE expires_at < ?');
+    return stmt.run(Date.now());
   }
 
   close() {
