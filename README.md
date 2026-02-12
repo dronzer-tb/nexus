@@ -23,9 +23,11 @@
 - 📊 **Live Charts** — Visualizations powered by Chart.js
 - 🔄 **WebSocket Updates** — Instant metrics without page refresh
 - 🎯 **Three Modes** — Node, Server, or Combine
-- 🔒 **Secure** — API key auth + JWT for the dashboard
+- 🔒 **Enterprise Security** — Keycloak OAuth2/OIDC + 2FA support (v1.9.1+)
+- 🔐 **Flexible Auth** — Legacy JWT + API keys for backward compatibility
 - 💻 **Modern UI** — Dark-themed React dashboard with TailwindCSS
 - 📱 **Responsive** — Desktop, tablet, and mobile
+- 👥 **User Management** — Role-based access control (admin, viewer, operator)
 
 ---
 
@@ -53,6 +55,23 @@ npm run start:combine      # start server + local monitoring
 ```
 
 Visit **http://localhost:8080** — login with `admin` / `admin123`.
+
+### 🔐 Optional: Keycloak Authentication (v1.9.1+)
+
+During setup, you'll be prompted to install Keycloak for enterprise-grade authentication:
+
+```bash
+Install and configure Keycloak? (y/N): y
+```
+
+**Benefits:**
+- ✅ OAuth2/OpenID Connect standards
+- ✅ Built-in 2FA/MFA with TOTP
+- ✅ Centralized user management
+- ✅ Password policies and secure reset flows
+- ✅ Audit logging and session management
+
+See [KEYCLOAK_MIGRATION_GUIDE.md](KEYCLOAK_MIGRATION_GUIDE.md) for detailed setup and migration instructions.
 
 ---
 
@@ -120,9 +139,20 @@ nexus/
 ## 📡 API Reference
 
 ### Authentication
+
+**Legacy JWT:**
 ```
 POST /api/auth/login          { username, password } → { token, user }
 GET  /api/auth/verify         Authorization: Bearer <token>
+```
+
+**Keycloak OAuth2 (v1.9.1+):**
+```
+GET  /api/keycloak/config     — Get Keycloak configuration
+POST /api/keycloak/callback   { code, redirectUri } → { accessToken, refreshToken }
+POST /api/keycloak/refresh    { refreshToken } → { accessToken }
+POST /api/keycloak/logout     { refreshToken } → success
+GET  /api/keycloak/userinfo   Authorization: Bearer <token>
 ```
 
 ### Nodes
