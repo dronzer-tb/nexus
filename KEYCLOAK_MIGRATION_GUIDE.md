@@ -73,7 +73,7 @@ sudo systemctl status keycloak
 curl http://localhost:8080/realms/nexus
 
 # Access admin console
-# URL: http://localhost:8080/admin
+# URL: http://localhost:9090/admin
 # Credentials: ~/.keycloak-data/admin-credentials.txt
 ```
 
@@ -117,7 +117,7 @@ You should see:
 
 ```
 KEYCLOAK_ENABLED=true
-KEYCLOAK_URL=http://localhost:8080
+KEYCLOAK_URL=http://localhost:9090
 KEYCLOAK_REALM=nexus
 KEYCLOAK_CLIENT_ID=nexus-web
 KEYCLOAK_CLIENT_SECRET=<your-secret>
@@ -230,7 +230,7 @@ sudo netstat -tlnp | grep 8080
 **Solution:**
 ```bash
 # Verify user exists in Keycloak
-# Login to admin console: http://localhost:8080/admin
+# Login to admin console: http://localhost:9090/admin
 # Navigate to: Nexus realm → Users
 # Search for username
 
