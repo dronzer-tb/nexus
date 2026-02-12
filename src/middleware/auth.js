@@ -1,11 +1,14 @@
 const logger = require('../utils/logger');
 const auth = require('../utils/auth');
 const database = require('../utils/database');
+const { validateWithUserInfo } = require('./keycloak-auth');
+const jwt = require('jsonwebtoken');
 
-function authenticate(req, res, next) {
+async function authenticate(req, res, next) {
   try {
     const apiKey = req.headers['x-api-key'];
     const token = req.headers.authorization?.replace('Bearer ', '');
+    const keycloakEnabled = process.env.KEYCLOAK_ENABLED === 'true';
 
     // --- API Key authentication (mobile app / external) ---
     if (apiKey) {
@@ -29,11 +32,46 @@ function authenticate(req, res, next) {
       return next();
     }
 
-    // --- JWT authentication (dashboard) ---
+    // --- Token authentication ---
     if (!token) {
       return res.status(401).json({ message: 'Authentication required' });
     }
 
+    // Try Keycloak authentication if enabled
+    if (keycloakEnabled) {
+      try {
+        const userInfo = await validateWithUserInfo(token);
+        
+        if (userInfo && userInfo.sub) {
+          // Decode token to get roles
+          const decoded = jwt.decode(token);
+          let roles = [];
+          if (decoded && decoded.realm_access && decoded.realm_access.roles) {
+            roles = decoded.realm_access.roles;
+          }
+          
+          // Attach user info to request
+          req.user = {
+            userId: userInfo.sub,
+            username: userInfo.preferred_username || userInfo.email,
+            email: userInfo.email,
+            roles: roles,
+            name: userInfo.name,
+            source: 'keycloak'
+          };
+          req.authMethod = 'keycloak';
+          req.token = token;
+          
+          logger.debug(`Keycloak auth successful for user: ${req.user.username}`);
+          return next();
+        }
+      } catch (keycloakError) {
+        // Keycloak validation failed, try legacy JWT as fallback
+        logger.debug('Keycloak validation failed, trying legacy JWT:', keycloakError.message);
+      }
+    }
+
+    // --- Legacy JWT authentication (backward compatibility) ---
     const decoded = auth.verifyJWT(token);
     if (!decoded) {
       return res.status(401).json({ message: 'Invalid token' });
