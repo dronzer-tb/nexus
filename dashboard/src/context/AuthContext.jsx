@@ -42,10 +42,23 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [mustChangePassword, setMustChangePassword] = useState(false);
+  const [authentikConfig, setAuthentikConfig] = useState(null);
 
   useEffect(() => {
     checkAuth();
+    fetchAuthentikConfig();
   }, []);
+
+  const fetchAuthentikConfig = async () => {
+    try {
+      const response = await axios.get('/api/authentik/config');
+      if (response.data.enabled) {
+        setAuthentikConfig(response.data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch Authentik config:', error);
+    }
+  };
 
   const checkAuth = async () => {
     const token = localStorage.getItem('token');
@@ -133,8 +146,76 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const logout = () => {
+  const loginWithAuthentik = () => {
+    if (!authentikConfig) {
+      console.error('Authentik not configured');
+      return;
+    }
+
+    // Generate state for CSRF protection
+    const state = Math.random().toString(36).substring(7);
+    localStorage.setItem('oauth_state', state);
+
+    // Build authorization URL
+    const params = new URLSearchParams({
+      client_id: authentikConfig.clientId,
+      redirect_uri: authentikConfig.redirectUri,
+      response_type: 'code',
+      scope: 'openid profile email',
+      state: state
+    });
+
+    window.location.href = `${authentikConfig.endpoints.authorize}?${params.toString()}`;
+  };
+
+  const handleAuthentikCallback = async (code, state) => {
+    try {
+      const savedState = localStorage.getItem('oauth_state');
+      if (state !== savedState) {
+        throw new Error('Invalid state parameter');
+      }
+
+      const response = await axios.post('/api/authentik/callback', {
+        code: code,
+        redirectUri: authentikConfig.redirectUri
+      });
+
+      const { access_token, refresh_token } = response.data;
+      
+      // Store tokens
+      localStorage.setItem('token', access_token);
+      localStorage.setItem('refresh_token', refresh_token);
+      localStorage.removeItem('oauth_state');
+
+      // Set axios default header
+      axios.defaults.headers.common.Authorization = `Bearer ${access_token}`;
+
+      // Fetch user info
+      const userInfoResponse = await axios.get('/api/authentik/userinfo');
+      setUser(userInfoResponse.data.user);
+      setIsAuthenticated(true);
+
+      return { success: true };
+    } catch (error) {
+      console.error('Authentik callback error:', error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  const logout = async () => {
+    const token = localStorage.getItem('token');
+    
+    // Try to revoke token if using Authentik
+    if (authentikConfig && token) {
+      try {
+        await axios.post('/api/authentik/logout', { token });
+      } catch (error) {
+        console.error('Logout error:', error);
+      }
+    }
+    
     localStorage.removeItem('token');
+    localStorage.removeItem('refresh_token');
     setUser(null);
     setIsAuthenticated(false);
     setMustChangePassword(false);
@@ -145,7 +226,18 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAuthenticated, loading, mustChangePassword, clearForcePasswordChange }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      login, 
+      loginWithAuthentik,
+      handleAuthentikCallback,
+      logout, 
+      isAuthenticated, 
+      loading, 
+      mustChangePassword, 
+      clearForcePasswordChange,
+      authentikConfig
+    }}>
       {children}
     </AuthContext.Provider>
   );
