@@ -128,8 +128,7 @@ http-port=${KEYCLOAK_PORT}
 hostname-strict=false
 
 # Database (H2 for development, PostgreSQL recommended for production)
-db=h2-file
-db-url-path=${KEYCLOAK_DATA_DIR}/keycloak-db
+db=dev-file
 
 # Admin console
 http-management-port=${KEYCLOAK_ADMIN_PORT}
