@@ -126,19 +126,37 @@ router.post('/:agentId/processes/:pid/kill', async (req, res) => {
   }
 });
 
-// Execute command on agent
+// Execute command on agent (or node)
 router.post('/:agentId/execute', async (req, res) => {
   try {
     const { agentId } = req.params;
     const { command } = req.body;
-    const agent = agents.get(agentId);
-
+    
+    // First try to find as WebSocket agent
+    let agent = agents.get(agentId);
+    
+    // If not found as agent, try to find as database node
     if (!agent) {
-      return res.status(404).json({ message: 'Agent not found' });
+      const database = require('../../utils/database');
+      const node = database.getNode(agentId);
+      
+      if (!node) {
+        return res.status(404).json({ 
+          message: 'Node/Agent not found',
+          hint: 'This node may not be connected. Nodes using HTTP reporting cannot execute commands in real-time. Please use WebSocket agent mode for command execution.'
+        });
+      }
+      
+      // Node exists but is HTTP-only (cannot execute commands)
+      return res.status(503).json({ 
+        message: 'Command execution not supported for HTTP-only nodes',
+        detail: 'This node uses HTTP reporting and cannot execute commands in real-time. To enable command execution, run the node with WebSocket agent mode.',
+        nodeStatus: node.status
+      });
     }
 
     if (agent.status !== 'online' || !agent.socket) {
-      return res.status(503).json({ message: 'Agent is offline' });
+      return res.status(503).json({ message: 'Agent is offline or not connected via WebSocket' });
     }
 
     if (!command) {
