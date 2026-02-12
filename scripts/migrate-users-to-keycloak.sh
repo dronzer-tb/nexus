@@ -13,7 +13,7 @@ RED='\033[0;31m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-KEYCLOAK_URL="http://localhost:8080"
+KEYCLOAK_URL="http://localhost:9090"
 KEYCLOAK_DATA_DIR="$HOME/.keycloak-data"
 CREDS_FILE="$KEYCLOAK_DATA_DIR/admin-credentials.txt"
 REALM_CONFIG_FILE="$KEYCLOAK_DATA_DIR/nexus-realm-config.json"

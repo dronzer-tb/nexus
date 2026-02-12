@@ -185,7 +185,7 @@ Keycloak settings are stored in your `.env` file:
 
 ```bash
 KEYCLOAK_ENABLED=true
-KEYCLOAK_URL=http://localhost:8080
+KEYCLOAK_URL=http://localhost:9090
 KEYCLOAK_REALM=nexus
 KEYCLOAK_CLIENT_ID=nexus-web
 KEYCLOAK_CLIENT_SECRET=<generated-secret>
@@ -210,7 +210,7 @@ This will:
 
 #### Via Keycloak Admin Console
 
-Access the admin console at `http://localhost:8080/admin`
+Access the admin console at `http://localhost:9090/admin`
 
 Default credentials are saved in `~/.keycloak-data/admin-credentials.txt`
 
