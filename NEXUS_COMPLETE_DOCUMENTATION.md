@@ -7,11 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.9.1] - 2026-02-12
 
+### Added
+- **Keycloak Authentication Integration** - Enterprise-grade authentication system
+  - OAuth2/OpenID Connect support
+  - Centralized user management
+  - Built-in 2FA/MFA support with TOTP
+  - Password policies and secure reset flows
+  - Role-based access control (admin, viewer, operator)
+  - Social login integration support
+  - Session management and token refresh
+  - Automated installation scripts (`install-keycloak.sh`, `setup-keycloak-realm.sh`)
+  - User migration utility (`migrate-users-to-keycloak.sh`)
+  - Backward compatibility with legacy authentication
+- **Auto-executing Uninstaller** - Uninstall process now runs automatically
+  - Added `--auto-confirm` flag to uninstall.sh for non-interactive execution
+  - Backend automatically spawns uninstall script after shutdown
+  - No manual intervention required after initiating uninstall from dashboard
+
 ### Fixed
 - Password reset verification failing after successful password change
 - Field name mismatch between file-based admin (camelCase) and database users (snake_case)
 - Reset token verification now handles both `resetToken`/`resetTokenExpires` and `reset_token`/`reset_token_expires`
 - Users can now successfully login with new password after reset
+- Uninstaller now executes automatically instead of requiring manual script run
+- 2FA setup now properly handles both database and file-based admin users
+
+### Changed
+- Authentication middleware now supports multiple authentication methods (JWT, API Key, Keycloak)
+- Setup script now offers Keycloak installation during initial setup
+- Uninstall process streamlined for better user experience
+
+### Security
+- Enhanced authentication with Keycloak's proven security model
+- Token validation using Keycloak's userinfo endpoint
+- Automatic token refresh and session management
+- Brute force protection via Keycloak realm settings
 
 ## [1.1.1] - 2025-10-14
 
@@ -100,6 +130,192 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Automatic dependency installation
 - Dashboard build automation
 - Configuration generation
+- Optional Keycloak authentication setup
+
+---
+
+## 🔐 Keycloak Authentication (v1.9.1+)
+
+Nexus now supports enterprise-grade authentication via Keycloak integration, providing:
+
+- **OAuth2/OpenID Connect** - Industry-standard authentication protocol
+- **Centralized User Management** - Single source of truth for users
+- **Built-in 2FA/MFA** - Time-based One-Time Password (TOTP) support
+- **Password Policies** - Enforce strong password requirements
+- **Role-Based Access Control** - Admin, Viewer, and Operator roles
+- **Session Management** - Automatic token refresh and logout
+- **Social Login** - Optional integration with Google, GitHub, etc.
+- **Audit Logging** - Track all authentication events
+
+### Installation
+
+#### During Initial Setup
+
+Run the setup script and choose "yes" when prompted for Keycloak:
+
+```bash
+bash setup.sh
+```
+
+The script will:
+1. Install Keycloak 23.0.4
+2. Configure it as a systemd service
+3. Create the Nexus realm and client
+4. Generate secure admin credentials
+5. Update Nexus .env configuration
+
+#### Manual Installation
+
+If you want to add Keycloak to an existing installation:
+
+```bash
+# Install Keycloak
+bash scripts/install-keycloak.sh
+
+# Setup Nexus realm
+bash scripts/setup-keycloak-realm.sh
+
+# Migrate existing users (optional)
+bash scripts/migrate-users-to-keycloak.sh
+```
+
+### Configuration
+
+Keycloak settings are stored in your `.env` file:
+
+```bash
+KEYCLOAK_ENABLED=true
+KEYCLOAK_URL=http://localhost:8080
+KEYCLOAK_REALM=nexus
+KEYCLOAK_CLIENT_ID=nexus-web
+KEYCLOAK_CLIENT_SECRET=<generated-secret>
+```
+
+### User Migration
+
+To migrate existing Nexus users to Keycloak:
+
+```bash
+bash scripts/migrate-users-to-keycloak.sh
+```
+
+This will:
+- Export all users from Nexus database and file-based admin
+- Create corresponding users in Keycloak
+- Generate temporary passwords (saved to `~/.keycloak-data/migrated-user-passwords.txt`)
+- Preserve user roles (admin, viewer, operator)
+- Mark users as requiring password change on first login
+
+### Managing Users
+
+#### Via Keycloak Admin Console
+
+Access the admin console at `http://localhost:8080/admin`
+
+Default credentials are saved in `~/.keycloak-data/admin-credentials.txt`
+
+#### Via Nexus Dashboard
+
+Users with admin role can still create users via Nexus dashboard. These users will be created in Keycloak if enabled.
+
+### Roles
+
+Keycloak integration supports three roles:
+
+- **admin** - Full access to all features
+- **viewer** - Read-only access to metrics and logs
+- **operator** - Can execute commands and manage processes
+
+### 2FA Setup
+
+Users can enable 2FA through Keycloak:
+
+1. Login to Nexus
+2. Click profile icon → "Account Settings"
+3. Navigate to "Authenticator Application"
+4. Scan QR code with authenticator app
+5. Enter verification code
+
+Recommended authenticator apps:
+- Proton Pass Authenticator (encrypted cloud backup)
+- Google Authenticator
+- Microsoft Authenticator
+- Authy
+
+### Troubleshooting
+
+**Keycloak not starting:**
+```bash
+sudo journalctl -u keycloak -n 50
+```
+
+**Reset Keycloak admin password:**
+```bash
+cd /opt/keycloak
+bin/kc.sh admin password --admin-username admin --admin-password newpassword
+sudo systemctl restart keycloak
+```
+
+**Disable Keycloak and use legacy auth:**
+```bash
+# Edit .env file
+KEYCLOAK_ENABLED=false
+
+# Restart Nexus
+sudo systemctl restart nexus
+```
+
+### Service Management
+
+```bash
+# Start Keycloak
+sudo systemctl start keycloak
+
+# Stop Keycloak
+sudo systemctl stop keycloak
+
+# Restart Keycloak
+sudo systemctl restart keycloak
+
+# View status
+sudo systemctl status keycloak
+
+# View logs
+sudo journalctl -u keycloak -f
+```
+
+### Backup & Recovery
+
+**Backup Keycloak data:**
+```bash
+cp -r ~/.keycloak-data ~/keycloak-backup-$(date +%Y%m%d)
+```
+
+**Export realm configuration:**
+```bash
+cd /opt/keycloak
+bin/kc.sh export --realm nexus --file ~/nexus-realm-backup.json
+```
+
+### Security Best Practices
+
+1. **Change default admin password** immediately after installation
+2. **Enable HTTPS** for production deployments (use Nginx reverse proxy)
+3. **Configure firewall** to restrict Keycloak port access
+4. **Enable audit logging** in Keycloak realm settings
+5. **Regular backups** of Keycloak data directory
+6. **Use strong password policies** (configured by default)
+7. **Enable account lockout** after failed login attempts (configured by default)
+
+### Production Deployment
+
+For production, consider:
+
+1. **PostgreSQL Database** - Replace H2 with PostgreSQL for better performance
+2. **HTTPS/TLS** - Configure SSL certificates
+3. **High Availability** - Deploy Keycloak cluster
+4. **Monitoring** - Set up Keycloak metrics collection
+5. **Backup Strategy** - Automated daily backups
 
 ---
 
