@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Cpu, MemoryStick, HardDrive, Activity, Zap } from 'lucide-react';
+import { ArrowLeft, Cpu, MemoryStick, HardDrive, Activity, Zap, Terminal, ListTree } from 'lucide-react';
 import axios from 'axios';
 import MetricsChart from '../components/MetricsChart';
 
@@ -151,7 +151,7 @@ function AgentDetails({ socket }) {
         className="border-[3px] border-neon-pink/20 bg-brutal-card p-6 mb-6 shadow-brutal"
       >
         <div className="flex items-start justify-between">
-          <div>
+          <div className="flex-1">
             <div className="flex items-center gap-3 mb-2">
               <h1 className="text-4xl font-black uppercase tracking-tighter text-tx">{node.hostname}</h1>
               <span className={`px-3 py-1 text-[10px] font-bold uppercase tracking-widest border-2 ${
@@ -168,9 +168,27 @@ function AgentDetails({ socket }) {
               {node.system_info?.uptime && <span>Uptime: {formatUptime(node.system_info.uptime)}</span>}
             </div>
           </div>
-          <div className="font-mono text-[10px] bg-brutal-bg border-2 border-neon-pink/10 text-tx/25 p-3 tracking-wider">
-            ARCH: {node.system_info?.os?.arch || '—'}<br />
-            KERNEL: {node.system_info?.os?.kernel || '—'}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate(`/nodes/${agentId}/console`)}
+              className="flex items-center gap-2 px-4 py-2 border-2 border-neon-cyan/40 bg-neon-cyan/10 text-neon-cyan font-bold text-xs uppercase tracking-wider hover:bg-neon-cyan/20 hover:translate-x-[-2px] hover:translate-y-[-2px] transition-all"
+              style={{ boxShadow: '3px 3px 0 rgba(0, 217, 255, 0.2)' }}
+            >
+              <Terminal className="w-4 h-4" />
+              Console
+            </button>
+            <button
+              onClick={() => navigate(`/nodes/${agentId}/processes`)}
+              className="flex items-center gap-2 px-4 py-2 border-2 border-neon-purple/40 bg-neon-purple/10 text-neon-purple font-bold text-xs uppercase tracking-wider hover:bg-neon-purple/20 hover:translate-x-[-2px] hover:translate-y-[-2px] transition-all"
+              style={{ boxShadow: '3px 3px 0 rgba(168, 85, 247, 0.2)' }}
+            >
+              <ListTree className="w-4 h-4" />
+              Processes
+            </button>
+            <div className="font-mono text-[10px] bg-brutal-bg border-2 border-neon-pink/10 text-tx/25 p-3 tracking-wider">
+              ARCH: {node.system_info?.os?.arch || '—'}<br />
+              KERNEL: {node.system_info?.os?.kernel || '—'}
+            </div>
           </div>
         </div>
       </motion.div>

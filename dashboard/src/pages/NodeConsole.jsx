@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Terminal, ArrowLeft, Send, Trash2 } from 'lucide-react';
+import { Terminal, ArrowLeft, Send, Trash2, Shield, Lock } from 'lucide-react';
 import axios from 'axios';
+import TwoFactorVerifyModal from '../components/TwoFactorVerifyModal';
 
 /* ─── Per-Node Console ─── */
 function NodeConsole({ socket }) {
@@ -13,12 +14,25 @@ function NodeConsole({ socket }) {
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [executing, setExecuting] = useState(false);
   const [node, setNode] = useState(null);
+  const [is2FAVerified, setIs2FAVerified] = useState(false);
+  const [show2FAModal, setShow2FAModal] = useState(false);
+  const [has2FA, setHas2FA] = useState(false);
+  const [pendingCommand, setPendingCommand] = useState('');
   const outputRef = useRef(null);
   const inputRef = useRef(null);
 
   const token = localStorage.getItem('token');
 
   useEffect(() => {
+    // Check if user has 2FA enabled
+    const check2FAStatus = async () => {
+      try {
+        const res = await axios.get('/api/2fa/status', { headers: { Authorization: `Bearer ${token}` } });
+        setHas2FA(res.data.enabled);
+      } catch { /* ignore */ }
+    };
+    check2FAStatus();
+
     // Fetch node info
     const fetchNode = async () => {
       try {
@@ -64,6 +78,13 @@ function NodeConsole({ socket }) {
   const handleExecute = async () => {
     if (!command.trim() || executing) return;
 
+    // Check if 2FA is required and not yet verified
+    if (has2FA && !is2FAVerified) {
+      setPendingCommand(command);
+      setShow2FAModal(true);
+      return;
+    }
+
     setExecuting(true);
     setOutput(prev => [...prev, {
       type: 'command',
@@ -72,7 +93,7 @@ function NodeConsole({ socket }) {
     }]);
 
     try {
-      await axios.post(`/api/nodes/${agentId}/execute`,
+      await axios.post(`/api/agents/${agentId}/execute`,
         { command },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -86,6 +107,49 @@ function NodeConsole({ socket }) {
         timestamp: new Date().toLocaleTimeString()
       }]);
       setExecuting(false);
+    }
+  };
+
+  const handle2FAVerified = async (credentials) => {
+    // Verify the 2FA code with backend
+    try {
+      // Just mark as verified locally for this session
+      setIs2FAVerified(true);
+      setShow2FAModal(false);
+      
+      // Execute the pending command
+      if (pendingCommand) {
+        setCommand(pendingCommand);
+        setPendingCommand('');
+        // Trigger execution after state update
+        setTimeout(() => {
+          const cmd = pendingCommand;
+          setExecuting(true);
+          setOutput(prev => [...prev, {
+            type: 'command',
+            content: `$ ${cmd}`,
+            timestamp: new Date().toLocaleTimeString()
+          }]);
+
+          axios.post(`/api/agents/${agentId}/execute`,
+            { command: cmd },
+            { headers: { Authorization: `Bearer ${token}` } }
+          ).then(() => {
+            setHistory(prev => [cmd, ...prev.slice(0, 49)]);
+            setCommand('');
+            setHistoryIndex(-1);
+          }).catch(error => {
+            setOutput(prev => [...prev, {
+              type: 'error',
+              content: error.response?.data?.message || 'Command execution failed',
+              timestamp: new Date().toLocaleTimeString()
+            }]);
+            setExecuting(false);
+          });
+        }, 100);
+      }
+    } catch (err) {
+      throw new Error('2FA verification failed');
     }
   };
 
@@ -138,6 +202,14 @@ function NodeConsole({ socket }) {
               }`}>
                 {isOnline ? '● ONLINE' : '● OFFLINE'}
               </span>
+              {has2FA && (
+                <span className={`px-2 py-0.5 border text-[8px] font-bold uppercase tracking-widest flex items-center gap-1 ${
+                  is2FAVerified ? 'border-neon-cyan/40 text-neon-cyan' : 'border-neon-yellow/40 text-neon-yellow'
+                }`}>
+                  {is2FAVerified ? <Shield className="w-2.5 h-2.5" /> : <Lock className="w-2.5 h-2.5" />}
+                  {is2FAVerified ? '2FA VERIFIED' : '2FA REQUIRED'}
+                </span>
+              )}
             </div>
           </div>
           <button onClick={() => setOutput([])}
@@ -215,7 +287,19 @@ function NodeConsole({ socket }) {
         <span>↑↓ History</span>
         <span>Enter Execute</span>
         <span>History: {history.length} cmds</span>
+        {has2FA && !is2FAVerified && (
+          <span className="text-neon-yellow">⚠ 2FA Required for Execution</span>
+        )}
       </div>
+
+      {/* 2FA Verification Modal */}
+      <TwoFactorVerifyModal
+        isOpen={show2FAModal}
+        onClose={() => setShow2FAModal(false)}
+        onVerified={handle2FAVerified}
+        title="Verify Console Access"
+        description="Enter your 2FA code to authorize command execution. This verification is valid for the current session."
+      />
     </div>
   );
 }

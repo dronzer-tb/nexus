@@ -52,6 +52,25 @@ export const BUILT_IN_PRESETS = {
       danger: '#c47272',
       success: '#8a9e82',
     }
+  },
+  readyPlayerOne: {
+    id: 'readyPlayerOne',
+    name: 'Ready Player One',
+    isBuiltIn: true,
+    colors: {
+      bgPrimary: '#1a1a1a',
+      bgSecondary: '#2a2a2a',
+      bgCard: '#1f1f1f',
+      accent1: '#ff6b35',
+      accent2: '#f7931e',
+      accent3: '#ffd23f',
+      accent4: '#00d9ff',
+      text: '#e8e8e8',
+      textSecondary: '#b8b8b8',
+      textMuted: '#888888',
+      danger: '#ff3864',
+      success: '#00ff88',
+    }
   }
 };
 
@@ -274,7 +293,7 @@ export function ThemeProvider({ children }) {
     URL.revokeObjectURL(url);
   }, [draft]);
 
-  // Import theme from JSON file → loads into draft
+  // Import theme from JSON file → loads into draft AND auto-saves as preset
   const importTheme = useCallback((file) => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -298,6 +317,12 @@ export function ThemeProvider({ children }) {
           };
           setDraft(imported);
           setEditingPresetIndex(null);
+          
+          // Auto-save imported theme as a user preset if there's room
+          if (userPresets.length < MAX_USER_PRESETS) {
+            setUserPresets(prev => [...prev, imported]);
+          }
+          
           resolve(imported);
         } catch {
           reject(new Error('Failed to parse theme file'));
@@ -306,7 +331,7 @@ export function ThemeProvider({ children }) {
       reader.onerror = () => reject(new Error('Failed to read file'));
       reader.readAsText(file);
     });
-  }, []);
+  }, [userPresets.length]);
 
   return (
     <ThemeContext.Provider value={{

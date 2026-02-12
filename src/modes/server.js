@@ -106,19 +106,34 @@ class ServerMode {
       contentSecurityPolicy: false,
     }));
 
-    // CORS — restrict to same origin; override via config if needed
+    // CORS — allow all origins in development, restrict in production
     const allowedOrigins = config.get('server.corsOrigins') || [];
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    
     this.app.use(cors({
       origin: (origin, callback) => {
-        // Allow requests with no origin (same-origin, curl, mobile apps)
+        // Allow requests with no origin (same-origin, curl, mobile apps, Postman)
         if (!origin) return callback(null, true);
+        
+        // In development mode, allow all origins
+        if (isDevelopment) return callback(null, true);
+        
         // Allow configured origins
-        if (allowedOrigins.includes(origin)) return callback(null, true);
-        // Allow same-host requests (dashboard served from same server)
-        const selfOrigin = `http://${this.host === '0.0.0.0' ? 'localhost' : this.host}:${this.port}`;
-        if (origin === selfOrigin || origin === `http://localhost:${this.port}`) {
+        if (allowedOrigins.length > 0 && allowedOrigins.includes(origin)) {
           return callback(null, true);
         }
+        
+        // Allow same-host requests (dashboard served from same server)
+        const selfOrigin = `http://${this.host === '0.0.0.0' ? 'localhost' : this.host}:${this.port}`;
+        if (origin === selfOrigin || origin === `http://localhost:${this.port}` || origin.startsWith('http://localhost:')) {
+          return callback(null, true);
+        }
+        
+        // Allow 127.0.0.1
+        if (origin.startsWith('http://127.0.0.1:')) {
+          return callback(null, true);
+        }
+        
         // Allow nginx domain if configured
         const nginxDomain = config.get('nginx.domain');
         if (nginxDomain) {
@@ -126,6 +141,9 @@ class ServerMode {
             return callback(null, true);
           }
         }
+        
+        // Log rejected origin for debugging
+        logger.warn(`CORS rejected origin: ${origin}`);
         callback(new Error('CORS not allowed'));
       },
       credentials: true
@@ -145,6 +163,9 @@ class ServerMode {
   setupRoutes() {
     // API routes
     this.app.use('/api/auth', authRouter);
+    this.app.use('/api/2fa', require('../api/routes/2fa'));
+    this.app.use('/api/password-reset', require('../api/routes/password-reset'));
+    this.app.use('/api/system', require('../api/routes/system'));
     this.app.use('/api/agents', agentsRouter);
     this.app.use('/api/nodes', nodesRouter);
     this.app.use('/api/metrics', metricsRouter);

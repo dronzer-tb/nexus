@@ -1,6 +1,6 @@
 {
   "name": "nexus",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "description": "Unified, self-hosted remote resource monitoring and management platform by Dronzer Studios",
   "main": "src/index.js",
   "scripts": {
@@ -12,7 +12,12 @@
     "build:dashboard": "cd dashboard && npm run build",
     "install:dashboard": "cd dashboard && npm install",
     "setup": "npm install && npm run install:dashboard && npm run build:dashboard",
-    "setup:nginx": "node src/setup/wizard.js"
+    "setup:nginx": "node src/setup/wizard.js",
+    "dev:nextjs": "cd dashboard-nextjs && npm run dev",
+    "build:nextjs": "cd dashboard-nextjs && npm run build",
+    "start:nextjs": "cd dashboard-nextjs && npm run start",
+    "install:nextjs": "cd dashboard-nextjs && npm install",
+    "setup:nextjs": "npm install && npm run install:nextjs && npm run build:nextjs"
   },
   "keywords": [
     "monitoring",
@@ -28,14 +33,18 @@
     "axios": "^1.6.2",
     "bcrypt": "^5.1.1",
     "better-sqlite3": "^9.2.2",
+    "chalk": "^4.1.2",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "express-rate-limit": "^8.2.1",
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
+    "nodemailer": "^8.0.1",
+    "qrcode": "^1.5.4",
     "socket.io": "^4.6.1",
     "socket.io-client": "^4.6.1",
+    "speakeasy": "^2.0.0",
     "systeminformation": "^5.21.20",
     "uuid": "^9.0.1",
     "winston": "^3.11.0"

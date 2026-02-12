@@ -1,0 +1,158 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* ─── Default theme: Midnight Hacker ─── */
+  --brutal-bg: #0a0a0a;
+  --brutal-bg-rgb: 10 10 10;
+  --brutal-surface: #0f0f0f;
+  --brutal-surface-rgb: 15 15 15;
+  --brutal-card: #161616;
+  --brutal-card-rgb: 22 22 22;
+  --neon-pink: #00ff41;
+  --neon-pink-rgb: 0 255 65;
+  --neon-cyan: #00d4aa;
+  --neon-cyan-rgb: 0 212 170;
+  --neon-purple: #a0ff00;
+  --neon-purple-rgb: 160 255 0;
+  --neon-yellow: #ff9500;
+  --neon-yellow-rgb: 255 149 0;
+  --theme-text: #c8c8c8;
+  --theme-text-rgb: 200 200 200;
+  --theme-text-secondary: #555555;
+  --theme-text-secondary-rgb: 85 85 85;
+  --theme-text-muted: #2a2a2a;
+  --theme-text-muted-rgb: 42 42 42;
+  --theme-danger: #ff1744;
+  --theme-danger-rgb: 255 23 68;
+  --theme-success: #00ff41;
+  --theme-success-rgb: 0 255 65;
+  --on-primary: #000000;
+  --on-neon-pink: #000000;
+  --on-neon-cyan: #000000;
+  --on-neon-purple: #000000;
+  --on-neon-yellow: #ffffff;
+  --primary: #00ff41;
+  --accent-1: #00ff41;
+  --accent-2: #00d4aa;
+  --accent-3: #a0ff00;
+  --accent-4: #ff9500;
+}
+
+/* ─── Glow effects ─── */
+.glow {
+  box-shadow: 0 0 5px var(--neon-pink), 0 0 10px rgb(var(--neon-pink-rgb) / 0.5), 0 0 20px rgb(var(--neon-pink-rgb) / 0.3);
+}
+
+.glow-cyan {
+  box-shadow: 0 0 5px var(--neon-cyan), 0 0 10px rgb(var(--neon-cyan-rgb) / 0.3);
+}
+
+/* ─── Body ─── */
+body {
+  margin: 0;
+  font-family: 'Space Mono', 'JetBrains Mono', monospace;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: rgb(var(--brutal-bg-rgb));
+  color: rgb(var(--theme-text-rgb));
+}
+
+code {
+  font-family: 'Space Mono', monospace;
+}
+
+/* ─── Custom scrollbar ─── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--brutal-bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--neon-pink-rgb) / 0.2);
+  border: 1px solid rgb(var(--neon-pink-rgb) / 0.1);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--neon-pink-rgb) / 0.4);
+}
+
+/* ─── Animations ─── */
+@keyframes pulse-slow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes marquee {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
+}
+
+.animate-marquee {
+  animation: marquee 30s linear infinite;
+}
+
+/* ─── Card styles ─── */
+.card {
+  background-color: rgb(var(--brutal-card-rgb));
+  padding: 1.5rem;
+  border: 3px solid rgb(var(--neon-pink-rgb) / 0.1);
+  box-shadow: 4px 4px 0px 0px rgb(var(--neon-pink-rgb) / 0.15);
+}
+
+.card-header {
+  font-size: 0.875rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  color: rgb(var(--theme-text-rgb) / 0.8);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ─── Status indicators ─── */
+.status-dot {
+  @apply w-3 h-3 inline-block mr-2;
+}
+
+.status-online {
+  background: var(--theme-success);
+  box-shadow: 0 0 8px rgb(var(--theme-success-rgb) / 0.5);
+}
+
+.status-offline {
+  background: var(--theme-danger);
+  box-shadow: 0 0 8px rgb(var(--theme-danger-rgb) / 0.3);
+}
+
+.status-warning {
+  background: var(--neon-yellow);
+  box-shadow: 0 0 8px rgb(var(--neon-yellow-rgb) / 0.3);
+}
+
+/* ─── Brutal utility classes ─── */
+.border-brutal {
+  border-width: 3px;
+}
+
+.text-glow-pink {
+  text-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
+}
+
+.text-glow-cyan {
+  text-shadow: 0 0 10px rgba(0, 212, 170, 0.5);
+}
+
+/* ─── Selection color ─── */
+::selection {
+  background: rgb(var(--neon-pink-rgb) / 0.3);
+  color: white;
+}

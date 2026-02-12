@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowUpRight, RefreshCw, Plus, X, Terminal, Copy, Check, Server, Key } from 'lucide-react';
+import { ArrowUpRight, RefreshCw, Plus, X, Terminal, Copy, Check, Server, Key, Trash2 } from 'lucide-react';
 import axios from 'axios';
 
 /* ─── Brutalist Node Row ─── */
-const NodeRow = ({ node, index }) => {
+const NodeRow = ({ node, index, onDelete }) => {
   const cpu = node.metrics?.cpu || 0;
   const mem = node.metrics?.memory || 0;
   const disk = node.metrics?.disk || 0;
@@ -20,17 +20,23 @@ const NodeRow = ({ node, index }) => {
     </div>
   );
 
+  const handleDelete = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (window.confirm(`Delete node "${node.hostname || node.id}"?\n\nThis will remove the node and all its metrics from the server. The node can re-register if it reconnects.`)) {
+      onDelete(node.id);
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, x: -10 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: index * 0.04 + 0.2 }}
     >
-      <Link to={`/nodes/${node.id}`}
-        className="grid grid-cols-12 gap-4 items-center px-5 py-4 border-b-2 border-neon-pink/[0.07] hover:bg-neon-pink/[0.03] transition-colors group"
-      >
+      <div className="grid grid-cols-12 gap-4 items-center px-5 py-4 border-b-2 border-neon-pink/[0.07] hover:bg-neon-pink/[0.03] transition-colors group">
         {/* Status + Name */}
-        <div className="col-span-4 flex items-center gap-3">
+        <Link to={`/nodes/${node.id}`} className="col-span-4 flex items-center gap-3">
           <div className={`w-4 h-4 border-2 flex-shrink-0 ${isOnline ? 'bg-neon-cyan border-neon-cyan/60' : 'bg-red-500 border-red-500/60'}`} />
           <div className="min-w-0">
             <div className="font-bold uppercase text-sm text-tx truncate group-hover:text-neon-pink transition-colors">
@@ -40,10 +46,10 @@ const NodeRow = ({ node, index }) => {
               {node.system_info?.os?.distro || '—'}
             </div>
           </div>
-        </div>
+        </Link>
 
         {/* Status badge */}
-        <div className="col-span-2">
+        <Link to={`/nodes/${node.id}`} className="col-span-2">
           <span className={`inline-block px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider border-2 ${
             isOnline
               ? 'border-neon-cyan/40 text-neon-cyan bg-neon-cyan/10'
@@ -51,28 +57,37 @@ const NodeRow = ({ node, index }) => {
           }`}>
             {isOnline ? '● ONLINE' : '● OFFLINE'}
           </span>
-        </div>
+        </Link>
 
         {/* CPU */}
-        <div className="col-span-2">
+        <Link to={`/nodes/${node.id}`} className="col-span-2">
           <BarCell value={cpu} color="var(--neon-pink)" />
-        </div>
+        </Link>
 
         {/* RAM */}
-        <div className="col-span-2">
+        <Link to={`/nodes/${node.id}`} className="col-span-2">
           <BarCell value={mem} color="var(--neon-cyan)" />
-        </div>
+        </Link>
 
         {/* Disk */}
-        <div className="col-span-1">
+        <Link to={`/nodes/${node.id}`} className="col-span-1">
           <span className="font-mono font-bold text-xs text-neon-purple">{disk.toFixed(0)}%</span>
-        </div>
+        </Link>
 
-        {/* Arrow */}
-        <div className="col-span-1 text-right">
-          <ArrowUpRight className="w-4 h-4 text-tx/15 group-hover:text-neon-pink transition-colors inline-block" />
+        {/* Actions */}
+        <div className="col-span-1 flex items-center justify-end gap-2">
+          <button
+            onClick={handleDelete}
+            className="p-1.5 border-2 border-transparent hover:border-red-500/40 hover:bg-red-500/10 text-tx/30 hover:text-red-400 transition-all"
+            title="Delete node"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+          <Link to={`/nodes/${node.id}`}>
+            <ArrowUpRight className="w-4 h-4 text-tx/15 group-hover:text-neon-pink transition-colors inline-block" />
+          </Link>
         </div>
-      </Link>
+      </div>
     </motion.div>
   );
 };
@@ -101,6 +116,19 @@ function AgentsList({ socket }) {
       setAgents([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteNode = async (nodeId) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(`/api/nodes/${nodeId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setAgents(agents.filter(a => a.id !== nodeId));
+    } catch (err) {
+      console.error('Failed to delete node:', err);
+      alert('Failed to delete node: ' + (err.response?.data?.error || err.message));
     }
   };
 
@@ -186,7 +214,7 @@ function AgentsList({ socket }) {
             </div>
           </div>
         ) : (
-          agents.map((node, i) => <NodeRow key={node.id} node={node} index={i} />)
+          agents.map((node, i) => <NodeRow key={node.id} node={node} index={i} onDelete={handleDeleteNode} />)
         )}
 
         {/* Footer */}

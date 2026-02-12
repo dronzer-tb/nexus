@@ -70,13 +70,18 @@ export function AuthProvider({ children }) {
     setLoading(false);
   };
 
-  const login = async (username, password) => {
+  const login = async (username, password, totpToken = '', recoveryCode = '') => {
     console.log('=== LOGIN FUNCTION CALLED ===');
-    console.log('Username:', username, 'Password length:', password?.length);
+    console.log('Username:', username, 'Password length:', password?.length, '2FA token:', !!totpToken, 'Recovery:', !!recoveryCode);
     
     try {
       console.log('Login: Sending login request to /api/auth/login...');
-      const response = await axios.post('/api/auth/login', { username, password });
+      const response = await axios.post('/api/auth/login', { 
+        username, 
+        password,
+        totpToken: totpToken || undefined,
+        recoveryCode: recoveryCode || undefined
+      });
       console.log('Login: Response received:', response.status);
       
       const { token, user, mustChangePassword: mcp } = response.data;
@@ -88,8 +93,8 @@ export function AuthProvider({ children }) {
       localStorage.setItem('token', token);
       console.log('Login: Token stored in localStorage');
 
-  // Ensure axios includes the token by default for subsequent requests
-  axios.defaults.headers.common.Authorization = `Bearer ${token}`;
+      // Ensure axios includes the token by default for subsequent requests
+      axios.defaults.headers.common.Authorization = `Bearer ${token}`;
       
       // Verify localStorage immediately
       const storedToken = localStorage.getItem('token');
@@ -111,6 +116,16 @@ export function AuthProvider({ children }) {
       console.error('Status:', error.response?.status);
       console.error('Data:', error.response?.data);
       console.error('Message:', error.message);
+      
+      // Check if 2FA is required
+      if (error.response?.status === 403 && error.response?.data?.requires2FA) {
+        return {
+          success: false,
+          requires2FA: true,
+          error: error.response?.data?.message || 'Two-factor authentication required'
+        };
+      }
+      
       return { 
         success: false, 
         error: error.response?.data?.message || 'Login failed' 

@@ -145,6 +145,101 @@ setup_nginx() {
   done
 }
 
+# ─── Systemd Setup ──────────────────────────
+
+setup_systemd() {
+  echo ""
+  echo -e "  ${BOLD}Would you like to install Nexus as a systemd service?${NC}"
+  echo ""
+  echo "    This will:"
+  echo "    • Create a systemd service file"
+  echo "    • Enable auto-start on boot"
+  echo "    • Allow management via systemctl"
+  echo ""
+
+  while true; do
+    read -rp "  Install systemd service? [y/N]: " systemd_choice
+    case "$systemd_choice" in
+      [yY]|[yY][eE][sS])
+        install_systemd_service
+        break
+        ;;
+      [nN]|[nN][oO]|"")
+        info "Skipping systemd service installation"
+        break
+        ;;
+      *) warn "Enter y or n" ;;
+    esac
+  done
+}
+
+install_systemd_service() {
+  step "Installing systemd service"
+  
+  # Check if running as root or can use sudo
+  if [ "$EUID" -ne 0 ] && ! command -v sudo &>/dev/null; then
+    warn "Root access required for systemd installation. Skipping..."
+    return
+  fi
+
+  local INSTALL_DIR=$(pwd)
+  local NODE_PATH=$(command -v node)
+  local SERVICE_FILE="/etc/systemd/system/nexus.service"
+
+  # Determine the mode for the service
+  local SERVICE_MODE="${MODE}"
+  if [ "$SERVICE_MODE" = "skip" ]; then
+    SERVICE_MODE="combine"
+  fi
+
+  # Create service file
+  local SERVICE_CONTENT="[Unit]
+Description=Nexus Monitoring Server
+After=network.target
+
+[Service]
+Type=simple
+User=${USER}
+WorkingDirectory=${INSTALL_DIR}
+ExecStart=${NODE_PATH} ${INSTALL_DIR}/src/index.js --mode=${SERVICE_MODE}
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Environment
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target"
+
+  # Write service file
+  if [ "$EUID" -eq 0 ]; then
+    echo "$SERVICE_CONTENT" > "$SERVICE_FILE"
+  else
+    echo "$SERVICE_CONTENT" | sudo tee "$SERVICE_FILE" > /dev/null
+  fi
+
+  # Reload systemd and enable service
+  if [ "$EUID" -eq 0 ]; then
+    systemctl daemon-reload
+    systemctl enable nexus.service
+  else
+    sudo systemctl daemon-reload
+    sudo systemctl enable nexus.service
+  fi
+
+  info "Systemd service installed and enabled"
+  echo ""
+  echo -e "  ${CYAN}Service commands:${NC}"
+  echo "    sudo systemctl start nexus    # Start the service"
+  echo "    sudo systemctl stop nexus     # Stop the service"
+  echo "    sudo systemctl restart nexus  # Restart the service"
+  echo "    sudo systemctl status nexus   # Check status"
+  echo "    sudo journalctl -u nexus -f   # View logs"
+  echo ""
+}
+
 # ─── Start Nexus ─────────────────────────────
 
 start_nexus() {
@@ -156,6 +251,9 @@ start_nexus() {
     echo "    npm run start:server    # Server only"
     echo "    npm run start:node      # Node reporter only"
     echo "    npm run dev             # Development mode"
+    echo ""
+    echo "  Or if you installed the systemd service:"
+    echo "    sudo systemctl start nexus"
     echo ""
     return
   fi
@@ -181,6 +279,7 @@ main() {
   setup_config
   setup_nginx
   select_mode
+  setup_systemd
   start_nexus
 }
 

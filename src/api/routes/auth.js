@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
+const speakeasy = require('speakeasy');
 const rateLimit = require('express-rate-limit');
 const logger = require('../../utils/logger');
 const auth = require('../../utils/auth');
@@ -63,7 +64,7 @@ function getUsers() {
 // Login endpoint (rate-limited)
 router.post('/login', loginLimiter, async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const { username, password, totpToken, recoveryCode } = req.body;
 
     if (!username || !password) {
       return res.status(400).json({ message: 'Username and password are required' });
@@ -84,16 +85,70 @@ router.post('/login', loginLimiter, async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
+    // Get full user data from database if it's a DB user (to check 2FA)
+    let dbUser = null;
+    if (user.source === 'database') {
+      dbUser = database.getUserById(user.dbId);
+    }
+
+    // Check if 2FA is enabled for this user
+    const has2FA = dbUser && dbUser.totp_enabled;
+
+    if (has2FA) {
+      // 2FA is enabled - require TOTP or recovery code
+      if (!totpToken && !recoveryCode) {
+        return res.status(403).json({ 
+          message: 'Two-factor authentication required',
+          requires2FA: true 
+        });
+      }
+
+      let verified = false;
+
+      // Try TOTP token first
+      if (totpToken && dbUser.totp_secret) {
+        verified = speakeasy.totp.verify({
+          secret: dbUser.totp_secret,
+          encoding: 'base32',
+          token: totpToken,
+          window: 2
+        });
+      }
+
+      // Try recovery code if TOTP failed
+      if (!verified && recoveryCode && dbUser.recovery_codes) {
+        const codes = JSON.parse(dbUser.recovery_codes);
+        const hashedInput = crypto.createHash('sha256').update(recoveryCode.toUpperCase()).digest('hex');
+        const codeIndex = codes.indexOf(hashedInput);
+        
+        if (codeIndex >= 0) {
+          verified = true;
+          // Remove used recovery code
+          codes.splice(codeIndex, 1);
+          database.updateUser(dbUser.id, {
+            recoveryCodes: JSON.stringify(codes)
+          });
+          logger.warn(`Recovery code used for login: ${username}`);
+        }
+      }
+
+      if (!verified) {
+        logger.warn(`Failed 2FA verification for user: ${username}`);
+        return res.status(401).json({ message: 'Invalid two-factor authentication code' });
+      }
+    }
+
     // Generate JWT token
     const token = auth.generateJWT({ userId: user.id, username: user.username });
 
-    logger.info(`User logged in: ${username}`);
+    logger.info(`User logged in: ${username}${has2FA ? ' (with 2FA)' : ''}`);
 
     res.json({
       token,
       user: {
         id: user.id,
-        username: user.username
+        username: user.username,
+        has2FA
       },
       mustChangePassword: user.mustChangePassword === true
     });
@@ -172,16 +227,19 @@ router.post('/change-password', async (req, res) => {
 
     // Hash new password and save
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-    user.password = hashedPassword;
-    user.mustChangePassword = false;
     
     // Save based on user source
     if (user.source === 'database') {
       database.updateUser(user.dbId, { password: hashedPassword, mustChangePassword: false });
     } else {
-      // Save updated admin credentials
-      const { saveAdmin } = require('../../utils/setup-admin');
-      saveAdmin(user);
+      // Save updated admin credentials (file-based admin)
+      const { saveAdmin, loadAdmin } = require('../../utils/setup-admin');
+      const adminData = loadAdmin();
+      if (adminData) {
+        adminData.password = hashedPassword;
+        adminData.mustChangePassword = false;
+        saveAdmin(adminData);
+      }
     }
 
     logger.info(`Password changed for user: ${user.username}`);

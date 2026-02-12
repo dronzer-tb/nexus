@@ -191,62 +191,7 @@ function Dashboard({ socket }) {
               <SidebarItem icon={LayoutGrid} label="Overview" path="/" active={isActive('/')} collapsed={collapsed} />
 
               {/* Nodes section */}
-              <SidebarItem icon={Server} label="Nodes" path="/nodes" active={location.pathname === '/nodes'} collapsed={collapsed} />
-
-              {/* Individual node dropdowns */}
-              {nodes.length > 0 && (
-                <div className={clsx("space-y-0.5", collapsed ? "px-0" : "pl-2")}>
-                  {nodes.slice(0, 8).map((node) => {
-                    const isExpanded = expandedNode === node.id;
-                    const isOnline = node.status === 'online';
-                    return (
-                      <div key={node.id}>
-                        <button
-                          onClick={() => toggleNode(node.id)}
-                          className={clsx(
-                            "w-full flex items-center gap-2 py-1.5 transition-all text-left group",
-                            collapsed ? "justify-center px-1" : "px-3",
-                          )}
-                          title={collapsed ? (node.hostname || node.id?.substring(0, 8)) : undefined}
-                        >
-                          <div className={clsx(
-                            "w-2 h-2 shrink-0 border",
-                            isOnline ? "bg-neon-cyan border-neon-cyan/60" : "bg-red-500 border-red-500/60"
-                          )} />
-                          {!collapsed && (
-                            <>
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-tx/40 group-hover:text-neon-cyan truncate flex-1 transition-colors">
-                                {node.hostname || node.id?.substring(0, 10)}
-                              </span>
-                              <ChevronDown className={clsx(
-                                "w-3 h-3 text-tx/20 transition-transform shrink-0",
-                                isExpanded && "rotate-180"
-                              )} />
-                            </>
-                          )}
-                        </button>
-
-                        <AnimatePresence>
-                          {isExpanded && (
-                            <motion.div
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: 'auto', opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              transition={{ duration: 0.15 }}
-                              className="overflow-hidden"
-                            >
-                              <SubItem icon={Terminal} label="Console" path={`/nodes/${node.id}/console`}
-                                active={isNodeSubActive(node.id, 'console')} collapsed={collapsed} />
-                              <SubItem icon={ListTree} label="Processes" path={`/nodes/${node.id}/processes`}
-                                active={isNodeSubActive(node.id, 'processes')} collapsed={collapsed} />
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+              <SidebarItem icon={Server} label="Nodes" path="/nodes" active={location.pathname.startsWith('/nodes')} collapsed={collapsed} />
 
               <SidebarItem icon={FileText} label="Logs" path="/logs" active={isActive('/logs')} collapsed={collapsed} />
 

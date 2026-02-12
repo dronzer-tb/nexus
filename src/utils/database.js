@@ -107,8 +107,14 @@ class DatabaseManager {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT NOT NULL UNIQUE,
         password TEXT NOT NULL,
+        email TEXT,
         role TEXT DEFAULT 'viewer',
         must_change_password INTEGER DEFAULT 0,
+        totp_secret TEXT,
+        totp_enabled INTEGER DEFAULT 0,
+        recovery_codes TEXT,
+        reset_token TEXT,
+        reset_token_expires INTEGER,
         created_at INTEGER DEFAULT (strftime('%s', 'now')),
         updated_at INTEGER DEFAULT (strftime('%s', 'now'))
       )
@@ -117,6 +123,44 @@ class DatabaseManager {
     this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
     `);
+
+    // Migrate existing users table to add 2FA columns if they don't exist
+    this.migrate2FAColumns();
+  }
+
+  /**
+   * Migrate users table to add 2FA columns if they don't exist
+   */
+  migrate2FAColumns() {
+    try {
+      const tableInfo = this.db.pragma('table_info(users)');
+      const hasTotp = tableInfo.some(col => col.name === 'totp_secret');
+      const hasEmail = tableInfo.some(col => col.name === 'email');
+      const hasResetToken = tableInfo.some(col => col.name === 'reset_token');
+      
+      this.db.exec('BEGIN TRANSACTION');
+      
+      if (!hasTotp) {
+        logger.info('Migrating users table: adding 2FA columns...');
+        this.db.exec(`ALTER TABLE users ADD COLUMN totp_secret TEXT;`);
+        this.db.exec(`ALTER TABLE users ADD COLUMN totp_enabled INTEGER DEFAULT 0;`);
+        this.db.exec(`ALTER TABLE users ADD COLUMN recovery_codes TEXT;`);
+        logger.info('Users table 2FA migration complete');
+      }
+      
+      if (!hasEmail) {
+        logger.info('Migrating users table: adding email and password reset columns...');
+        this.db.exec(`ALTER TABLE users ADD COLUMN email TEXT;`);
+        this.db.exec(`ALTER TABLE users ADD COLUMN reset_token TEXT;`);
+        this.db.exec(`ALTER TABLE users ADD COLUMN reset_token_expires INTEGER;`);
+        logger.info('Users table password reset migration complete');
+      }
+      
+      this.db.exec('COMMIT');
+    } catch (error) {
+      try { this.db.exec('ROLLBACK'); } catch (_) {}
+      logger.error('Users table migration failed:', error);
+    }
   }
 
   /**
@@ -424,6 +468,10 @@ class DatabaseManager {
       fields.push('password = ?');
       values.push(userData.password);
     }
+    if (userData.email !== undefined) {
+      fields.push('email = ?');
+      values.push(userData.email);
+    }
     if (userData.role) {
       fields.push('role = ?');
       values.push(userData.role);
@@ -431,6 +479,26 @@ class DatabaseManager {
     if (typeof userData.mustChangePassword !== 'undefined') {
       fields.push('must_change_password = ?');
       values.push(userData.mustChangePassword ? 1 : 0);
+    }
+    if (userData.totpSecret !== undefined) {
+      fields.push('totp_secret = ?');
+      values.push(userData.totpSecret);
+    }
+    if (typeof userData.totpEnabled !== 'undefined') {
+      fields.push('totp_enabled = ?');
+      values.push(userData.totpEnabled ? 1 : 0);
+    }
+    if (userData.recoveryCodes !== undefined) {
+      fields.push('recovery_codes = ?');
+      values.push(userData.recoveryCodes);
+    }
+    if (userData.resetToken !== undefined) {
+      fields.push('reset_token = ?');
+      values.push(userData.resetToken);
+    }
+    if (userData.resetTokenExpires !== undefined) {
+      fields.push('reset_token_expires = ?');
+      values.push(userData.resetTokenExpires);
     }
 
     if (fields.length === 0) return null;
@@ -441,6 +509,16 @@ class DatabaseManager {
 
     const stmt = this.db.prepare(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`);
     return stmt.run(...values);
+  }
+
+  getUserByEmail(email) {
+    const stmt = this.db.prepare('SELECT * FROM users WHERE email = ?');
+    return stmt.get(email);
+  }
+
+  getUserByResetToken(token) {
+    const stmt = this.db.prepare('SELECT * FROM users WHERE reset_token = ? AND reset_token_expires > ?');
+    return stmt.get(token, Date.now());
   }
 
   deleteUser(id) {

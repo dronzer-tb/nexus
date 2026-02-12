@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 import { useTheme, BUILT_IN_PRESETS, COLOR_LABELS, luminance } from '../context/ThemeContext';
 import axios from 'axios';
+import TwoFactorSettings from '../components/TwoFactorSettings';
+import UninstallSettings from '../components/UninstallSettings';
 
 /* ═══════════════════════════════════════
    SHARED COMPONENTS
@@ -726,6 +728,63 @@ function ApiKeySettings({ showFeedback }) {
 /* ═══════════════════════════════════════
    USER MANAGER TAB
    ═══════════════════════════════════════ */
+/* ═══════════════════════════════════════
+   SECURITY SETTINGS (with sub-tabs)
+   ═══════════════════════════════════════ */
+function SecuritySettings({ showFeedback }) {
+  const [securityTab, setSecurityTab] = useState('2fa');
+
+  const securityTabs = [
+    { id: '2fa', label: 'Two-Factor Auth', icon: Shield, color: 'neon-cyan' },
+    { id: 'api-keys', label: 'API Keys', icon: Key, color: 'neon-yellow' },
+    { id: 'users', label: 'Users', icon: Users, color: 'neon-purple' },
+    { id: 'uninstall', label: 'Uninstall', icon: Trash2, color: 'red-400' },
+  ];
+
+  return (
+    <div className="space-y-6">
+      {/* Security Sub-tabs */}
+      <div className="flex gap-2 border-b-2 border-tx/10 pb-4">
+        {securityTabs.map(t => (
+          <button
+            key={t.id}
+            onClick={() => setSecurityTab(t.id)}
+            className={`flex items-center gap-2 px-4 py-2 border-2 font-bold uppercase text-xs tracking-wider transition-all ${
+              securityTab === t.id
+                ? `border-${t.color}/40 bg-${t.color}/10 text-${t.color}`
+                : 'border-tx/10 bg-brutal-card text-tx/50 hover:text-tx hover:border-tx/20'
+            }`}
+            style={securityTab === t.id ? {
+              borderColor: t.id === 'uninstall' ? '#f87171' : `var(--${t.color})`,
+              backgroundColor: t.id === 'uninstall' ? '#f8717110' : `var(--${t.color})10`,
+              color: t.id === 'uninstall' ? '#f87171' : `var(--${t.color})`,
+            } : undefined}
+          >
+            <t.icon className="w-4 h-4" />
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Security Tab Content */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={securityTab}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.15 }}
+        >
+          {securityTab === '2fa' && <TwoFactorSettings />}
+          {securityTab === 'api-keys' && <ApiKeySettings showFeedback={showFeedback} />}
+          {securityTab === 'users' && <UserSettings showFeedback={showFeedback} />}
+          {securityTab === 'uninstall' && <UninstallSettings />}
+        </motion.div>
+      </AnimatePresence>
+    </div>
+  );
+}
+
 function UserSettings({ showFeedback }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -864,9 +923,8 @@ function Settings() {
 
   const tabs = [
     { id: 'themes', label: 'Themes', icon: Palette, color: 'neon-pink' },
+    { id: 'security', label: 'Security', icon: Shield, color: 'neon-cyan' },
     { id: 'updates', label: 'Updates', icon: ArrowUpCircle, color: 'neon-purple' },
-    { id: 'api-keys', label: 'API Keys', icon: Key, color: 'neon-cyan' },
-    { id: 'users', label: 'Users', icon: Users, color: 'neon-yellow' },
   ];
 
   const activeTab = tab || 'themes';
@@ -930,9 +988,8 @@ function Settings() {
           transition={{ duration: 0.2 }}
         >
           {activeTab === 'themes' && <ThemeSettings showFeedback={showFeedback} />}
+          {activeTab === 'security' && <SecuritySettings showFeedback={showFeedback} />}
           {activeTab === 'updates' && <UpdateSettings showFeedback={showFeedback} />}
-          {activeTab === 'api-keys' && <ApiKeySettings showFeedback={showFeedback} />}
-          {activeTab === 'users' && <UserSettings showFeedback={showFeedback} />}
         </motion.div>
       </AnimatePresence>
 
