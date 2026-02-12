@@ -1,14 +1,22 @@
 const logger = require('../utils/logger');
 const auth = require('../utils/auth');
 const database = require('../utils/database');
-const { validateWithUserInfo } = require('./keycloak-auth');
 const jwt = require('jsonwebtoken');
+
+// Try to load Authentik auth if available, otherwise use null
+let validateWithUserInfo = null;
+try {
+  const authentikAuth = require('./authentik-auth');
+  validateWithUserInfo = authentikAuth.validateWithUserInfo;
+} catch (err) {
+  // Authentik auth not available
+}
 
 async function authenticate(req, res, next) {
   try {
     const apiKey = req.headers['x-api-key'];
     const token = req.headers.authorization?.replace('Bearer ', '');
-    const keycloakEnabled = process.env.KEYCLOAK_ENABLED === 'true';
+    const authentikEnabled = process.env.AUTHENTIK_ENABLED === 'true';
 
     // --- API Key authentication (mobile app / external) ---
     if (apiKey) {
@@ -37,37 +45,48 @@ async function authenticate(req, res, next) {
       return res.status(401).json({ message: 'Authentication required' });
     }
 
-    // Try Keycloak authentication if enabled
-    if (keycloakEnabled) {
+    // Try Authentik authentication if enabled
+    if (authentikEnabled && validateWithUserInfo) {
       try {
         const userInfo = await validateWithUserInfo(token);
         
         if (userInfo && userInfo.sub) {
-          // Decode token to get roles
+          // Decode token to get groups/roles
           const decoded = jwt.decode(token);
           let roles = [];
-          if (decoded && decoded.realm_access && decoded.realm_access.roles) {
-            roles = decoded.realm_access.roles;
+          if (decoded && decoded.groups) {
+            roles = decoded.groups;
+          } else if (userInfo.groups) {
+            roles = userInfo.groups;
+          }
+          
+          // Map Authentik groups to Nexus roles
+          let nexusRole = 'viewer'; // default
+          if (roles.includes('nexus-admins') || roles.includes('admins')) {
+            nexusRole = 'admin';
+          } else if (roles.includes('nexus-operators') || roles.includes('operators')) {
+            nexusRole = 'operator';
           }
           
           // Attach user info to request
           req.user = {
             userId: userInfo.sub,
-            username: userInfo.preferred_username || userInfo.email,
+            username: userInfo.preferred_username || userInfo.email || userInfo.sub,
             email: userInfo.email,
             roles: roles,
+            role: nexusRole,
             name: userInfo.name,
-            source: 'keycloak'
+            source: 'authentik'
           };
-          req.authMethod = 'keycloak';
+          req.authMethod = 'authentik';
           req.token = token;
           
-          logger.debug(`Keycloak auth successful for user: ${req.user.username}`);
+          logger.debug(`Authentik auth successful for user: ${req.user.username}`);
           return next();
         }
-      } catch (keycloakError) {
-        // Keycloak validation failed, try legacy JWT as fallback
-        logger.debug('Keycloak validation failed, trying legacy JWT:', keycloakError.message);
+      } catch (authentikError) {
+        // Authentik validation failed, try legacy JWT as fallback
+        logger.debug('Authentik validation failed, trying legacy JWT:', authentikError.message);
       }
     }
 
