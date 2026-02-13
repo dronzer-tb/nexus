@@ -1,6 +1,6 @@
 const { Client } = require('ssh2');
-const logger = require('../../utils/logger');
-const config = require('../../utils/config');
+const logger = require('../utils/logger');
+const config = require('../utils/config');
 
 /**
  * SSH Terminal Manager
