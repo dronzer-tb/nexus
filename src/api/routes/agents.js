@@ -131,49 +131,22 @@ router.post('/:agentId/execute', async (req, res) => {
   try {
     const { agentId } = req.params;
     const { command } = req.body;
-    
-    // First try to find as WebSocket agent
-    let agent = agents.get(agentId);
-    
-    // If not found as agent, try to find as database node
-    if (!agent) {
-      const database = require('../../utils/database');
-      const node = database.getNode(agentId);
-      
-      if (!node) {
-        return res.status(404).json({ 
-          message: 'Node/Agent not found',
-          hint: 'This node may not be connected. Nodes using HTTP reporting cannot execute commands in real-time. Please use WebSocket agent mode for command execution.'
-        });
-      }
-      
-      // Node exists but is HTTP-only (cannot execute commands)
-      return res.status(503).json({ 
-        message: 'Command execution not supported for HTTP-only nodes',
-        detail: 'This node uses HTTP reporting and cannot execute commands in real-time. To enable command execution, run the node with WebSocket agent mode.',
-        nodeStatus: node.status
-      });
-    }
 
-    if (agent.status !== 'online' || !agent.socket) {
-      return res.status(503).json({ message: 'Agent is offline or not connected via WebSocket' });
-    }
-
+    // ── Validate command first ──
     if (!command) {
       return res.status(400).json({ message: 'Command is required' });
     }
 
-    // Security: validate command length and block dangerous patterns
     if (command.length > 2000) {
       return res.status(400).json({ message: 'Command too long (max 2000 characters)' });
     }
 
     const dangerousPatterns = [
-      /rm\s+(-rf?|--no-preserve-root)\s+\//i,  // rm -rf /
-      /mkfs\./i,                                  // filesystem format
-      /dd\s+if=.*of=\/dev\//i,                   // overwrite devices
-      />(\/dev\/[sh]d|\/dev\/nvme)/i,             // redirect to disk devices
-      /:(){ :\|:& };:/,                           // fork bomb
+      /rm\s+(-rf?|--no-preserve-root)\s+\//i,
+      /mkfs\./i,
+      /dd\s+if=.*of=\/dev\//i,
+      />(\/dev\/[sh]d|\/dev\/nvme)/i,
+      /:(){ :\|:& };:/,
     ];
 
     for (const pattern of dangerousPatterns) {
@@ -183,23 +156,90 @@ router.post('/:agentId/execute', async (req, res) => {
       }
     }
 
-    logger.info(`Command requested by user ${req.user.userId} on agent ${agentId}: ${command.substring(0, 100)}`);
+    const audit = require('../../utils/audit');
+    const ipAddress = req.ip || req.connection.remoteAddress;
+    const userAgent = req.headers['user-agent'] || 'unknown';
 
-    // Send command to agent
-    agent.socket.emit('command:execute', { command, userId: req.user.userId }, (response) => {
-      if (response.error) {
-        return res.status(500).json({ message: response.error });
+    // ── Try WebSocket agent first ──
+    let agent = agents.get(agentId);
+
+    if (agent) {
+      if (agent.status !== 'online' || !agent.socket) {
+        return res.status(503).json({ message: 'Agent is offline or not connected via WebSocket' });
       }
-      logger.info(`Command executed on agent ${agentId}: ${command}`);
-      res.json({ message: 'Command execution started' });
+
+      logger.info(`Command requested by user ${req.user.userId} on agent ${agentId}: ${command.substring(0, 100)}`);
+
+      agent.socket.emit('command:execute', { command, userId: req.user.userId }, (response) => {
+        if (response.error) {
+          audit.logCommandExecution(req.user, agentId, command, ipAddress, userAgent, false, response.error);
+          return res.status(500).json({ message: response.error });
+        }
+
+        logger.info(`Command executed on agent ${agentId}: ${command}`);
+        audit.logCommandExecution(req.user, agentId, command, ipAddress, userAgent, true, 'Command execution started');
+        res.json({ message: 'Command execution started' });
+      });
+
+      setTimeout(() => {
+        if (!res.headersSent) {
+          res.status(504).json({ message: 'Agent response timeout' });
+        }
+      }, 5000);
+      return;
+    }
+
+    // ── Not a WebSocket agent — check database nodes ──
+    const database = require('../../utils/database');
+    const node = database.getNode(agentId);
+
+    if (!node) {
+      return res.status(404).json({
+        message: 'Node/Agent not found',
+        hint: 'This node may not be connected.'
+      });
+    }
+
+    // ── Check if this is the local node (combine mode) ──
+    const fs = require('fs');
+    const pathModule = require('path');
+    const nodeInfoPath = pathModule.join(__dirname, '../../../data/node-info.json');
+
+    try {
+      if (fs.existsSync(nodeInfoPath)) {
+        const nodeInfo = JSON.parse(fs.readFileSync(nodeInfoPath, 'utf8'));
+        if (nodeInfo.nodeId === agentId) {
+          // This IS the local node — execute command directly
+          const { exec } = require('child_process');
+          const io = req.app.get('io');
+
+          logger.info(`Local command by user ${req.user.userId} on combine-mode node ${agentId}: ${command.substring(0, 100)}`);
+          audit.logCommandExecution(req.user, agentId, command, ipAddress, userAgent, true, 'Local command execution started');
+
+          exec(command, { timeout: 30000, maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
+            if (io) {
+              if (stdout) io.emit('command:output', { agentId, output: stdout });
+              if (stderr) io.emit('command:output', { agentId, output: stderr });
+              if (error && !stdout && !stderr) {
+                io.emit('command:output', { agentId, output: `Error: ${error.message}` });
+              }
+              io.emit('command:complete', { agentId });
+            }
+          });
+
+          return res.json({ message: 'Command execution started' });
+        }
+      }
+    } catch (localErr) {
+      logger.debug('Local node check failed:', localErr.message);
+    }
+
+    // ── Remote HTTP-only node — cannot execute commands ──
+    return res.status(503).json({
+      message: 'Command execution not supported for HTTP-only nodes',
+      detail: 'This node uses HTTP reporting and cannot execute commands in real-time. To enable command execution, run the node with WebSocket agent mode.',
+      nodeStatus: node.status
     });
-
-    // Timeout if agent doesn't respond
-    setTimeout(() => {
-      if (!res.headersSent) {
-        res.status(504).json({ message: 'Agent response timeout' });
-      }
-    }, 5000);
   } catch (error) {
     logger.error('Error executing command:', error);
     res.status(500).json({ message: 'Failed to execute command' });

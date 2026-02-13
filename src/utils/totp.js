@@ -118,27 +118,43 @@ function verifyRecoveryCode(code, hashedCodes) {
 }
 
 /**
- * Encrypt TOTP secret for storage (simple encryption)
+ * Derive a 32-byte key from a passphrase using SHA-256
+ * @param {string} passphrase
+ * @returns {Buffer}
+ */
+function deriveKey(passphrase) {
+  return crypto.createHash('sha256').update(passphrase).digest();
+}
+
+/**
+ * Encrypt TOTP secret for storage
+ * Uses AES-256-CBC with a random IV prepended to the ciphertext
  * @param {string} secret - Base32 secret to encrypt
- * @param {string} key - Encryption key (from config)
- * @returns {string} Encrypted secret
+ * @param {string} key - Encryption passphrase (from config)
+ * @returns {string} Hex-encoded IV + ciphertext
  */
 function encryptSecret(secret, key = process.env.TOTP_ENCRYPTION_KEY || 'nexus-default-key-change-me') {
-  const cipher = crypto.createCipher('aes-256-cbc', key);
+  const derivedKey = deriveKey(key);
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv('aes-256-cbc', derivedKey, iv);
   let encrypted = cipher.update(secret, 'utf8', 'hex');
   encrypted += cipher.final('hex');
-  return encrypted;
+  // Prepend IV so we can extract it during decryption
+  return iv.toString('hex') + ':' + encrypted;
 }
 
 /**
  * Decrypt TOTP secret from storage
- * @param {string} encryptedSecret - Encrypted secret
- * @param {string} key - Encryption key (from config)
+ * @param {string} encryptedSecret - Hex-encoded IV:ciphertext
+ * @param {string} key - Encryption passphrase (from config)
  * @returns {string} Decrypted base32 secret
  */
 function decryptSecret(encryptedSecret, key = process.env.TOTP_ENCRYPTION_KEY || 'nexus-default-key-change-me') {
-  const decipher = crypto.createDecipher('aes-256-cbc', key);
-  let decrypted = decipher.update(encryptedSecret, 'hex', 'utf8');
+  const derivedKey = deriveKey(key);
+  const [ivHex, ciphertext] = encryptedSecret.split(':');
+  const iv = Buffer.from(ivHex, 'hex');
+  const decipher = crypto.createDecipheriv('aes-256-cbc', derivedKey, iv);
+  let decrypted = decipher.update(ciphertext, 'hex', 'utf8');
   decrypted += decipher.final('utf8');
   return decrypted;
 }

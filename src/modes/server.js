@@ -179,6 +179,7 @@ class ServerMode {
     this.app.use('/api/commands', commandsRouter);
     this.app.use('/api/logs', logsRouter);
     this.app.use('/api/update', updateRouter);
+    this.app.use('/api/audit', require('../api/routes/audit'));
 
     // Health check
     this.app.get('/health', (req, res) => {
@@ -371,9 +372,20 @@ class ServerMode {
       }
 
       try {
-        const decoded = auth.verifyJWT(token);
-        if (!decoded) return next(new Error('Invalid token'));
-        socket.user = decoded;
+        // Validate session token (custom auth system v1.9.5)
+        const { validateSession } = require('../utils/session');
+        const session = validateSession(token);
+        if (!session) return next(new Error('Invalid or expired session'));
+
+        // Get user info from session
+        const user = database.getUserById(session.user_id);
+        if (!user) return next(new Error('User not found'));
+
+        socket.user = {
+          userId: user.id,
+          username: user.username,
+          role: user.role
+        };
         next();
       } catch (error) {
         next(new Error('Invalid token'));

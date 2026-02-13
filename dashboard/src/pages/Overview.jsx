@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  Server, Cpu, MemoryStick, AlertOctagon,
+  Server, Cpu, ElectronicsChip, WarningCircle,
   Activity, ArrowUpRight
-} from 'lucide-react';
+} from 'iconoir-react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 
@@ -135,9 +135,9 @@ function Overview({ socket }) {
           sub={`${online.length} online`} />
         <BrutalCard title="Avg CPU" value={`${avgCpu.toFixed(0)}%`} icon={Cpu} color="neon-pink" delay={0.1}
           sub="Fleet average" />
-        <BrutalCard title="Avg Memory" value={`${avgMem.toFixed(0)}%`} icon={MemoryStick} color="neon-purple" delay={0.15}
+        <BrutalCard title="Avg Memory" value={`${avgMem.toFixed(0)}%`} icon={ElectronicsChip} color="neon-purple" delay={0.15}
           sub="Fleet average" />
-        <BrutalCard title="Offline" value={offline.length} icon={AlertOctagon} color={offline.length > 0 ? 'neon-yellow' : 'neon-cyan'} delay={0.2}
+        <BrutalCard title="Offline" value={offline.length} icon={WarningCircle} color={offline.length > 0 ? 'neon-yellow' : 'neon-cyan'} delay={0.2}
           sub={offline.length > 0 ? 'Needs attention' : 'All clear'} />
       </div>
 

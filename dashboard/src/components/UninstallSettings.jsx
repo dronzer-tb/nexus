@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Trash2, AlertTriangle, Download, Shield } from 'lucide-react';
+import { Trash, WarningTriangle, Download, Shield } from 'iconoir-react';
 import axios from 'axios';
 import TwoFactorVerifyModal from './TwoFactorVerifyModal';
 
@@ -79,7 +79,7 @@ function UninstallSettings() {
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-3">
-            <Trash2 className="w-6 h-6 text-red-400" />
+            <Trash className="w-6 h-6 text-red-400" />
             <h3 className="font-bold text-lg uppercase tracking-wider text-tx">Uninstall Nexus</h3>
           </div>
           <p className="text-sm text-tx/50 mt-2">
@@ -91,7 +91,7 @@ function UninstallSettings() {
       {/* Danger Zone */}
       <div className="border-4 border-red-500/40 bg-red-500/5 p-6 space-y-4">
         <div className="flex items-start gap-3">
-          <AlertTriangle className="w-6 h-6 text-red-400 flex-shrink-0" />
+          <WarningTriangle className="w-6 h-6 text-red-400 flex-shrink-0" />
           <div className="flex-1">
             <h4 className="font-bold uppercase text-sm text-red-400 mb-2">⚠️ Danger Zone</h4>
             <p className="text-sm text-tx/70 mb-4">
@@ -180,7 +180,7 @@ function UninstallSettings() {
             disabled={loading}
             className="px-6 py-3 border-2 border-red-500/40 bg-red-500/10 text-red-400 font-bold uppercase text-sm hover:bg-red-500/20 disabled:opacity-50 transition-all flex items-center gap-2"
           >
-            <Trash2 className="w-4 h-4" />
+            <Trash className="w-4 h-4" />
             Uninstall Nexus
           </button>
         )}

@@ -18,7 +18,7 @@ const { generateSecret, generateQRCode, verifyToken, generateRecoveryCodes, hash
 router.get('/status', (req, res) => {
   try {
     const status = onboarding.getOnboardingStatus();
-    
+
     res.json({
       success: true,
       ...status
@@ -74,8 +74,36 @@ router.post('/step1', async (req, res) => {
     }
 
     // Check if user already exists
+    // Check if user already exists
     const existingUser = database.getUserByUsername(username);
     if (existingUser) {
+      // PROACTIVELY HANDLE CONFLICT:
+      // If the user being created is 'admin', allow updating the existing record
+      // This handles the case where ensureAdminCredentials() created it on startup
+      if (username === 'admin') {
+        const passwordHash = await hashPassword(password);
+
+        database.updateUser(existingUser.id, {
+          password: passwordHash,
+          mustChangePassword: 0 // Onboarding sets the real password, so clear this flag
+        });
+
+        // Save step progress
+        onboarding.saveOnboardingStep(1, {
+          username,
+          userId: existingUser.id,
+          completedAt: Date.now()
+        });
+
+        logger.info(`Admin account updated during onboarding: ${username}`);
+
+        return res.json({
+          success: true,
+          message: 'Admin account updated successfully',
+          userId: existingUser.id
+        });
+      }
+
       return res.status(409).json({
         success: false,
         error: 'Username already exists'
@@ -329,7 +357,7 @@ router.post('/complete', (req, res) => {
   try {
     // Validate all requirements are met
     const validation = onboarding.validateOnboardingRequirements();
-    
+
     if (!validation.valid) {
       return res.status(400).json({
         success: false,

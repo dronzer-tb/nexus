@@ -128,14 +128,19 @@ router.post('/pair', async (req, res) => {
 
     // Generate API key for mobile device
     const apiKey = crypto.randomBytes(32).toString('hex');
+    const { hashApiKey } = require('../../utils/auth');
+    const keyHash = hashApiKey(apiKey);
+    const keyId = `mobile_${crypto.randomBytes(8).toString('hex')}`;
     const deviceNameFinal = device_name || 'Mobile Device';
 
     // Create API key in database
     const result = database.createApiKey({
+      id: keyId,
       name: `${deviceNameFinal} (Mobile)`,
-      key: apiKey,
-      permissions: 'read,write', // Full access for paired mobile
-      expiresAt: null, // No expiration for mobile devices
+      keyHash: keyHash,
+      keyPreview: `${apiKey.substring(0, 8)}...`,
+      permissions: 'read,write',
+      expiresAt: null,
       metadata: JSON.stringify({
         type: 'mobile',
         deviceName: deviceNameFinal,

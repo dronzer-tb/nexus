@@ -19,7 +19,7 @@ class NodeMode {
 
   async start() {
     logger.info('Starting Nexus in NODE mode...');
-    
+
     // Load configuration
     this.serverUrl = config.get('node.serverUrl');
     this.reportInterval = config.get('node.reportInterval') || 5000;
@@ -32,8 +32,15 @@ class NodeMode {
     // Load or create node credentials
     await this.loadOrCreateNodeInfo();
 
-    // Collect and send initial system info
-    await this.sendSystemInfo();
+    // Collect and send initial system info with retry
+    let registered = false;
+    while (!registered) {
+      registered = await this.sendSystemInfo();
+      if (!registered) {
+        logger.warn('Failed to register node, retrying in 2 seconds...');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+    }
 
     // Start periodic metrics reporting
     this.startMetricsReporting();
@@ -100,7 +107,9 @@ class NodeMode {
 
       if (response.data.success) {
         logger.info('Successfully registered with server');
+        return true;
       }
+      return false;
     } catch (error) {
       if (error.code === 'ECONNREFUSED') {
         logger.error(`Cannot connect to server at ${this.serverUrl}`);
@@ -113,6 +122,7 @@ class NodeMode {
       } else {
         logger.error(`Failed to send system info: ${error.message || 'unknown error'}`);
       }
+      return false;
     }
   }
 

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowUpRight, RefreshCw, Plus, X, Terminal, Copy, Check, Server, Key, Trash2 } from 'lucide-react';
+import { ArrowUpRight, Refresh, Plus, Xmark, Terminal, Copy, Check, Server, Key, Trash } from 'iconoir-react';
 import axios from 'axios';
 
 /* ─── Brutalist Node Row ─── */
@@ -81,7 +81,7 @@ const NodeRow = ({ node, index, onDelete }) => {
             className="p-1.5 border-2 border-transparent hover:border-red-500/40 hover:bg-red-500/10 text-tx/30 hover:text-red-400 transition-all"
             title="Delete node"
           >
-            <Trash2 className="w-3.5 h-3.5" />
+            <Trash className="w-3.5 h-3.5" />
           </button>
           <Link to={`/nodes/${node.id}`}>
             <ArrowUpRight className="w-4 h-4 text-tx/15 group-hover:text-neon-pink transition-colors inline-block" />
@@ -179,7 +179,7 @@ function AgentsList({ socket }) {
             onMouseEnter={(e) => e.currentTarget.style.color = 'var(--on-neon-pink)'}
             onMouseLeave={(e) => e.currentTarget.style.color = ''}
           >
-            <RefreshCw className="w-3.5 h-3.5" />
+            <Refresh className="w-3.5 h-3.5" />
             Refresh
           </button>
         </div>
@@ -249,7 +249,7 @@ function AgentsList({ socket }) {
                   </h3>
                 </div>
                 <button onClick={() => setShowAddNode(false)} className="text-tx/30 hover:text-tx transition-colors">
-                  <X className="w-5 h-5" />
+                  <Xmark className="w-5 h-5" />
                 </button>
               </div>
 

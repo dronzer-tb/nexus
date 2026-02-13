@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Cpu, MemoryStick, HardDrive, Activity, Zap, Terminal, ListTree } from 'lucide-react';
+import { ArrowLeft, Cpu, ElectronicsChip, HardDrive, Activity, Flash, Terminal, List } from 'iconoir-react';
 import axios from 'axios';
 import MetricsChart from '../components/MetricsChart';
 
@@ -182,7 +182,7 @@ function AgentDetails({ socket }) {
               className="flex items-center gap-2 px-4 py-2 border-2 border-neon-purple/40 bg-neon-purple/10 text-neon-purple font-bold text-xs uppercase tracking-wider hover:bg-neon-purple/20 hover:translate-x-[-2px] hover:translate-y-[-2px] transition-all"
               style={{ boxShadow: '3px 3px 0 rgba(168, 85, 247, 0.2)' }}
             >
-              <ListTree className="w-4 h-4" />
+              <List className="w-4 h-4" />
               Processes
             </button>
             <div className="font-mono text-[10px] bg-brutal-bg border-2 border-neon-pink/10 text-tx/25 p-3 tracking-wider">
@@ -201,11 +201,11 @@ function AgentDetails({ socket }) {
             sub={node.system_info?.cpu?.brand}
             onClick={() => navigate(`/nodes/${agentId}/processes`)} />
           <StatCard label="Memory" value={`${(data.memory?.usagePercent || 0).toFixed(1)}%`}
-            icon={MemoryStick} color="var(--neon-cyan)" delay={0.15}
+            icon={ElectronicsChip} color="var(--neon-cyan)" delay={0.15}
             sub={`${formatBytes(data.memory?.active || 0)} used · ${formatBytes(data.memory?.cached || 0)} cached / ${formatBytes(data.memory?.total)}`}
             onClick={() => navigate(`/nodes/${agentId}/processes`)} />
           <StatCard label="Swap" value={`${(data.swap?.usagePercent || 0).toFixed(1)}%`}
-            icon={Zap} color="var(--neon-purple)" delay={0.2}
+            icon={Flash} color="var(--neon-purple)" delay={0.2}
             onClick={() => navigate(`/nodes/${agentId}/processes`)} />
           <StatCard label="Processes" value={data.processes?.all || 0}
             icon={Activity} color="var(--neon-yellow)" delay={0.25}

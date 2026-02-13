@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { Shield, Lock, User, Key } from 'lucide-react';
+import { Shield, Lock, User, Key } from 'iconoir-react';
+import { useAuth } from '../context/AuthContext';
 
 /**
  * Login Page with Mandatory 2FA
@@ -10,6 +11,7 @@ import { Shield, Lock, User, Key } from 'lucide-react';
 
 function Login() {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [totpCode, setTotpCode] = useState('');
@@ -31,17 +33,14 @@ function Login() {
         recoveryCode: useRecoveryCode ? recoveryCode : undefined
       });
 
-      // Store token in localStorage
-      localStorage.setItem('session_token', response.data.token);
-      
-      // Set axios default header
-      axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
+      // Use auth context login
+      login(response.data.user, response.data.token);
 
-      // Redirect to dashboard
-      navigate('/');
+      // Redirect to dashboard with full reload to re-init socket
+      window.location.href = '/';
     } catch (err) {
       setError(err.response?.data?.error || 'Login failed. Please try again.');
-      
+
       // Clear 2FA code on error
       setTotpCode('');
       setRecoveryCode('');
@@ -114,7 +113,7 @@ function Login() {
                 <Shield className="w-4 h-4 text-neon-cyan" />
                 {useRecoveryCode ? 'Recovery Code' : '2FA Code'}
               </label>
-              
+
               {!useRecoveryCode ? (
                 <input
                   type="text"
@@ -156,7 +155,7 @@ function Login() {
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={loading || (!useRecoveryCode && totpCode.length !== 6) || (useRecoveryCode && !recoveryCode)}
+              disabled={loading || !username || !password}
               className="w-full py-3 bg-primary text-on-primary font-bold rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
             >
               {loading ? (
@@ -179,7 +178,7 @@ function Login() {
               <p className="text-xs text-gray-300 flex items-start gap-2">
                 <Shield className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />
                 <span>
-                  Two-factor authentication is required for all accounts. 
+                  Two-factor authentication is required for all accounts.
                   Enter your 6-digit code from your authenticator app or use a recovery code if you've lost access.
                 </span>
               </p>

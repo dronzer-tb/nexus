@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react';
 import { Routes, Route, Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  LayoutGrid, Server, FileText, LogOut, Settings as SettingsIcon,
-  ChevronLeft, ChevronRight, ChevronDown, Terminal, ListTree,
-  Palette, ArrowUpCircle, Key, Users, Monitor
-} from 'lucide-react';
+  ViewGrid, Server, Page, LogOut, Settings as SettingsIcon,
+  NavArrowLeft, NavArrowRight, NavArrowDown, Terminal, List,
+  Palette, ArrowUpCircle, Key, Group, Computer, SmartphoneDevice
+} from 'iconoir-react';
 import clsx from 'clsx';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
@@ -17,6 +17,7 @@ import Logs from './Logs';
 import Settings from './Settings';
 import NodeConsole from './NodeConsole';
 import NodeProcesses from './NodeProcesses';
+import MobilePairing from './MobilePairing';
 
 /* ─── Sidebar Item ─── */
 const SidebarItem = ({ icon: Icon, label, path, active, collapsed, onClick }) => {
@@ -129,7 +130,7 @@ function Dashboard({ socket }) {
     { icon: Palette, label: 'Themes', path: '/settings/themes' },
     { icon: ArrowUpCircle, label: 'Updates', path: '/settings/updates' },
     { icon: Key, label: 'API Keys', path: '/settings/api-keys' },
-    { icon: Users, label: 'Users', path: '/settings/users' },
+    { icon: Group, label: 'Users', path: '/settings/users' },
   ];
 
   const toggleNode = (nodeId) => {
@@ -177,7 +178,7 @@ function Dashboard({ socket }) {
                   collapsed && "justify-center"
                 )}
               >
-                {collapsed ? <ChevronRight className="w-4 h-4" /> : <><ChevronLeft className="w-4 h-4" /><span>Collapse</span></>}
+                {collapsed ? <NavArrowRight className="w-4 h-4" /> : <><NavArrowLeft className="w-4 h-4" /><span>Collapse</span></>}
               </button>
 
               {!collapsed && (
@@ -188,12 +189,14 @@ function Dashboard({ socket }) {
               )}
 
               {/* Main nav items */}
-              <SidebarItem icon={LayoutGrid} label="Overview" path="/" active={isActive('/')} collapsed={collapsed} />
+              <SidebarItem icon={ViewGrid} label="Overview" path="/" active={isActive('/')} collapsed={collapsed} />
 
               {/* Nodes section */}
               <SidebarItem icon={Server} label="Nodes" path="/nodes" active={location.pathname.startsWith('/nodes')} collapsed={collapsed} />
 
-              <SidebarItem icon={FileText} label="Logs" path="/logs" active={isActive('/logs')} collapsed={collapsed} />
+              <SidebarItem icon={Page} label="Logs" path="/logs" active={isActive('/logs')} collapsed={collapsed} />
+
+              <SidebarItem icon={SmartphoneDevice} label="Mobile" path="/mobile-pairing" active={isActive('/mobile-pairing')} collapsed={collapsed} />
 
               {/* Settings with submenu */}
               <div>
@@ -310,6 +313,7 @@ function Dashboard({ socket }) {
                 <Route path="/nodes/:agentId/console" element={<NodeConsole socket={socket} />} />
                 <Route path="/nodes/:agentId/processes" element={<NodeProcesses socket={socket} />} />
                 <Route path="/logs" element={<Logs socket={socket} />} />
+                <Route path="/mobile-pairing" element={<MobilePairing />} />
                 <Route path="/settings" element={<Navigate to="/settings/themes" replace />} />
                 <Route path="/settings/:tab" element={<Settings />} />
               </Routes>

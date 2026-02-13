@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Smartphone, QrCode, Trash2, Clock, CheckCircle, AlertTriangle } from 'lucide-react';
+import { SmartphoneDevice, QrCode, Trash, Clock, CheckCircle, WarningTriangle } from 'iconoir-react';
 import axios from 'axios';
 
 /**
@@ -42,10 +42,7 @@ function MobilePairing() {
   const fetchPairedDevices = async () => {
     setLoadingDevices(true);
     try {
-      const token = localStorage.getItem('session_token');
-      const response = await axios.get('/api/mobile/paired-devices', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const response = await axios.get('/api/mobile/paired-devices');
       setPairedDevices(response.data.devices || []);
     } catch (err) {
       console.error('Failed to fetch paired devices:', err);
@@ -59,10 +56,7 @@ function MobilePairing() {
     setLoading(true);
 
     try {
-      const token = localStorage.getItem('session_token');
-      const response = await axios.post('/api/mobile/generate-pairing', {}, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const response = await axios.post('/api/mobile/generate-pairing', {});
 
       setQrCode(response.data.qrCode);
       setPairingId(response.data.pairingId);
@@ -81,10 +75,7 @@ function MobilePairing() {
     }
 
     try {
-      const token = localStorage.getItem('session_token');
-      await axios.delete(`/api/mobile/unpair/${deviceId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      await axios.delete(`/api/mobile/unpair/${deviceId}`);
 
       // Refresh device list
       fetchPairedDevices();
@@ -107,7 +98,7 @@ function MobilePairing() {
     <div className="p-6 max-w-6xl mx-auto">
       <div className="mb-8">
         <h1 className="text-3xl font-bold flex items-center gap-3 mb-2">
-          <Smartphone className="w-8 h-8 text-neon-pink" />
+          <SmartphoneDevice className="w-8 h-8 text-neon-pink" />
           Mobile App Pairing
         </h1>
         <p className="text-gray-400">
@@ -125,7 +116,7 @@ function MobilePairing() {
 
           {error && (
             <div className="mb-4 p-3 bg-red-500/20 border border-red-500 rounded-lg text-red-300 text-sm flex items-start gap-2">
-              <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+              <WarningTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
               {error}
             </div>
           )}
@@ -202,7 +193,7 @@ function MobilePairing() {
             </div>
           ) : pairedDevices.length === 0 ? (
             <div className="text-center py-8 text-gray-400">
-              <Smartphone className="w-12 h-12 mx-auto mb-3 opacity-50" />
+              <SmartphoneDevice className="w-12 h-12 mx-auto mb-3 opacity-50" />
               <p>No devices paired yet</p>
               <p className="text-sm mt-2">Scan a QR code to pair your first device</p>
             </div>
@@ -216,7 +207,7 @@ function MobilePairing() {
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <Smartphone className="w-4 h-4 text-neon-cyan" />
+                        <SmartphoneDevice className="w-4 h-4 text-neon-cyan" />
                         <h3 className="font-bold">{device.deviceName}</h3>
                       </div>
                       <div className="text-xs text-gray-400 space-y-1">
@@ -232,7 +223,7 @@ function MobilePairing() {
                       className="p-2 text-red-400 hover:bg-red-500/20 rounded transition-colors"
                       title="Unpair device"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
@@ -245,7 +236,7 @@ function MobilePairing() {
       {/* Info Section */}
       <div className="mt-6 bg-blue-500/10 border border-blue-500/30 p-4 rounded-lg">
         <h3 className="font-bold mb-2 flex items-center gap-2">
-          <AlertTriangle className="w-5 h-5 text-blue-400" />
+          <WarningTriangle className="w-5 h-5 text-blue-400" />
           Security Information
         </h3>
         <ul className="text-sm text-gray-300 space-y-1">

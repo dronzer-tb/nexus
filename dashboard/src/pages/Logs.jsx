@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FileText, Search, Trash2, RefreshCw, Download, Filter, ChevronDown } from 'lucide-react';
+import { Page, Search, Trash, Refresh, Download, Filter, NavArrowDown } from 'iconoir-react';
 import axios from 'axios';
 
 /* ─── Brutalist Log Viewer ─── */
@@ -124,7 +124,7 @@ function Logs({ socket }) {
       {/* Header */}
       <header className="mb-8 border-b-[3px] border-neon-pink/20 pb-6">
         <div className="flex items-center gap-4">
-          <FileText className="w-10 h-10 text-neon-pink" strokeWidth={2.5} />
+          <Page className="w-10 h-10 text-neon-pink" strokeWidth={2.5} />
           <div>
             <h1 className="text-5xl font-black uppercase tracking-tighter leading-[0.9]">
               <span className="text-tx">System</span>{' '}
@@ -209,7 +209,7 @@ function Logs({ socket }) {
         <button onClick={source === 'server' ? fetchServerLogs : fetchEventLogs}
           className="p-2 border-2 border-tx/10 text-tx/30 hover:text-neon-pink hover:border-neon-pink/40 transition-colors"
           title="Refresh">
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          <Refresh className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
         </button>
         <button onClick={downloadLogs}
           className="p-2 border-2 border-tx/10 text-tx/30 hover:text-neon-cyan hover:border-neon-cyan/40 transition-colors"
@@ -220,7 +220,7 @@ function Logs({ socket }) {
           <button onClick={clearLogs}
             className="p-2 border-2 border-red-500/30 text-red-500/40 hover:text-red-400 hover:border-red-500/50 transition-colors"
             title="Clear">
-            <Trash2 className="w-4 h-4" />
+            <Trash className="w-4 h-4" />
           </button>
         )}
       </div>
@@ -252,7 +252,7 @@ function Logs({ socket }) {
       >
         {filteredLogs.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center p-8">
-            <FileText className="w-12 h-12 text-tx/10 mb-4" />
+            <Page className="w-12 h-12 text-tx/10 mb-4" />
             <div className="font-bold text-tx/20 uppercase tracking-wider text-sm">No logs found</div>
             <div className="font-mono text-tx/10 text-[10px] mt-1">
               {search ? 'Try adjusting your search or filter' : 'Logs will appear as the system runs'}

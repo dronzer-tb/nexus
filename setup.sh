@@ -98,10 +98,10 @@ select_mode() {
   echo ""
   echo -e "  ${BOLD}Select a startup mode:${NC}"
   echo ""
-  echo "    1) ${BOLD}combine${NC}  — Server + local monitoring (recommended)"
-  echo "    2) ${BOLD}server${NC}   — Dashboard & API only"
-  echo "    3) ${BOLD}node${NC}     — Metrics reporter only"
-  echo "    4) ${BOLD}skip${NC}     — Don't start now"
+  echo -e "    1) ${BOLD}combine${NC}  — Server + local monitoring (recommended)"
+  echo -e "    2) ${BOLD}server${NC}   — Dashboard & API only"
+  echo -e "    3) ${BOLD}node${NC}     — Metrics reporter only"
+  echo -e "    4) ${BOLD}skip${NC}     — Don't start now"
   echo ""
 
   while true; do
@@ -240,42 +240,6 @@ WantedBy=multi-user.target"
   echo ""
 }
 
-# ─── Setup Keycloak ─────────────────────────────
-
-setup_keycloak() {
-  echo ""
-  echo -e "  ${CYAN}${BOLD}═══════════════════════════════════════════${NC}"
-  echo -e "  ${CYAN}${BOLD}   Authentication Setup${NC}"
-  echo -e "  ${CYAN}${BOLD}═══════════════════════════════════════════${NC}"
-  echo ""
-  echo "  Nexus can use Keycloak for enterprise-grade authentication:"
-  echo ""
-  echo "    ${GREEN}✓${NC} Centralized user management"
-  echo "    ${GREEN}✓${NC} Built-in 2FA/MFA support"
-  echo "    ${GREEN}✓${NC} Password policies and reset flows"
-  echo "    ${GREEN}✓${NC} OAuth2/OpenID Connect standards"
-  echo "    ${GREEN}✓${NC} Social login integration"
-  echo ""
-  read -p "  Install and configure Keycloak? (y/N): " install_keycloak
-  echo ""
-  
-  if [[ "$install_keycloak" =~ ^[Yy]$ ]]; then
-    if [ -f "scripts/install-keycloak.sh" ]; then
-      step "Installing Keycloak"
-      bash scripts/install-keycloak.sh
-      
-      step "Setting up Nexus realm"
-      bash scripts/setup-keycloak-realm.sh
-      
-      info "Keycloak authentication enabled!"
-    else
-      warn "Keycloak scripts not found. Skipping installation."
-    fi
-  else
-    info "Skipping Keycloak (using legacy authentication)"
-    warn "Legacy authentication has known issues - Keycloak is recommended"
-  fi
-}
 
 # ─── Start Nexus ─────────────────────────────
 
@@ -317,7 +281,7 @@ main() {
   setup_nginx
   select_mode
   setup_systemd
-  setup_keycloak
+
   start_nexus
 }
 

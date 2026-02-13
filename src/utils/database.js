@@ -21,10 +21,10 @@ class DatabaseManager {
 
       this.db = new Database(dbPath);
       this.db.pragma('journal_mode = WAL');
-      
+
       this.createTables();
       logger.info(`Database initialized at ${dbPath}`);
-      
+
       return this.db;
     } catch (error) {
       logger.error('Failed to initialize database:', error);
@@ -84,13 +84,17 @@ class DatabaseManager {
         permissions TEXT DEFAULT 'read',
         created_at INTEGER DEFAULT (strftime('%s', 'now')),
         last_used INTEGER,
-        expires_at INTEGER
+        expires_at INTEGER,
+        metadata TEXT
       )
     `);
 
     this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash);
     `);
+
+    // Migrate api_keys table to add metadata column if it doesn't exist
+    this.migrateApiKeysTable();
 
     // Settings table for server configuration
     this.db.exec(`
@@ -158,9 +162,9 @@ class DatabaseManager {
       const hasTotp = tableInfo.some(col => col.name === 'totp_secret');
       const hasEmail = tableInfo.some(col => col.name === 'email');
       const hasResetToken = tableInfo.some(col => col.name === 'reset_token');
-      
+
       this.db.exec('BEGIN TRANSACTION');
-      
+
       if (!hasTotp) {
         logger.info('Migrating users table: adding 2FA columns...');
         this.db.exec(`ALTER TABLE users ADD COLUMN totp_secret TEXT;`);
@@ -168,7 +172,7 @@ class DatabaseManager {
         this.db.exec(`ALTER TABLE users ADD COLUMN recovery_codes TEXT;`);
         logger.info('Users table 2FA migration complete');
       }
-      
+
       if (!hasEmail) {
         logger.info('Migrating users table: adding email and password reset columns...');
         this.db.exec(`ALTER TABLE users ADD COLUMN email TEXT;`);
@@ -176,11 +180,29 @@ class DatabaseManager {
         this.db.exec(`ALTER TABLE users ADD COLUMN reset_token_expires INTEGER;`);
         logger.info('Users table password reset migration complete');
       }
-      
+
       this.db.exec('COMMIT');
     } catch (error) {
-      try { this.db.exec('ROLLBACK'); } catch (_) {}
+      try { this.db.exec('ROLLBACK'); } catch (_) { }
       logger.error('Users table migration failed:', error);
+    }
+  }
+
+  /**
+   * Migrate api_keys table to add metadata column if it doesn't exist
+   */
+  migrateApiKeysTable() {
+    try {
+      const tableInfo = this.db.pragma('table_info(api_keys)');
+      const hasMetadata = tableInfo.some(col => col.name === 'metadata');
+
+      if (!hasMetadata) {
+        logger.info('Migrating api_keys table: adding metadata column...');
+        this.db.exec(`ALTER TABLE api_keys ADD COLUMN metadata TEXT;`);
+        logger.info('api_keys table metadata migration complete');
+      }
+    } catch (error) {
+      logger.error('api_keys table migration failed:', error);
     }
   }
 
@@ -233,7 +255,7 @@ class DatabaseManager {
 
       logger.info('Nodes table migration complete');
     } catch (error) {
-      try { this.db.exec('ROLLBACK'); } catch (_) {}
+      try { this.db.exec('ROLLBACK'); } catch (_) { }
       logger.error('Nodes table migration failed:', error);
     }
   }
@@ -280,11 +302,11 @@ class DatabaseManager {
   getNode(nodeId) {
     const stmt = this.db.prepare('SELECT * FROM nodes WHERE id = ?');
     const node = stmt.get(nodeId);
-    
+
     if (node && node.system_info) {
       node.system_info = JSON.parse(node.system_info);
     }
-    
+
     return node;
   }
 
@@ -292,18 +314,18 @@ class DatabaseManager {
   getNodeByApiKeyHash(apiKeyHash) {
     const stmt = this.db.prepare('SELECT * FROM nodes WHERE api_key_hash = ?');
     const node = stmt.get(apiKeyHash);
-    
+
     if (node && node.system_info) {
       node.system_info = JSON.parse(node.system_info);
     }
-    
+
     return node;
   }
 
   getAllNodes() {
     const stmt = this.db.prepare('SELECT * FROM nodes ORDER BY last_seen DESC');
     const nodes = stmt.all();
-    
+
     return nodes.map(node => {
       if (node.system_info) {
         node.system_info = JSON.parse(node.system_info);
@@ -368,9 +390,9 @@ class DatabaseManager {
       ORDER BY timestamp DESC 
       LIMIT ?
     `);
-    
+
     const metrics = stmt.all(nodeId, limit);
-    
+
     return metrics.map(m => {
       if (m.data) {
         m.data = JSON.parse(m.data);
@@ -391,7 +413,7 @@ class DatabaseManager {
       WHERE node_id = ? AND timestamp BETWEEN ? AND ?
       ORDER BY timestamp DESC
     `);
-    
+
     return stmt.all(nodeId, startTime, endTime);
   }
 
@@ -419,8 +441,8 @@ class DatabaseManager {
   // API Key operations
   createApiKey(keyData) {
     const stmt = this.db.prepare(`
-      INSERT INTO api_keys (id, name, key_hash, key_preview, permissions, last_used, expires_at)
-      VALUES (?, ?, ?, ?, ?, NULL, ?)
+      INSERT INTO api_keys (id, name, key_hash, key_preview, permissions, last_used, expires_at, metadata)
+      VALUES (?, ?, ?, ?, ?, NULL, ?, ?)
     `);
     return stmt.run(
       keyData.id,
@@ -428,7 +450,8 @@ class DatabaseManager {
       keyData.keyHash,
       keyData.keyPreview,
       keyData.permissions || 'read',
-      keyData.expiresAt || null
+      keyData.expiresAt || null,
+      keyData.metadata || null
     );
   }
 
@@ -438,8 +461,13 @@ class DatabaseManager {
   }
 
   getAllApiKeys() {
-    const stmt = this.db.prepare('SELECT id, name, key_preview, permissions, created_at, last_used, expires_at FROM api_keys ORDER BY created_at DESC');
+    const stmt = this.db.prepare('SELECT id, name, key_preview, permissions, created_at, last_used, expires_at, metadata FROM api_keys ORDER BY created_at DESC');
     return stmt.all();
+  }
+
+  getApiKeyById(keyId) {
+    const stmt = this.db.prepare('SELECT * FROM api_keys WHERE id = ?');
+    return stmt.get(keyId);
   }
 
   deleteApiKey(keyId) {
@@ -477,7 +505,7 @@ class DatabaseManager {
   }
 
   getAllUsers() {
-    const stmt = this.db.prepare('SELECT id, username, role, must_change_password, created_at, updated_at FROM users ORDER BY created_at DESC');
+    const stmt = this.db.prepare('SELECT id, username, role, must_change_password, totp_enabled, created_at, updated_at FROM users ORDER BY created_at DESC');
     return stmt.all();
   }
 

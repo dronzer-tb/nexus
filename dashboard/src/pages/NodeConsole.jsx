@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Terminal, ArrowLeft, Send, Trash2, Shield, Lock } from 'lucide-react';
+import { Terminal, ArrowLeft, SendDiagonal, Trash, Shield, Lock } from 'iconoir-react';
 import axios from 'axios';
 import TwoFactorVerifyModal from '../components/TwoFactorVerifyModal';
 
@@ -21,13 +21,11 @@ function NodeConsole({ socket }) {
   const outputRef = useRef(null);
   const inputRef = useRef(null);
 
-  const token = localStorage.getItem('token');
-
   useEffect(() => {
     // Check if user has 2FA enabled
     const check2FAStatus = async () => {
       try {
-        const res = await axios.get('/api/2fa/status', { headers: { Authorization: `Bearer ${token}` } });
+        const res = await axios.get('/api/auth/2fa/status');
         setHas2FA(res.data.enabled);
       } catch { /* ignore */ }
     };
@@ -36,7 +34,7 @@ function NodeConsole({ socket }) {
     // Fetch node info
     const fetchNode = async () => {
       try {
-        const res = await axios.get(`/api/nodes/${agentId}`, { headers: { Authorization: `Bearer ${token}` } });
+        const res = await axios.get(`/api/nodes/${agentId}`);
         if (res.data.success) setNode(res.data.node);
       } catch { /* ignore */ }
     };
@@ -45,7 +43,7 @@ function NodeConsole({ socket }) {
     // Fetch command history
     const fetchHistory = async () => {
       try {
-        const res = await axios.get('/api/commands/history', { headers: { Authorization: `Bearer ${token}` } });
+        const res = await axios.get('/api/commands/history');
         setHistory(res.data || []);
       } catch { /* ignore */ }
     };
@@ -93,10 +91,7 @@ function NodeConsole({ socket }) {
     }]);
 
     try {
-      await axios.post(`/api/agents/${agentId}/execute`,
-        { command },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      await axios.post(`/api/agents/${agentId}/execute`, { command });
       setHistory(prev => [command, ...prev.slice(0, 49)]);
       setCommand('');
       setHistoryIndex(-1);
@@ -131,9 +126,7 @@ function NodeConsole({ socket }) {
             timestamp: new Date().toLocaleTimeString()
           }]);
 
-          axios.post(`/api/agents/${agentId}/execute`,
-            { command: cmd },
-            { headers: { Authorization: `Bearer ${token}` } }
+          axios.post(`/api/agents/${agentId}/execute`, { command: cmd }
           ).then(() => {
             setHistory(prev => [cmd, ...prev.slice(0, 49)]);
             setCommand('');
@@ -214,7 +207,7 @@ function NodeConsole({ socket }) {
           </div>
           <button onClick={() => setOutput([])}
             className="flex items-center gap-2 px-3 py-2 border-2 border-tx/10 text-tx/30 hover:text-red-400 hover:border-red-500/30 transition-all font-bold uppercase text-[9px] tracking-widest">
-            <Trash2 className="w-3 h-3" /> Clear
+            <Trash className="w-3 h-3" /> Clear
           </button>
         </div>
       </header>
@@ -277,7 +270,7 @@ function NodeConsole({ socket }) {
           className="px-4 py-2 bg-neon-cyan border-2 border-neon-cyan font-bold uppercase text-[10px] tracking-widest hover:translate-x-[2px] hover:translate-y-[2px] shadow-brutal-sm hover:shadow-none transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-2"
           style={{ color: 'var(--on-neon-cyan)' }}
         >
-          <Send className="w-3 h-3" />
+          <SendDiagonal className="w-3 h-3" />
           {executing ? 'Running...' : 'Execute'}
         </button>
       </div>

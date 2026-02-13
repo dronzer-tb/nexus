@@ -4,8 +4,10 @@ const { RateLimiterMemory } = require('rate-limiter-flexible');
 const logger = require('../../utils/logger');
 const database = require('../../utils/database');
 const { comparePassword } = require('../../utils/password');
-const { verifyToken, decryptSecret, verifyRecoveryCode } = require('../../utils/totp');
+const { verifyToken, decryptSecret, verifyRecoveryCode, generateSecret, generateQRCode, encryptSecret, hashRecoveryCode } = require('../../utils/totp');
 const { createSession, validateSession, destroySession, extractTokenFromRequest } = require('../../utils/session');
+const { hashPassword } = require('../../utils/password');
+const crypto = require('crypto');
 
 /**
  * Authentication Routes with Mandatory 2FA
@@ -94,7 +96,7 @@ router.post('/login', async (req, res) => {
     // Verify TOTP code or recovery code
     if (totpCode) {
       valid2FA = verifyToken(totpCode, totpSecret);
-      
+
       if (!valid2FA) {
         logger.warn(`Failed login attempt for user ${username}: Invalid TOTP code`);
         return res.status(401).json({
@@ -245,11 +247,383 @@ router.get('/me', (req, res) => {
       error: 'Failed to get user info'
     });
   }
+
 });
 
 // ═══════════════════════════════════════════════════════════════
-// POST /api/auth/verify-session - Verify if session is valid
+// USER MANAGEMENT
 // ═══════════════════════════════════════════════════════════════
+
+// GET /api/auth/users - List all users
+router.get('/users', async (req, res) => {
+  try {
+    const token = extractTokenFromRequest(req);
+    if (!token || !validateSession(token)) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+
+    const users = database.getAllUsers();
+
+    // sanitized users
+    const sanitizedUsers = users.map(u => ({
+      id: u.id,
+      username: u.username,
+      role: u.role,
+      email: u.email,
+      totpEnabled: u.totp_enabled === 1,
+      createdAt: u.created_at
+    }));
+
+    res.json({
+      success: true,
+      users: sanitizedUsers
+    });
+  } catch (error) {
+    logger.error('Error fetching users:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// POST /api/auth/users - Create new user
+router.post('/users', async (req, res) => {
+  try {
+    const token = extractTokenFromRequest(req);
+    if (!token || !validateSession(token)) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+
+    const { username, password, role } = req.body;
+
+    if (!username || !password) {
+      return res.status(400).json({ success: false, error: 'Username and password required' });
+    }
+
+    // Check existing
+    if (database.getUserByUsername(username)) {
+      return res.status(400).json({ success: false, error: 'User already exists' });
+    }
+
+    const hashedPassword = await hashPassword(password);
+
+    database.createUser({
+      username,
+      password: hashedPassword,
+      role: role || 'viewer',
+      mustChangePassword: true
+    });
+
+    res.json({
+      success: true,
+      message: 'User created'
+    });
+  } catch (error) {
+    logger.error('Error creating user:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// API KEY MANAGEMENT
+// ═══════════════════════════════════════════════════════════════
+
+// GET /api/auth/api-keys/verify - Verify an API key is valid (used by mobile app)
+router.get('/api-keys/verify', (req, res) => {
+  try {
+    const apiKey = req.headers['x-api-key'];
+    if (!apiKey) {
+      return res.status(401).json({ success: false, error: 'API key required' });
+    }
+
+    const keyHash = crypto.createHash('sha256').update(apiKey).digest('hex');
+    const keyRecord = database.getApiKeyByHash(keyHash);
+
+    if (!keyRecord) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+
+    // Check expiry
+    if (keyRecord.expires_at && Date.now() > keyRecord.expires_at) {
+      return res.status(401).json({ success: false, error: 'API key has expired' });
+    }
+
+    // Update last used
+    database.updateApiKeyLastUsed(keyRecord.id);
+
+    res.json({
+      success: true,
+      message: 'API key is valid',
+      name: keyRecord.name,
+      permissions: keyRecord.permissions
+    });
+  } catch (error) {
+    logger.error('Error verifying API key:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// GET /api/auth/encryption-info - Get encryption settings (used by mobile app)
+router.get('/encryption-info', (req, res) => {
+  try {
+    const apiKey = req.headers['x-api-key'];
+    if (!apiKey) {
+      return res.status(401).json({ success: false, error: 'API key required' });
+    }
+
+    // Validate API key
+    const keyHash = crypto.createHash('sha256').update(apiKey).digest('hex');
+    const keyRecord = database.getApiKeyByHash(keyHash);
+
+    if (!keyRecord) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+
+    const encryption = require('../../utils/encryption');
+    const enabled = encryption.isEnabled();
+
+    res.json({
+      success: true,
+      encryption: {
+        enabled,
+        salt: enabled ? encryption.getInstallationSalt() : null,
+        algorithm: enabled ? encryption.ALGORITHM : null
+      }
+    });
+  } catch (error) {
+    logger.error('Error fetching encryption info:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// GET /api/auth/api-keys - List API keys
+router.get('/api-keys', (req, res) => {
+  try {
+    const token = extractTokenFromRequest(req);
+    if (!token || !validateSession(token)) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+
+    const keys = database.getAllApiKeys();
+    res.json({
+      success: true,
+      keys: keys
+    });
+  } catch (error) {
+    logger.error('Error fetching API keys:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// POST /api/auth/api-keys - Create API key
+router.post('/api-keys', (req, res) => {
+  try {
+    const token = extractTokenFromRequest(req);
+    if (!token || !validateSession(token)) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+
+    const { name, permissions, expiresInDays } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ success: false, error: 'Key name required' });
+    }
+
+    const apiKey = require('../../utils/auth').generateApiKey();
+    const keyHash = require('../../utils/auth').hashApiKey(apiKey);
+    const keyId = crypto.randomBytes(8).toString('hex');
+
+    const expiresAt = expiresInDays ? Date.now() + (expiresInDays * 24 * 60 * 60 * 1000) : null;
+
+    database.createApiKey({
+      id: keyId,
+      name,
+      keyHash,
+      keyPreview: `${apiKey.substring(0, 8)}...`,
+      permissions: permissions || 'read',
+      expiresAt
+    });
+
+    res.json({
+      success: true,
+      key: {
+        id: keyId,
+        name,
+        rawKey: apiKey,
+        keyPreview: `${apiKey.substring(0, 8)}...`,
+        permissions: permissions || 'read'
+      },
+      message: 'API Key created. Copy it now, you cannot see it again.'
+    });
+  } catch (error) {
+    logger.error('Error creating API key:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// DELETE /api/auth/api-keys/:id - Delete API key
+router.delete('/api-keys/:id', (req, res) => {
+  try {
+    const token = extractTokenFromRequest(req);
+    if (!token || !validateSession(token)) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+
+    const { id } = req.params;
+    database.deleteApiKey(id);
+
+    res.json({ success: true, message: 'API key deleted' });
+  } catch (error) {
+    logger.error('Error deleting API key:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// 2FA MANAGEMENT
+// ═══════════════════════════════════════════════════════════════
+
+// GET /api/auth/2fa/status - Get 2FA status
+router.get('/2fa/status', (req, res) => {
+  try {
+    const token = extractTokenFromRequest(req);
+    if (!token) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
+    const session = validateSession(token);
+    if (!session) return res.status(401).json({ success: false, error: 'Invalid session' });
+
+    const user = database.getUserById(session.user_id);
+    if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+
+    res.json({
+      success: true,
+      enabled: user.totp_enabled === 1
+    });
+  } catch (error) {
+    logger.error('Error fetching 2FA status:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// POST /api/auth/2fa/enable - Begin 2FA setup (generate secret + QR code)
+router.post('/2fa/enable', async (req, res) => {
+  try {
+    const token = extractTokenFromRequest(req);
+    if (!token) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
+    const session = validateSession(token);
+    if (!session) return res.status(401).json({ success: false, error: 'Invalid session' });
+
+    const user = database.getUserById(session.user_id);
+    if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+
+    // Generate new TOTP secret
+    const secretData = generateSecret(user.username);
+    const qrCode = await generateQRCode(secretData.otpauth_url);
+
+    // Temporarily store encrypted secret (not enabled until verified)
+    const encryptedSecret = encryptSecret(secretData.base32);
+    database.updateUser(session.user_id, {
+      totpSecret: encryptedSecret,
+      totpEnabled: 0 // Not enabled until verify-setup
+    });
+
+    res.json({
+      success: true,
+      secret: secretData.base32,
+      qrCode,
+      otpauth_url: secretData.otpauth_url
+    });
+  } catch (error) {
+    logger.error('Error setting up 2FA:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// POST /api/auth/2fa/verify-setup - Verify TOTP code and complete 2FA setup
+router.post('/2fa/verify-setup', (req, res) => {
+  try {
+    const token = extractTokenFromRequest(req);
+    if (!token) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
+    const session = validateSession(token);
+    if (!session) return res.status(401).json({ success: false, error: 'Invalid session' });
+
+    const user = database.getUserById(session.user_id);
+    if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+
+    const { totpCode } = req.body;
+    if (!totpCode) {
+      return res.status(400).json({ success: false, error: 'TOTP code is required' });
+    }
+
+    // Get stored secret
+    if (!user.totp_secret) {
+      return res.status(400).json({ success: false, error: 'No TOTP secret found. Please start setup first.' });
+    }
+
+    const secret = decryptSecret(user.totp_secret);
+
+    // Verify code
+    const isValid = verifyToken(totpCode, secret);
+    if (!isValid) {
+      return res.status(400).json({ success: false, error: 'Invalid TOTP code. Please try again.' });
+    }
+
+    // Generate recovery codes
+    const codes = [];
+    for (let i = 0; i < 10; i++) {
+      codes.push(crypto.randomBytes(4).toString('hex').toUpperCase());
+    }
+    const hashedCodes = codes.map(c => hashRecoveryCode(c));
+
+    // Enable 2FA
+    database.updateUser(session.user_id, {
+      totpEnabled: 1,
+      recoveryCodes: JSON.stringify(hashedCodes)
+    });
+
+    logger.info(`2FA enabled for user ${user.username}`);
+
+    res.json({
+      success: true,
+      message: '2FA enabled successfully',
+      recoveryCodes: codes
+    });
+  } catch (error) {
+    logger.error('Error verifying 2FA setup:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// POST /api/auth/2fa/disable - Disable 2FA for the user
+router.post('/2fa/disable', (req, res) => {
+  try {
+    const token = extractTokenFromRequest(req);
+    if (!token) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
+    const session = validateSession(token);
+    if (!session) return res.status(401).json({ success: false, error: 'Invalid session' });
+
+    const user = database.getUserById(session.user_id);
+    if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+
+    // Disable 2FA
+    database.updateUser(session.user_id, {
+      totpEnabled: 0,
+      totpSecret: null,
+      recoveryCodes: null
+    });
+
+    logger.info(`2FA disabled for user ${user.username}`);
+
+    res.json({
+      success: true,
+      message: '2FA disabled successfully'
+    });
+  } catch (error) {
+    logger.error('Error disabling 2FA:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
 
 router.post('/verify-session', (req, res) => {
   try {
@@ -292,9 +666,13 @@ router.post('/verify-session', (req, res) => {
 // ═══════════════════════════════════════════════════════════════
 
 router.post('/verify-2fa', async (req, res) => {
+  const ipAddress = req.ip || req.connection.remoteAddress;
+  const userAgent = req.headers['user-agent'] || 'unknown';
+  const audit = require('../../utils/audit');
+
   try {
     const token = extractTokenFromRequest(req);
-    const { totpCode } = req.body;
+    const { totpCode, purpose = 'console_access' } = req.body;
 
     if (!token) {
       return res.status(401).json({
@@ -335,14 +713,35 @@ router.post('/verify-2fa', async (req, res) => {
     const isValid = verifyToken(totpCode, totpSecret);
 
     if (!isValid) {
-      logger.warn(`Failed 2FA verification for user ${user.username}`);
+      logger.warn(`Failed 2FA verification for user ${user.username} (purpose: ${purpose})`);
+
+      // Audit log - failed verification
+      audit.log2FAVerification(
+        { userId: user.id, username: user.username },
+        purpose,
+        ipAddress,
+        userAgent,
+        false,
+        'Invalid 2FA code provided'
+      );
+
       return res.status(401).json({
         success: false,
         error: 'Invalid 2FA code'
       });
     }
 
-    logger.info(`2FA verification successful for user ${user.username}`);
+    logger.info(`2FA verification successful for user ${user.username} (purpose: ${purpose})`);
+
+    // Audit log - successful verification
+    audit.log2FAVerification(
+      { userId: user.id, username: user.username },
+      purpose,
+      ipAddress,
+      userAgent,
+      true,
+      '2FA verification successful'
+    );
 
     res.json({
       success: true,

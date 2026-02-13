@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ListTree, ArrowLeft, Cpu, MemoryStick, Zap, Activity,
-  Search, RefreshCw, XCircle, StopCircle, RotateCcw, Filter, ChevronUp, ChevronDown
-} from 'lucide-react';
+  List, ArrowLeft, Cpu, ElectronicsChip, Flash, Activity,
+  Search, Refresh, XmarkCircle, Pause, Undo, Filter, NavArrowUp, NavArrowDown
+} from 'iconoir-react';
 import axios from 'axios';
 
 /* ─── Helpers ─── */
@@ -161,7 +161,7 @@ function NodeProcesses({ socket }) {
 
   const SortIcon = ({ field }) => {
     if (sortBy !== field) return null;
-    return sortDir === 'desc' ? <ChevronDown className="w-3 h-3 inline" /> : <ChevronUp className="w-3 h-3 inline" />;
+    return sortDir === 'desc' ? <NavArrowDown className="w-3 h-3 inline" /> : <NavArrowUp className="w-3 h-3 inline" />;
   };
 
   return (
@@ -175,7 +175,7 @@ function NodeProcesses({ socket }) {
       {/* Header */}
       <header className="mb-6 border-b-[3px] border-neon-purple/20 pb-4">
         <div className="flex items-center gap-4">
-          <ListTree className="w-8 h-8 text-neon-purple" strokeWidth={2.5} />
+          <List className="w-8 h-8 text-neon-purple" strokeWidth={2.5} />
           <div className="flex-1">
             <h1 className="text-4xl font-black uppercase tracking-tighter leading-[0.9]">
               <span className="text-tx">Node</span>{' '}
@@ -192,7 +192,7 @@ function NodeProcesses({ socket }) {
           </div>
           <button onClick={fetchData}
             className="flex items-center gap-2 px-3 py-2 border-2 border-tx/10 text-tx/30 hover:text-neon-purple hover:border-neon-purple/30 transition-all font-bold uppercase text-[9px] tracking-widest">
-            <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} /> Refresh
+            <Refresh className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} /> Refresh
           </button>
         </div>
       </header>
@@ -202,10 +202,10 @@ function NodeProcesses({ socket }) {
         <StatCard label="CPU" value={`${cpuUsage.toFixed(1)}%`} icon={Cpu} color="var(--neon-pink)"
           sub={node?.system_info?.cpu?.brand || '—'}
           active={filterBy === 'high-cpu'} onClick={() => setFilterBy(f => f === 'high-cpu' ? 'all' : 'high-cpu')} />
-        <StatCard label="Memory" value={`${memUsage.toFixed(1)}%`} icon={MemoryStick} color="var(--neon-cyan)"
+        <StatCard label="Memory" value={`${memUsage.toFixed(1)}%`} icon={ElectronicsChip} color="var(--neon-cyan)"
           sub={metrics?.memory ? `${formatBytes(metrics.memory.active || 0)} / ${formatBytes(metrics.memory.total)}` : '—'}
           active={filterBy === 'high-mem'} onClick={() => setFilterBy(f => f === 'high-mem' ? 'all' : 'high-mem')} />
-        <StatCard label="Swap" value={`${swapUsage.toFixed(1)}%`} icon={Zap} color="var(--neon-purple)"
+        <StatCard label="Swap" value={`${swapUsage.toFixed(1)}%`} icon={Flash} color="var(--neon-purple)"
           sub={metrics?.swap ? `${formatBytes(metrics.swap.used || 0)} / ${formatBytes(metrics.swap.total)}` : '—'}
           onClick={() => {}} />
         <StatCard label="Processes" value={totalProcs} icon={Activity} color="var(--neon-yellow)"
@@ -267,7 +267,7 @@ function NodeProcesses({ socket }) {
             <div className="p-8 text-center font-mono text-tx/20">Loading processes...</div>
           ) : processedList.length === 0 ? (
             <div className="p-8 text-center">
-              <ListTree className="w-8 h-8 text-tx/10 mx-auto mb-3" />
+              <List className="w-8 h-8 text-tx/10 mx-auto mb-3" />
               <div className="font-mono text-tx/20 text-sm">
                 {search ? 'No matching processes' : 'No process data available'}
               </div>
@@ -300,21 +300,21 @@ function NodeProcesses({ socket }) {
                         className="px-2 py-1 border border-neon-yellow/30 text-neon-yellow/60 hover:bg-neon-yellow/10 text-[8px] font-bold uppercase tracking-wider transition-all"
                         title="Stop (SIGSTOP)"
                       >
-                        <StopCircle className="w-3 h-3" />
+                        <Pause className="w-3 h-3" />
                       </button>
                       <button
                         onClick={() => handleSignal(proc.pid, 'SIGCONT')}
                         className="px-2 py-1 border border-neon-cyan/30 text-neon-cyan/60 hover:bg-neon-cyan/10 text-[8px] font-bold uppercase tracking-wider transition-all"
                         title="Resume (SIGCONT)"
                       >
-                        <RotateCcw className="w-3 h-3" />
+                        <Undo className="w-3 h-3" />
                       </button>
                       <button
                         onClick={() => handleKill(proc.pid)}
                         className="px-2 py-1 border border-red-500/30 text-red-500/60 hover:bg-red-500/10 text-[8px] font-bold uppercase tracking-wider transition-all"
                         title="Kill (SIGKILL)"
                       >
-                        <XCircle className="w-3 h-3" />
+                        <XmarkCircle className="w-3 h-3" />
                       </button>
                     </>
                   )}
