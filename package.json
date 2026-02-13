@@ -1,6 +1,6 @@
 {
   "name": "nexus",
-  "version": "1.9.1",
+  "version": "1.9.6",
   "description": "Unified, self-hosted remote resource monitoring and management platform by Dronzer Studios",
   "main": "src/index.js",
   "scripts": {
@@ -40,12 +40,14 @@
     "express-rate-limit": "^8.2.1",
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
+    "node-pty": "^1.1.0",
     "nodemailer": "^8.0.1",
     "qrcode": "^1.5.4",
     "rate-limiter-flexible": "^9.1.1",
     "socket.io": "^4.6.1",
     "socket.io-client": "^4.6.1",
     "speakeasy": "^2.0.0",
+    "ssh2": "^1.17.0",
     "systeminformation": "^5.21.20",
     "uuid": "^9.0.1",
     "winston": "^3.11.0"

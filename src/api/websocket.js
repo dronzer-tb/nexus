@@ -1,5 +1,6 @@
 const logger = require('../utils/logger');
 const database = require('../utils/database');
+const sshTerminal = require('./ssh-terminal');
 
 class WebSocketHandler {
   constructor(io) {
@@ -34,13 +35,58 @@ class WebSocketHandler {
         this.sendMetrics(socket, nodeId, limit);
       });
 
+      // ─── SSH Terminal Events ─────────────────
+      socket.on('terminal:connect', (data) => {
+        this.handleTerminalConnect(socket, data);
+      });
+
+      socket.on('terminal:data', (data) => {
+        sshTerminal.write(socket.id, data);
+      });
+
+      socket.on('terminal:resize', ({ cols, rows }) => {
+        sshTerminal.resize(socket.id, cols, rows);
+      });
+
+      socket.on('terminal:disconnect', () => {
+        sshTerminal.disconnect(socket.id);
+      });
+
       socket.on('disconnect', () => {
         logger.info(`WebSocket client disconnected: ${socket.id}`);
+        sshTerminal.disconnect(socket.id);
         this.clients.delete(socket.id);
       });
     });
 
     logger.info('WebSocket handler initialized');
+  }
+
+  // Handle terminal connection requests
+  handleTerminalConnect(socket, data) {
+    const { nodeId, host, port, username, password, privateKey, isLocal } = data || {};
+
+    if (isLocal) {
+      // Connect to local machine (combine mode)
+      logger.info(`Local terminal requested by socket ${socket.id}`);
+      sshTerminal.connectLocal(socket);
+      return;
+    }
+
+    // SSH to remote node
+    if (!host) {
+      socket.emit('terminal:error', { message: 'Host is required for remote connections' });
+      return;
+    }
+
+    logger.info(`SSH terminal requested: ${username || 'root'}@${host}:${port || 22} (socket: ${socket.id})`);
+    sshTerminal.connect(socket, {
+      host,
+      port: port || 22,
+      username: username || 'root',
+      password,
+      privateKey,
+    });
   }
 
   sendInitialData(socket) {

@@ -178,6 +178,7 @@ class ServerMode {
     this.app.use('/api/processes', processesRouter);
     this.app.use('/api/commands', commandsRouter);
     this.app.use('/api/logs', logsRouter);
+    this.app.use('/api/console', require('../api/routes/console'));
     this.app.use('/api/update', updateRouter);
     this.app.use('/api/audit', require('../api/routes/audit'));
 

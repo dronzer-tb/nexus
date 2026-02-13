@@ -24,6 +24,28 @@
     "certPath": "",
     "keyPath": ""
   },
+  "console": {
+    "allowSudo": false,
+    "blockedCommands": [
+      "rm -rf /",
+      "rm -rf /*",
+      "mkfs.",
+      "dd if=",
+      ":(){:|:&};:",
+      "chmod -R 777 /",
+      "chown -R",
+      "> /dev/sda",
+      "> /dev/nvme"
+    ],
+    "blockedPaths": [
+      "/etc/passwd",
+      "/etc/shadow",
+      "/etc/sudoers",
+      "/boot",
+      "/proc",
+      "/sys"
+    ]
+  },
   "logging": {
     "level": "info",
     "file": "./data/nexus.log"
