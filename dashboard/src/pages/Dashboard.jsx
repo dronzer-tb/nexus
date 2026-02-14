@@ -15,7 +15,7 @@ import AgentsList from './AgentsList';
 import AgentDetails from './AgentDetails';
 import Logs from './Logs';
 import Settings from './Settings';
-import NodeConsole from './NodeConsole';
+import Console from './Console';
 import NodeProcesses from './NodeProcesses';
 import MobilePairing from './MobilePairing';
 
@@ -113,9 +113,9 @@ function Dashboard({ socket }) {
     if (location.pathname.startsWith('/settings')) setSettingsOpen(true);
   }, [location.pathname]);
 
-  // Auto-expand node dropdown when navigating to a node's console/processes
+  // Auto-expand node dropdown when navigating to a node's processes
   useEffect(() => {
-    const match = location.pathname.match(/^\/nodes\/([^/]+)\/(console|processes)/);
+    const match = location.pathname.match(/^\/nodes\/([^/]+)\/processes/);
     if (match) setExpandedNode(match[1]);
   }, [location.pathname]);
 
@@ -195,6 +195,8 @@ function Dashboard({ socket }) {
               <SidebarItem icon={Server} label="Nodes" path="/nodes" active={location.pathname.startsWith('/nodes')} collapsed={collapsed} />
 
               <SidebarItem icon={Page} label="Logs" path="/logs" active={isActive('/logs')} collapsed={collapsed} />
+
+              <SidebarItem icon={Terminal} label="Console" path="/console" active={isActive('/console')} collapsed={collapsed} />
 
               <SidebarItem icon={SmartphoneDevice} label="Mobile" path="/mobile-pairing" active={isActive('/mobile-pairing')} collapsed={collapsed} />
 
@@ -310,8 +312,8 @@ function Dashboard({ socket }) {
                 <Route path="/" element={<Overview socket={socket} />} />
                 <Route path="/nodes" element={<AgentsList socket={socket} />} />
                 <Route path="/nodes/:agentId" element={<AgentDetails socket={socket} />} />
-                <Route path="/nodes/:agentId/console" element={<NodeConsole socket={socket} />} />
                 <Route path="/nodes/:agentId/processes" element={<NodeProcesses socket={socket} />} />
+                <Route path="/console" element={<Console socket={socket} />} />
                 <Route path="/logs" element={<Logs socket={socket} />} />
                 <Route path="/mobile-pairing" element={<MobilePairing />} />
                 <Route path="/settings" element={<Navigate to="/settings/themes" replace />} />

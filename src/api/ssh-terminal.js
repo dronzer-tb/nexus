@@ -1,16 +1,96 @@
 const { Client } = require('ssh2');
+const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const logger = require('../utils/logger');
 const config = require('../utils/config');
 
 /**
- * SSH Terminal Manager
- * Manages SSH connections for the web-based terminal.
- * Enforces command restrictions based on config.
+ * SSH Terminal Manager v2
+ * - Auto-generates SSH keypair for Nexus
+ * - Per-node console enable/disable
+ * - Global console enable/disable
+ * - Command security restrictions
  */
+
+const SSH_KEY_DIR = path.join(__dirname, '../../data/ssh');
+const SSH_PRIVATE_KEY = path.join(SSH_KEY_DIR, 'nexus_rsa');
+const SSH_PUBLIC_KEY = path.join(SSH_KEY_DIR, 'nexus_rsa.pub');
 
 class SSHTerminalManager {
   constructor() {
-    this.sessions = new Map(); // socketId -> { conn, stream, info }
+    this.sessions = new Map(); // socketId -> session
+    this._keyPair = null;
+  }
+
+  /* ─── SSH Key Management ─────────────────── */
+
+  /**
+   * Ensure SSH keypair exists. Generate if missing.
+   */
+  ensureKeyPair() {
+    if (this._keyPair) return this._keyPair;
+
+    if (!fs.existsSync(SSH_KEY_DIR)) {
+      fs.mkdirSync(SSH_KEY_DIR, { recursive: true, mode: 0o700 });
+    }
+
+    if (fs.existsSync(SSH_PRIVATE_KEY) && fs.existsSync(SSH_PUBLIC_KEY)) {
+      this._keyPair = {
+        privateKey: fs.readFileSync(SSH_PRIVATE_KEY, 'utf8'),
+        publicKey: fs.readFileSync(SSH_PUBLIC_KEY, 'utf8'),
+      };
+      logger.debug('Loaded existing SSH keypair');
+      return this._keyPair;
+    }
+
+    // Generate new RSA keypair
+    logger.info('Generating new SSH keypair for Nexus console...');
+    const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
+      modulusLength: 4096,
+      publicKeyEncoding: { type: 'pkcs1', format: 'pem' },
+      privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+    });
+
+    // Convert public key to OpenSSH format for authorized_keys
+    const pubKeyObj = crypto.createPublicKey(publicKey);
+    const sshPubKey = pubKeyObj.export({ type: 'spki', format: 'der' });
+    const sshPubKeyB64 = sshPubKey.toString('base64');
+    const openSSHPub = `ssh-rsa ${sshPubKeyB64} nexus@console`;
+
+    fs.writeFileSync(SSH_PRIVATE_KEY, privateKey, { mode: 0o600 });
+    fs.writeFileSync(SSH_PUBLIC_KEY, openSSHPub, { mode: 0o644 });
+
+    this._keyPair = { privateKey, publicKey: openSSHPub };
+    logger.info('SSH keypair generated successfully');
+    return this._keyPair;
+  }
+
+  /**
+   * Get the public key for display / authorized_keys setup
+   */
+  getPublicKey() {
+    const kp = this.ensureKeyPair();
+    return kp.publicKey;
+  }
+
+  /**
+   * Regenerate SSH keypair (invalidates all existing trust)
+   */
+  regenerateKeyPair() {
+    if (fs.existsSync(SSH_PRIVATE_KEY)) fs.unlinkSync(SSH_PRIVATE_KEY);
+    if (fs.existsSync(SSH_PUBLIC_KEY)) fs.unlinkSync(SSH_PUBLIC_KEY);
+    this._keyPair = null;
+    return this.ensureKeyPair();
+  }
+
+  /* ─── Console Config ─────────────────────── */
+
+  /**
+   * Check if console is globally enabled
+   */
+  isConsoleEnabled() {
+    return config.get('console.enabled') !== false;
   }
 
   /**
@@ -18,59 +98,38 @@ class SSHTerminalManager {
    */
   getConsoleConfig() {
     return {
+      enabled: this.isConsoleEnabled(),
       allowSudo: config.get('console.allowSudo') || false,
       blockedCommands: config.get('console.blockedCommands') || [
-        'rm -rf /',
-        'rm -rf /*',
-        'mkfs.',
-        'dd if=',
-        ':(){:|:&};:',
-        'chmod -R 777 /',
-        'chown -R',
-        '> /dev/sda',
-        '> /dev/nvme',
+        'rm -rf /', 'rm -rf /*', 'mkfs.', 'dd if=',
+        ':(){:|:&};:', 'chmod -R 777 /', 'chown -R',
+        '> /dev/sda', '> /dev/nvme',
       ],
       blockedPaths: config.get('console.blockedPaths') || [
-        '/etc/passwd',
-        '/etc/shadow',
-        '/etc/sudoers',
-        '/boot',
-        '/proc',
-        '/sys',
+        '/etc/passwd', '/etc/shadow', '/etc/sudoers',
+        '/boot', '/proc', '/sys',
       ],
     };
   }
 
-  /**
-   * Validate a command against security rules.
-   * Returns { allowed: boolean, reason?: string }
-   */
+  /* ─── Command Validation ─────────────────── */
+
   validateCommand(command) {
     const cfg = this.getConsoleConfig();
     const trimmed = command.trim().toLowerCase();
 
-    // Block empty commands
-    if (!trimmed) {
-      return { allowed: true };
-    }
+    if (!trimmed) return { allowed: true };
 
     // Block sudo if not allowed
     if (!cfg.allowSudo && /^\s*sudo\s/i.test(command)) {
-      return {
-        allowed: false,
-        reason: 'sudo commands are disabled. Enable in Nexus setup to allow.',
-      };
+      return { allowed: false, reason: 'sudo commands are disabled. Enable in Nexus setup to allow.' };
     }
 
     // Block su
     if (/^\s*su\s*$/i.test(trimmed) || /^\s*su\s+/i.test(trimmed)) {
-      return {
-        allowed: false,
-        reason: 'su command is blocked for security.',
-      };
+      return { allowed: false, reason: 'su command is blocked for security.' };
     }
 
-    // Block dangerous rm patterns
     const dangerousPatterns = [
       { pattern: /rm\s+(-[a-z]*f[a-z]*\s+)?\/($|\s)/i, reason: 'Deleting root directory is blocked' },
       { pattern: /rm\s+(-[a-z]*f[a-z]*\s+)?\/\*($|\s)/i, reason: 'Deleting all files in root is blocked' },
@@ -91,22 +150,17 @@ class SSHTerminalManager {
       }
     }
 
-    // Block writes to sensitive paths
     for (const blockedPath of cfg.blockedPaths) {
-      // Check if command modifies blocked paths
+      const escaped = blockedPath.replace(/\//g, '\\/');
       const writePatterns = [
-        new RegExp(`>\\s*${blockedPath.replace(/\//g, '\\/')}`, 'i'),
-        new RegExp(`tee\\s+${blockedPath.replace(/\//g, '\\/')}`, 'i'),
-        new RegExp(`mv\\s+.*\\s+${blockedPath.replace(/\//g, '\\/')}`, 'i'),
-        new RegExp(`cp\\s+.*\\s+${blockedPath.replace(/\//g, '\\/')}`, 'i'),
+        new RegExp(`>\\s*${escaped}`, 'i'),
+        new RegExp(`tee\\s+${escaped}`, 'i'),
+        new RegExp(`mv\\s+.*\\s+${escaped}`, 'i'),
+        new RegExp(`cp\\s+.*\\s+${escaped}`, 'i'),
       ];
-
       for (const wp of writePatterns) {
         if (wp.test(command)) {
-          return {
-            allowed: false,
-            reason: `Modifications to ${blockedPath} are blocked`,
-          };
+          return { allowed: false, reason: `Modifications to ${blockedPath} are blocked` };
         }
       }
     }
@@ -114,16 +168,16 @@ class SSHTerminalManager {
     return { allowed: true };
   }
 
-  /**
-   * Connect to an SSH server and attach to a WebSocket
-   */
+  /* ─── SSH Connection (uses Nexus keypair) ── */
+
   connect(socket, connectionInfo) {
-    const { host, port, username, password, privateKey } = connectionInfo;
+    const { host, port, username } = connectionInfo;
     const socketId = socket.id;
 
-    // Close existing session
     this.disconnect(socketId);
 
+    // Ensure we have keys
+    const keyPair = this.ensureKeyPair();
     const conn = new Client();
 
     conn.on('ready', () => {
@@ -137,22 +191,11 @@ class SSHTerminalManager {
         }
 
         this.sessions.set(socketId, {
-          conn,
-          stream,
-          host,
-          username,
-          is2FAVerified: false,
+          conn, stream, host, username, nodeId: connectionInfo.nodeId,
         });
 
-        // Stream SSH output to the WebSocket client
-        stream.on('data', (data) => {
-          socket.emit('terminal:data', data.toString('utf8'));
-        });
-
-        stream.stderr.on('data', (data) => {
-          socket.emit('terminal:data', data.toString('utf8'));
-        });
-
+        stream.on('data', (data) => socket.emit('terminal:data', data.toString('utf8')));
+        stream.stderr.on('data', (data) => socket.emit('terminal:data', data.toString('utf8')));
         stream.on('close', () => {
           logger.info(`SSH session closed for socket ${socketId}`);
           socket.emit('terminal:closed');
@@ -160,8 +203,7 @@ class SSHTerminalManager {
         });
 
         socket.emit('terminal:connected', {
-          host,
-          username,
+          host, username,
           message: `Connected to ${username}@${host}`,
         });
       });
@@ -169,30 +211,28 @@ class SSHTerminalManager {
 
     conn.on('error', (err) => {
       logger.error(`SSH connection error to ${host}:`, err.message);
-      socket.emit('terminal:error', {
-        message: `SSH connection failed: ${err.message}`,
-      });
+
+      let userMessage = `SSH connection failed: ${err.message}`;
+      if (err.message.includes('Authentication') || err.message.includes('auth')) {
+        userMessage = `SSH authentication failed. Make sure the Nexus public key is in ~/.ssh/authorized_keys on ${host}.\n` +
+          `Get the key from Settings > Console or the API: GET /api/console/ssh-key`;
+      }
+
+      socket.emit('terminal:error', { message: userMessage });
       this.sessions.delete(socketId);
     });
 
     conn.on('close', () => {
-      logger.info(`SSH connection to ${host} closed`);
       this.sessions.delete(socketId);
     });
 
-    // Connect
     const connectOpts = {
       host: host || '127.0.0.1',
       port: port || 22,
-      username: username || 'root',
+      username: username || process.env.USER || 'root',
+      privateKey: keyPair.privateKey,
       readyTimeout: 10000,
     };
-
-    if (privateKey) {
-      connectOpts.privateKey = privateKey;
-    } else if (password) {
-      connectOpts.password = password;
-    }
 
     try {
       conn.connect(connectOpts);
@@ -202,12 +242,10 @@ class SSHTerminalManager {
     }
   }
 
-  /**
-   * Connect to the local machine (combine mode) using a PTY
-   */
+  /* ─── Local PTY Connection ────────────────── */
+
   connectLocal(socket) {
     const socketId = socket.id;
-
     this.disconnect(socketId);
 
     try {
@@ -219,24 +257,16 @@ class SSHTerminalManager {
         cols: 120,
         rows: 30,
         cwd: process.env.HOME,
-        env: {
-          ...process.env,
-          TERM: 'xterm-256color',
-        },
+        env: { ...process.env, TERM: 'xterm-256color' },
       });
 
       this.sessions.set(socketId, {
-        pty: ptyProcess,
-        host: 'localhost',
+        pty: ptyProcess, host: 'localhost',
         username: process.env.USER || 'local',
         isLocal: true,
-        is2FAVerified: false,
       });
 
-      ptyProcess.onData((data) => {
-        socket.emit('terminal:data', data);
-      });
-
+      ptyProcess.onData((data) => socket.emit('terminal:data', data));
       ptyProcess.onExit(({ exitCode }) => {
         logger.info(`Local PTY exited with code ${exitCode} (socket: ${socketId})`);
         socket.emit('terminal:closed');
@@ -246,7 +276,7 @@ class SSHTerminalManager {
       socket.emit('terminal:connected', {
         host: 'localhost',
         username: process.env.USER || 'local',
-        message: `Connected to local shell`,
+        message: 'Connected to local shell',
       });
 
       logger.info(`Local PTY started for socket ${socketId}`);
@@ -256,79 +286,41 @@ class SSHTerminalManager {
     }
   }
 
-  /**
-   * Send input to an active session (with command filtering)
-   */
+  /* ─── Session I/O ─────────────────────────── */
+
   write(socketId, data) {
     const session = this.sessions.get(socketId);
     if (!session) return;
-
-    // For Enter key presses, we'd validate the accumulated command
-    // But since xterm sends character-by-character, we pass through
-    // and rely on the shell-level restrictions
-    if (session.stream) {
-      session.stream.write(data);
-    } else if (session.pty) {
-      session.pty.write(data);
-    }
+    if (session.stream) session.stream.write(data);
+    else if (session.pty) session.pty.write(data);
   }
 
-  /**
-   * Resize the terminal
-   */
   resize(socketId, cols, rows) {
     const session = this.sessions.get(socketId);
     if (!session) return;
-
-    if (session.stream) {
-      session.stream.setWindow(rows, cols, 0, 0);
-    } else if (session.pty) {
-      session.pty.resize(cols, rows);
-    }
+    if (session.stream) session.stream.setWindow(rows, cols, 0, 0);
+    else if (session.pty) session.pty.resize(cols, rows);
   }
 
-  /**
-   * Disconnect a session
-   */
   disconnect(socketId) {
     const session = this.sessions.get(socketId);
     if (!session) return;
-
     try {
-      if (session.stream) {
-        session.stream.end();
-      }
-      if (session.conn) {
-        session.conn.end();
-      }
-      if (session.pty) {
-        session.pty.kill();
-      }
+      if (session.stream) session.stream.end();
+      if (session.conn) session.conn.end();
+      if (session.pty) session.pty.kill();
     } catch (err) {
       logger.debug('Error cleaning up session:', err.message);
     }
-
     this.sessions.delete(socketId);
   }
 
-  /**
-   * Get active session count
-   */
-  getSessionCount() {
-    return this.sessions.size;
-  }
+  getSessionCount() { return this.sessions.size; }
 
-  /**
-   * Clean up all sessions
-   */
   cleanup() {
-    for (const [socketId] of this.sessions) {
-      this.disconnect(socketId);
-    }
+    for (const [socketId] of this.sessions) this.disconnect(socketId);
   }
 }
 
-// Singleton
 const sshManager = new SSHTerminalManager();
-
 module.exports = sshManager;

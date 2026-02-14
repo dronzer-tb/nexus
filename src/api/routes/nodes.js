@@ -124,6 +124,7 @@ router.get('/', authenticate, (req, res) => {
         last_seen: node.last_seen,
         created_at: node.created_at,
         system_info: node.system_info,
+        console_enabled: node.console_enabled !== 0,
         metrics: metricsData ? {
           cpu: metricsData.cpu?.usage || 0,
           memory: metricsData.memory?.usagePercent || 0,
@@ -188,7 +189,8 @@ router.get('/:nodeId', authenticate, (req, res) => {
       status: node.status,
       last_seen: node.last_seen,
       created_at: node.created_at,
-      system_info: node.system_info
+      system_info: node.system_info,
+      console_enabled: node.console_enabled !== 0,
     };
 
     const responseData = {
@@ -216,6 +218,27 @@ router.get('/:nodeId', authenticate, (req, res) => {
       success: false,
       error: 'Internal server error'
     });
+  }
+});
+
+// Toggle console for a node (requires authentication)
+router.patch('/:nodeId/console', authenticate, (req, res) => {
+  try {
+    const { nodeId } = req.params;
+    const { enabled } = req.body;
+    const node = database.getNode(nodeId);
+
+    if (!node) {
+      return res.status(404).json({ success: false, error: 'Node not found' });
+    }
+
+    database.updateNodeConsoleEnabled(nodeId, enabled !== false);
+    logger.info(`Console ${enabled !== false ? 'enabled' : 'disabled'} for node ${nodeId}`);
+
+    res.json({ success: true, console_enabled: enabled !== false });
+  } catch (error) {
+    logger.error('Error toggling node console:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });
 

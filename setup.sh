@@ -250,22 +250,40 @@ collect_answers() {
     NODE_SERVER_URL="http://localhost:8080"
   fi
 
-  # ─── SSH Console Privileges ────────────────
-  section "SSH CONSOLE SECURITY"
+  # ─── SSH Console ────────────────────────────
+  section "SSH CONSOLE"
 
-  echo -e "  ${DIM}The web console uses SSH to connect to nodes.${NC}"
-  echo -e "  ${DIM}Configure the privilege level for remote commands.${NC}"
+  echo -e "  ${DIM}The web console provides direct SSH terminal access${NC}"
+  echo -e "  ${DIM}to nodes from the dashboard. Requires 2FA to use.${NC}"
   echo ""
 
-  menu_select "Allow sudo commands from dashboard console?" "No sudo — commands run as the current user only|Allow sudo — privileged commands permitted (requires auth)" 1
-  SETUP_SUDO="$MENU_RESULT"
+  menu_select "Enable web console?" "Enable console — SSH terminal from dashboard|Disable console — no terminal access from dashboard" 1
+  SETUP_CONSOLE_ENABLED="$MENU_RESULT"
 
-  if [ "$SETUP_SUDO" -eq 1 ]; then
-    ALLOW_SUDO=false
-    info "Console will run commands as regular user only"
+  if [ "$SETUP_CONSOLE_ENABLED" -eq 1 ]; then
+    CONSOLE_ENABLED=true
+    info "Web console enabled"
+
+    # ─── SSH Console Privileges ──────────────
+    section "SSH CONSOLE SECURITY"
+
+    echo -e "  ${DIM}Configure the privilege level for remote commands.${NC}"
+    echo ""
+
+    menu_select "Allow sudo commands from dashboard console?" "No sudo — commands run as the current user only|Allow sudo — privileged commands permitted (requires auth)" 1
+    SETUP_SUDO="$MENU_RESULT"
+
+    if [ "$SETUP_SUDO" -eq 1 ]; then
+      ALLOW_SUDO=false
+      info "Console will run commands as regular user only"
+    else
+      ALLOW_SUDO=true
+      info "Sudo access enabled — requires 2FA verification per session"
+    fi
   else
-    ALLOW_SUDO=true
-    info "Sudo access enabled — requires 2FA verification per session"
+    CONSOLE_ENABLED=false
+    ALLOW_SUDO=false
+    info "Web console disabled for this installation"
   fi
 
   # ─── Nginx ─────────────────────────────────
@@ -325,7 +343,7 @@ show_summary() {
     draw_box_line "${BOLD}Server URL:${NC}     ${CYAN}${NODE_SERVER_URL}${NC}"
   fi
 
-  draw_box_line "${BOLD}Sudo access:${NC}    ${CYAN}$([ "$ALLOW_SUDO" = true ] && echo 'Enabled' || echo 'Disabled')${NC}"
+  draw_box_line \"${BOLD}Sudo access:${NC}    ${CYAN}$([ \"$ALLOW_SUDO\" = true ] && echo 'Enabled' || echo 'Disabled')${NC}\"\n  draw_box_line \"${BOLD}Console:${NC}        ${CYAN}$([ \"$CONSOLE_ENABLED\" = true ] && echo 'Enabled' || echo 'Disabled')${NC}\"
 
   if [ "$MODE_NAME" != "node" ]; then
     draw_box_line "${BOLD}Nginx:${NC}          ${CYAN}$([ "$SETUP_NGINX" = 'y' ] && echo "Yes (${NGINX_DOMAIN:-})" || echo 'No')${NC}"
@@ -407,6 +425,7 @@ run_installation() {
     cfg.server.port = ${SETUP_PORT};
     cfg.node.serverUrl = '${NODE_SERVER_URL}';
     cfg.console = cfg.console || {};
+    cfg.console.enabled = ${CONSOLE_ENABLED};
     cfg.console.allowSudo = ${ALLOW_SUDO};
     cfg.console.blockedCommands = [
       'rm -rf /',
@@ -458,7 +477,7 @@ run_installation() {
     draw_box_empty
     draw_box_line "${BOLD}Dashboard:${NC}  ${CYAN}http://localhost:${SETUP_PORT}${NC}"
     draw_box_line "${BOLD}Login:${NC}      ${YELLOW}admin / admin123${NC}"
-    draw_box_line "${BOLD}Console:${NC}    SSH-based with $([ "$ALLOW_SUDO" = true ] && echo 'sudo enabled' || echo 'restricted privileges')"
+    draw_box_line \"${BOLD}Console:${NC}    $([ \"$CONSOLE_ENABLED\" = true ] && echo \"SSH-based with $([ \"$ALLOW_SUDO\" = true ] && echo 'sudo enabled' || echo 'restricted privileges')\" || echo 'Disabled')\"
     draw_box_empty
   fi
 

@@ -131,6 +131,9 @@ class DatabaseManager {
     // Migrate existing users table to add 2FA columns if they don't exist
     this.migrate2FAColumns();
 
+    // Migrate nodes table to add console_enabled column
+    this.migrateConsoleColumn();
+
     // Sessions table for authentication
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS sessions (
@@ -185,6 +188,24 @@ class DatabaseManager {
     } catch (error) {
       try { this.db.exec('ROLLBACK'); } catch (_) { }
       logger.error('Users table migration failed:', error);
+    }
+  }
+
+  /**
+   * Migrate nodes table to add console_enabled column
+   */
+  migrateConsoleColumn() {
+    try {
+      const tableInfo = this.db.pragma('table_info(nodes)');
+      const hasConsole = tableInfo.some(col => col.name === 'console_enabled');
+
+      if (!hasConsole) {
+        logger.info('Migrating nodes table: adding console_enabled column...');
+        this.db.exec(`ALTER TABLE nodes ADD COLUMN console_enabled INTEGER DEFAULT 1;`);
+        logger.info('Nodes table console_enabled migration complete');
+      }
+    } catch (error) {
+      logger.error('Nodes console_enabled migration failed:', error);
     }
   }
 
@@ -353,6 +374,13 @@ class DatabaseManager {
       UPDATE nodes SET system_info = ? WHERE id = ?
     `);
     return stmt.run(JSON.stringify(systemInfo), nodeId);
+  }
+
+  updateNodeConsoleEnabled(nodeId, enabled) {
+    const stmt = this.db.prepare(`
+      UPDATE nodes SET console_enabled = ? WHERE id = ?
+    `);
+    return stmt.run(enabled ? 1 : 0, nodeId);
   }
 
   deleteNode(nodeId) {

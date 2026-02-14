@@ -170,7 +170,7 @@ function AgentDetails({ socket }) {
           </div>
           <div className="flex items-center gap-3">
             <button
-              onClick={() => navigate(`/nodes/${agentId}/console`)}
+              onClick={() => navigate(`/console`)}
               className="flex items-center gap-2 px-4 py-2 border-2 border-neon-cyan/40 bg-neon-cyan/10 text-neon-cyan font-bold text-xs uppercase tracking-wider hover:bg-neon-cyan/20 hover:translate-x-[-2px] hover:translate-y-[-2px] transition-all"
               style={{ boxShadow: '3px 3px 0 rgba(0, 217, 255, 0.2)' }}
             >

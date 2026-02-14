@@ -66,6 +66,21 @@ class WebSocketHandler {
   handleTerminalConnect(socket, data) {
     const { nodeId, host, port, username, password, privateKey, isLocal } = data || {};
 
+    // Check if console is globally enabled
+    if (!sshTerminal.isConsoleEnabled()) {
+      socket.emit('terminal:error', { message: 'Console is disabled globally. Enable it in Settings.' });
+      return;
+    }
+
+    // Check per-node console enabled (if nodeId provided)
+    if (nodeId) {
+      const node = database.getNode(nodeId);
+      if (node && node.console_enabled === 0) {
+        socket.emit('terminal:error', { message: `Console is disabled for node "${node.hostname || nodeId}". Enable it in node settings.` });
+        return;
+      }
+    }
+
     if (isLocal) {
       // Connect to local machine (combine mode)
       logger.info(`Local terminal requested by socket ${socket.id}`);

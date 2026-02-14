@@ -25,6 +25,7 @@
     "keyPath": ""
   },
   "console": {
+    "enabled": true,
     "allowSudo": false,
     "blockedCommands": [
       "rm -rf /",
