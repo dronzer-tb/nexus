@@ -246,8 +246,14 @@ class ServerMode {
         origin: (origin, callback) => {
           if (!origin) return callback(null, true);
           const allowedOrigins = config.get('server.corsOrigins') || [];
-          const selfOrigin = `http://localhost:${this.port}`;
-          if (allowedOrigins.includes(origin) || origin === selfOrigin) {
+          // Allow localhost and 127.0.0.1 on the configured port
+          const selfOrigins = [
+            `http://localhost:${this.port}`,
+            `http://127.0.0.1:${this.port}`,
+            `https://localhost:${this.port}`,
+            `https://127.0.0.1:${this.port}`
+          ];
+          if (allowedOrigins.includes(origin) || selfOrigins.includes(origin)) {
             return callback(null, true);
           }
           callback(new Error('CORS not allowed'));
