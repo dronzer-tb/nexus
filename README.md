@@ -204,7 +204,7 @@ Supported on Linux, macOS, and Windows.
 
 ## 📄 License
 
-MIT — see [LICENSE](LICENSE).
+AGPL — see [LICENSE](LICENSE).
 
 ---
 
