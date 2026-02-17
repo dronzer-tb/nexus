@@ -3,6 +3,9 @@ name: Build Android APK
 on:
   push:
     branches: [main]
+    paths:
+      - 'nexus-mobile/**'
+      - '.github/workflows/build-android.yml'
   workflow_dispatch:
 
 jobs:
@@ -36,23 +39,46 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Install EAS CLI
-        run: npm install -g eas-cli
+      - name: Generate native project files
+        run: npx expo prebuild --platform android --clean --no-install
 
-      - name: Authenticate with Expo
-        run: eas whoami
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            nexus-mobile/android/.gradle
+          key: gradle-${{ runner.os }}-${{ hashFiles('nexus-mobile/android/gradle/wrapper/gradle-wrapper.properties', 'nexus-mobile/android/app/build.gradle') }}
+          restore-keys: gradle-${{ runner.os }}-
 
-      - name: Build APK locally
-        run: eas build --platform android --local --profile preview --non-interactive --output ./app-release.apk
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      - name: Build release APK
+        working-directory: nexus-mobile/android
+        run: ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures="arm64-v8a,armeabi-v7a"
+
+      - name: Rename APK
+        run: |
+          VERSION=$(node -e "console.log(require('./app.json').expo.version)")
+          cp android/app/build/outputs/apk/release/app-universal-release.apk ./nexus-monitor-v${VERSION}.apk
+          echo "APK_NAME=nexus-monitor-v${VERSION}.apk" >> $GITHUB_ENV
+          echo "APK_VERSION=${VERSION}" >> $GITHUB_ENV
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-release
-          path: nexus-mobile/app-release.apk
-          retention-days: 7
+          name: nexus-monitor-apk
+          path: nexus-mobile/nexus-monitor-v*.apk
+          retention-days: 30
           if-no-files-found: error
+
+      - name: Create Release (on version tag)
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.APK_VERSION }}
+          name: Nexus v${{ env.APK_VERSION }}
+          files: nexus-mobile/${{ env.APK_NAME }}
+          generate_release_notes: true
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

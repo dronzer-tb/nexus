@@ -368,12 +368,24 @@ function banner() {
   console.log('');
 }
 
+// ─── Parse CLI arguments ─────────────────────
+function parseCliArgs() {
+  const args = process.argv.slice(2);
+  const result = {};
+  for (const arg of args) {
+    const match = arg.match(/^--([\w-]+)=(.*)$/);
+    if (match) result[match[1]] = match[2];
+  }
+  return result;
+}
+
 // ═══════════════════════════════════════════════
 //  MAIN WIZARD
 // ═══════════════════════════════════════════════
 async function runWizard() {
   banner();
   const rl = createRL();
+  const cliArgs = parseCliArgs();
 
   try {
     // ─── Check existing setup ────────────────
@@ -482,7 +494,22 @@ async function runWizard() {
     info(`Full domain: ${C.bold}${fullDomain}${C.reset}`);
 
     // ─── Step 4: Port ────────────────────────
-    const port = await ask(rl, 'Nexus backend port', '8080');
+    let port;
+    if (cliArgs.port) {
+      port = cliArgs.port;
+      info(`Using backend port from setup: ${port}`);
+    } else {
+      // Read current port from config.json if available
+      let defaultPort = '8080';
+      try {
+        const cfgPath = path.join(__dirname, '../../config/config.json');
+        if (fs.existsSync(cfgPath)) {
+          const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+          if (cfg.server && cfg.server.port) defaultPort = String(cfg.server.port);
+        }
+      } catch {}
+      port = await ask(rl, 'Nexus backend port', defaultPort);
+    }
     info(`Backend port: ${port}`);
 
     // ─── Step 5: SSL setup ───────────────────

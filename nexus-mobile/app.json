@@ -2,7 +2,7 @@
   "expo": {
     "name": "Nexus Monitor",
     "slug": "nexus",
-    "version": "2.1.0",
+    "version": "2.2.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -24,8 +24,7 @@
       "edgeToEdgeEnabled": true,
       "package": "com.dronzer.nexus",
       "permissions": [
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.CAMERA"
       ]
     },
     "web": {
@@ -34,9 +33,10 @@
     "plugins": [
       "expo-secure-store",
       [
-        "expo-camera",
+        "expo-image-picker",
         {
-          "cameraPermission": "Nexus needs camera access to scan QR codes for secure pairing."
+          "cameraPermission": "Nexus needs camera access to scan QR codes for secure pairing.",
+          "photosPermission": "Nexus needs photo access to pick QR code screenshots."
         }
       ],
       [

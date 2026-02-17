@@ -360,6 +360,7 @@ Supported on Linux, macOS, and Windows.
 | Problem | Fix |
 |---------|-----|
 | Node can't connect | Check `serverUrl` in config, verify server is reachable |
+| Bash `event not found` | Use single quotes around `node -e '...'` commands (double quotes trigger `!` history expansion) |
 | Dashboard blank | Run `npm run build:dashboard`, check browser console |
 | Database errors | Ensure `data/` directory is writable |
 | 2FA not working | Ensure system clock is synchronized (TOTP is time-based) |

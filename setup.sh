@@ -806,7 +806,7 @@ run_installation() {
   # ─── Nginx ─────────────────────────────────
   if [ "${SETUP_NGINX:-n}" = "y" ]; then
     step "Setting up nginx reverse proxy"
-    node src/setup/wizard.js --domain="${NGINX_DOMAIN:-}" --ssl="${NGINX_SSL:-n}" 2>&1 || {
+    node src/setup/wizard.js --domain="${NGINX_DOMAIN:-}" --ssl="${NGINX_SSL:-n}" --port="${SETUP_PORT}" 2>&1 || {
       warn "Nginx setup had issues — you can retry with: npm run setup:nginx"
     }
     info "Nginx configured"

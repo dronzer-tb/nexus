@@ -120,8 +120,17 @@ class NodeMode {
       if (error.code === 'ECONNREFUSED') {
         logger.error(`Cannot connect to server at ${this.serverUrl}`);
       } else if (error.response) {
-        // Server responded with an error status
-        logger.error(`Failed to register with server: HTTP ${error.response.status} — ${JSON.stringify(error.response.data)}`);
+        // Server responded with an error status — truncate HTML responses
+        let body = error.response.data;
+        if (typeof body === 'string' && body.includes('<!DOCTYPE') || typeof body === 'string' && body.includes('<html')) {
+          // Extract title from HTML if possible, don't dump entire page
+          const titleMatch = body.match(/<title[^>]*>([^<]+)<\/title>/i);
+          body = titleMatch ? titleMatch[1].trim() : '(HTML error page)';
+        } else {
+          body = JSON.stringify(body);
+          if (body.length > 200) body = body.substring(0, 200) + '...';
+        }
+        logger.error(`Failed to register with server: HTTP ${error.response.status} — ${body}`);
       } else if (error.request) {
         // Request was made but no response received
         logger.error(`No response from server at ${this.serverUrl}: ${error.message || error.code || 'unknown error'}`);
@@ -160,7 +169,15 @@ class NodeMode {
       } else if (error.response?.status === 401) {
         logger.error('Authentication failed - invalid API key');
       } else if (error.response) {
-        logger.debug(`Failed to send metrics: HTTP ${error.response.status} — ${JSON.stringify(error.response.data)}`);
+        let body = error.response.data;
+        if (typeof body === 'string' && (body.includes('<!DOCTYPE') || body.includes('<html'))) {
+          const titleMatch = body.match(/<title[^>]*>([^<]+)<\/title>/i);
+          body = titleMatch ? titleMatch[1].trim() : '(HTML error page)';
+        } else {
+          body = JSON.stringify(body);
+          if (body.length > 200) body = body.substring(0, 200) + '...';
+        }
+        logger.debug(`Failed to send metrics: HTTP ${error.response.status} — ${body}`);
       } else {
         logger.debug(`Failed to send metrics: ${error.message || error.code || 'unknown error'}`);
       }

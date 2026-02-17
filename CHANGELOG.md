@@ -4,6 +4,15 @@ All notable changes to Nexus are documented here.
 
 ---
 
+## v2.2.2
+
+- **Fix: Nginx Wizard Port Override** — Setup wizard no longer re-asks for the backend port when called from `setup.sh`; the port chosen in the main installer is now passed via `--port` CLI arg, preventing config overwrites
+- **Fix: HTML Error Log Flooding** — Node registration and metrics errors now extract the page title from HTML responses (e.g., `"502: Bad gateway"`) instead of dumping the entire Cloudflare error page into logs
+- **QR Scanner Rewrite** — Replaced `expo-camera` + ML Kit barcode scanner (~20 MB) with `expo-image-picker` (system camera) + `jsqr` (pure JS decoder); eliminates heavy native dependency and works reliably across all Android versions
+- **Removed RECORD_AUDIO Permission** — Mobile app no longer requests microphone access (was unused leftover from expo-camera)
+
+---
+
 ## v2.2.1
 
 - **Simplified Add Node Flow** — Replaced 3-step instructions with a single copy-paste command in the Add Node modal
