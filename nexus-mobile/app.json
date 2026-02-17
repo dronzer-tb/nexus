@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Nexus Monitor",
-    "slug": "nexus-mobile",
+    "slug": "nexus",
     "version": "2.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -21,7 +21,11 @@
         "backgroundColor": "#0a0a0a"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.dronzer.nexus"
+      "package": "com.dronzer.nexus",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -34,6 +38,12 @@
           "cameraPermission": "Nexus needs camera access to scan QR codes for secure pairing."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "b119acc7-0e97-40a2-87ea-159a9a1a8cf0"
+      }
+    },
+    "owner": "dronzer-tb"
   }
 }
