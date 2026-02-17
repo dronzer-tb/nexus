@@ -42,6 +42,13 @@ jobs:
       - name: Generate native project files
         run: npx expo prebuild --platform android --clean --no-install
 
+      - name: Generate debug keystore for signing
+        run: |
+          keytool -genkey -v -keystore android/app/debug.keystore \
+            -storepass android -alias androiddebugkey -keypass android \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+
       - name: Cache Gradle
         uses: actions/cache@v4
         with:
@@ -59,7 +66,14 @@ jobs:
       - name: Rename APK
         run: |
           VERSION=$(node -e "console.log(require('./app.json').expo.version)")
-          cp android/app/build/outputs/apk/release/app-universal-release.apk ./nexus-monitor-v${VERSION}.apk
+          # Find the release APK (name varies: app-release.apk or app-universal-release.apk)
+          APK_FILE=$(find android/app/build/outputs/apk/release -name '*.apk' ! -name '*unsigned*' | head -1)
+          if [ -z "$APK_FILE" ]; then
+            echo "ERROR: No release APK found"
+            find android/app/build/outputs -name '*.apk' 2>/dev/null
+            exit 1
+          fi
+          cp "$APK_FILE" ./nexus-monitor-v${VERSION}.apk
           echo "APK_NAME=nexus-monitor-v${VERSION}.apk" >> $GITHUB_ENV
           echo "APK_VERSION=${VERSION}" >> $GITHUB_ENV
 
