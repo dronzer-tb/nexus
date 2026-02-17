@@ -450,6 +450,9 @@ run_installation() {
   "
   info "Configuration updated"
 
+  # ─── Reverse SSH Setup ─────────────────────
+  setup_reverse_ssh
+  
   # ─── Nginx ─────────────────────────────────
   if [ "$SETUP_NGINX" = "y" ]; then
     step "Setting up nginx reverse proxy"
@@ -564,10 +567,266 @@ WantedBy=multi-user.target"
 }
 
 # ══════════════════════════════════════════════
+#  BYPASS MODE — skip onboarding & 2FA, use defaults
+# ══════════════════════════════════════════════
+
+run_bypass_mode() {
+  banner
+
+  draw_box_top
+  draw_box_empty
+  draw_box_center "${YELLOW}${BOLD}⚡ BYPASS MODE ⚡${NC}"
+  draw_box_empty
+  draw_box_center "${DIM}Skipping onboarding & 2FA — using defaults${NC}"
+  draw_box_center "${DIM}This is for development/testing only${NC}"
+  draw_box_empty
+  draw_box_bottom
+  echo ""
+
+  # All defaults
+  MODE_NAME="combine"
+  SETUP_PORT="8080"
+  NODE_SERVER_URL="http://localhost:8080"
+  CONSOLE_ENABLED=true
+  ALLOW_SUDO=false
+  SETUP_NGINX="n"
+  NGINX_DOMAIN=""
+  NGINX_SSL="n"
+  SETUP_SYSTEMD="n"
+
+  # ─── Prerequisites ─────────────────────────
+  section "PREREQUISITES"
+
+  if ! command -v node &>/dev/null; then
+    fail "Node.js is not installed. Install Node.js >= ${REQUIRED_NODE_MAJOR}"
+  fi
+
+  NODE_VER=$(node -v | sed 's/v//' | cut -d. -f1)
+  if [ "$NODE_VER" -lt "$REQUIRED_NODE_MAJOR" ]; then
+    fail "Node.js ${REQUIRED_NODE_MAJOR}+ required (found $(node -v))"
+  fi
+  info "Node.js $(node -v)"
+  info "npm $(npm -v)"
+
+  # ─── Dependencies ──────────────────────────
+  section "DEPENDENCIES"
+
+  step "Installing backend dependencies"
+  npm install --loglevel=warn 2>&1 | tail -3
+  info "Backend dependencies installed"
+
+  step "Installing dashboard dependencies"
+  (cd dashboard && npm install --loglevel=warn 2>&1 | tail -3)
+  info "Dashboard dependencies installed"
+
+  step "Building dashboard"
+  (cd dashboard && npm run build 2>&1 | tail -5)
+  info "Dashboard built"
+
+  # ─── Config ────────────────────────────────
+  section "CONFIGURATION"
+
+  mkdir -p data
+
+  if [ ! -f config/config.json ]; then
+    cp config/config.default.json config/config.json
+    info "Created config from defaults"
+  fi
+
+  node -e "
+    const fs = require('fs');
+    const cfg = JSON.parse(fs.readFileSync('config/config.json', 'utf8'));
+    cfg.server.port = ${SETUP_PORT};
+    cfg.node.serverUrl = '${NODE_SERVER_URL}';
+    cfg.console = cfg.console || {};
+    cfg.console.enabled = ${CONSOLE_ENABLED};
+    cfg.console.allowSudo = ${ALLOW_SUDO};
+    fs.writeFileSync('config/config.json', JSON.stringify(cfg, null, 2));
+  "
+  info "Config updated"
+
+  # ─── Bypass: auto-setup admin + 2FA + onboarding ──
+  section "BYPASS SETUP"
+
+  step "Creating admin account & 2FA"
+
+  BYPASS_OUTPUT=$(node -e "
+    const database = require('./src/utils/database');
+    const { hashPassword } = require('./src/utils/password');
+    const { generateSecret, encryptSecret, generateRecoveryCodes, hashRecoveryCode } = require('./src/utils/totp');
+
+    // Initialize database
+    database.init();
+
+    // Create or update admin user
+    const bcrypt = require('bcrypt');
+    const passwordHash = bcrypt.hashSync('admin123', 10);
+
+    let user = database.getUserByUsername('admin');
+    if (user) {
+      database.updateUser(user.id, { password: passwordHash, mustChangePassword: 0 });
+    } else {
+      database.createUser({ username: 'admin', password: passwordHash, role: 'admin', mustChangePassword: 0 });
+      user = database.getUserByUsername('admin');
+    }
+
+    // Generate TOTP secret
+    const { secret, otpauth_url } = generateSecret('admin');
+    const encrypted = encryptSecret(secret);
+
+    // Generate recovery codes
+    const codes = generateRecoveryCodes(10);
+    const hashedCodes = codes.map(c => hashRecoveryCode(c));
+
+    // Enable 2FA on admin
+    database.updateUser(user.id, {
+      totpSecret: encrypted,
+      totpEnabled: 1,
+      recoveryCodes: JSON.stringify(hashedCodes)
+    });
+
+    // Mark onboarding complete
+    database.setSetting('onboarding_completed', 'true');
+    database.setSetting('onboarding_version', '1.9.5');
+
+    // Output for bash
+    console.log('SECRET=' + secret);
+    console.log('OTPAUTH=' + otpauth_url);
+    console.log('RECOVERY=' + codes.slice(0, 3).join(','));
+  ")
+
+  # Parse output
+  BYPASS_SECRET=$(echo "$BYPASS_OUTPUT" | grep '^SECRET=' | cut -d= -f2-)
+  BYPASS_OTPAUTH=$(echo "$BYPASS_OUTPUT" | grep '^OTPAUTH=' | cut -d= -f2-)
+  BYPASS_RECOVERY=$(echo "$BYPASS_OUTPUT" | grep '^RECOVERY=' | cut -d= -f2-)
+
+  info "Admin account ready  ${DIM}(admin / admin123)${NC}"
+  info "2FA configured"
+  info "Onboarding marked complete"
+
+  # ─── Done ──────────────────────────────────
+  echo ""
+  draw_box_top
+  draw_box_empty
+  draw_box_center "${GREEN}${BOLD}${CHECK} Bypass Mode Ready${NC}"
+  draw_box_empty
+  draw_box_separator
+  draw_box_empty
+  draw_box_line "${BOLD}Dashboard:${NC}    ${CYAN}http://localhost:${SETUP_PORT}${NC}"
+  draw_box_line "${BOLD}Login:${NC}        ${YELLOW}admin / admin123${NC}"
+  draw_box_empty
+  draw_box_separator
+  draw_box_empty
+  draw_box_line "${BOLD}2FA Secret:${NC}   ${MAGENTA}${BYPASS_SECRET}${NC}"
+  draw_box_empty
+  draw_box_line "${DIM}Add this to your authenticator app, or use a${NC}"
+  draw_box_line "${DIM}recovery code below for first login:${NC}"
+  draw_box_empty
+
+  IFS=',' read -ra RCODES <<< "$BYPASS_RECOVERY"
+  for code in "${RCODES[@]}"; do
+    draw_box_line "  ${CYAN}${BULLET}${NC} ${BOLD}${code}${NC}"
+  done
+
+  draw_box_empty
+  draw_box_bottom
+  echo ""
+
+  info "Starting Nexus in ${BOLD}combine${NC} mode..."
+  dimtext "Press Ctrl+C to stop"
+  echo ""
+  exec node src/index.js "--mode=combine"
+}
+
+# ══════════════════════════════════════════════
+#  Reverse SSH Setup
+# ══════════════════════════════════════════════
+
+setup_reverse_ssh() {
+  local os_type=$(uname -s)
+  local arch=$(uname -m)
+  
+  # Create bin directory if it doesn't exist
+  mkdir -p bin
+  
+  # Map architecture to reverse-ssh binary name
+  local binary_name="reverse-ssh"
+  
+  case "$os_type" in
+    Linux)
+      if [ "$arch" = "x86_64" ]; then
+        binary_name="reverse-ssh"
+      elif [ "$arch" = "i686" ] || [ "$arch" = "i386" ]; then
+        binary_name="reverse-ssh-x86"
+      elif [ "$arch" = "aarch64" ] || [ "$arch" = "arm64" ]; then
+        binary_name="reverse-ssh-arm64"
+      else
+        warn "Unsupported architecture: $arch — skip reverse-ssh download"
+        return
+      fi
+      ;;
+    Darwin)
+      if [ "$arch" = "x86_64" ]; then
+        binary_name="reverse-ssh-darwin-amd64"
+      elif [ "$arch" = "arm64" ]; then
+        binary_name="reverse-ssh-darwin-arm64"
+      else
+        warn "Unsupported macOS architecture: $arch — skip reverse-ssh download"
+        return
+      fi
+      ;;
+    *)
+      warn "Unsupported OS: $os_type — skip reverse-ssh download"
+      return
+      ;;
+  esac
+  
+  # Check if binary already exists
+  if [ -f "bin/$binary_name" ]; then
+    info "Reverse-SSH binary already present at bin/$binary_name"
+    chmod +x "bin/$binary_name"
+    return
+  fi
+  
+  # Download reverse-ssh binary from GitHub releases
+  step "Downloading reverse-ssh from GitHub..."
+  
+  local release_url="https://github.com/Fahrj/reverse-ssh/releases/latest/download"
+  local download_url="${release_url}/${binary_name}"
+  
+  if command -v wget &>/dev/null; then
+    if wget -q -O "bin/$binary_name" "$download_url" 2>/dev/null; then
+      chmod +x "bin/$binary_name"
+      info "Reverse-SSH binary downloaded successfully to bin/$binary_name"
+    else
+      warn "Failed to download reverse-ssh (wget) — you can download manually from:"
+      dimtext "  $release_url"
+    fi
+  elif command -v curl &>/dev/null; then
+    if curl -sL -o "bin/$binary_name" "$download_url" 2>/dev/null; then
+      chmod +x "bin/$binary_name"
+      info "Reverse-SSH binary downloaded successfully to bin/$binary_name"
+    else
+      warn "Failed to download reverse-ssh (curl) — you can download manually from:"
+      dimtext "  $release_url"
+    fi
+  else
+    warn "wget or curl not found — cannot auto-download reverse-ssh"
+    dimtext "Download manually from: $release_url"
+  fi
+}
+
+# ══════════════════════════════════════════════
 #  MAIN
 # ══════════════════════════════════════════════
 
 main() {
+  # Check for bypass mode flag
+  if [[ "${1:-}" == "--bypass-mode" ]]; then
+    run_bypass_mode
+    exit 0
+  fi
+
   banner
   collect_answers
   run_installation

@@ -1,6 +1,8 @@
 const logger = require('../utils/logger');
 const database = require('../utils/database');
 const sshTerminal = require('./ssh-terminal');
+const revTunnelManager = require('../utils/reverse-ssh-tunnel');
+const os = require('os');
 
 class WebSocketHandler {
   constructor(io) {
@@ -37,6 +39,7 @@ class WebSocketHandler {
 
       // ─── SSH Terminal Events ─────────────────
       socket.on('terminal:connect', (data) => {
+        logger.info(`terminal:connect received from ${socket.id}: ${JSON.stringify(data)}`);
         this.handleTerminalConnect(socket, data);
       });
 
@@ -64,11 +67,18 @@ class WebSocketHandler {
 
   // Handle terminal connection requests
   handleTerminalConnect(socket, data) {
-    const { nodeId, host, port, username, password, privateKey, isLocal } = data || {};
+    const { nodeId, host, port, username, password, privateKey, isLocal, useReverseTunnel } = data || {};
 
     // Check if console is globally enabled
     if (!sshTerminal.isConsoleEnabled()) {
       socket.emit('terminal:error', { message: 'Console is disabled globally. Enable it in Settings.' });
+      return;
+    }
+
+    // Explicit local connection request
+    if (isLocal === true) {
+      logger.info(`Local terminal requested by socket ${socket.id}`);
+      sshTerminal.connectLocal(socket);
       return;
     }
 
@@ -79,29 +89,44 @@ class WebSocketHandler {
         socket.emit('terminal:error', { message: `Console is disabled for node "${node.hostname || nodeId}". Enable it in node settings.` });
         return;
       }
-    }
 
-    if (isLocal) {
-      // Connect to local machine (combine mode)
-      logger.info(`Local terminal requested by socket ${socket.id}`);
-      sshTerminal.connectLocal(socket);
-      return;
+      // Check if this is the local node (combine mode)
+      // If hostname matches current machine, use local PTY
+      if (node) {
+        const localHostname = os.hostname();
+        if (node.hostname === localHostname || node.system_info?.os?.hostname === localHostname) {
+          logger.info(`Local console for node ${nodeId} (hostname: ${node.hostname}) matches current machine (socket: ${socket.id})`);
+          sshTerminal.connectLocal(socket);
+          return;
+        }
+      }
+
+      // Try reverse SSH tunnel for remote nodes
+      const tunnelInfo = revTunnelManager.getTunnelInfo(nodeId);
+      if (tunnelInfo || useReverseTunnel) {
+        logger.info(`Using reverse SSH tunnel for node ${nodeId} (socket: ${socket.id})`);
+        sshTerminal.connectReverse(socket, { nodeId });
+        return;
+      }
     }
 
     // SSH to remote node
-    if (!host) {
-      socket.emit('terminal:error', { message: 'Host is required for remote connections' });
+    if (host) {
+      logger.info(`SSH terminal requested: ${username || 'root'}@${host}:${port || 22} (socket: ${socket.id})`);
+      sshTerminal.connect(socket, {
+        host,
+        port: port || 22,
+        username: username || 'root',
+        password,
+        privateKey,
+      });
       return;
     }
 
-    logger.info(`SSH terminal requested: ${username || 'root'}@${host}:${port || 22} (socket: ${socket.id})`);
-    sshTerminal.connect(socket, {
-      host,
-      port: port || 22,
-      username: username || 'root',
-      password,
-      privateKey,
-    });
+    // Default to local PTY (combine mode fallback)
+    // If no host specified and no remote node found, use local terminal
+    logger.info(`No remote host specified, using local terminal (combine mode) (socket: ${socket.id})`);
+    sshTerminal.connectLocal(socket);
   }
 
   sendInitialData(socket) {

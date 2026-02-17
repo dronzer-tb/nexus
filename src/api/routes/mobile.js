@@ -1,186 +1,435 @@
 const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
+const os = require('os');
 const qrcode = require('qrcode');
 const logger = require('../../utils/logger');
 const database = require('../../utils/database');
 const authMiddleware = require('../../middleware/auth');
+const { comparePassword } = require('../../utils/password');
+const { verifyToken, decryptSecret } = require('../../utils/totp');
+const { hashApiKey } = require('../../utils/auth');
+const { createSession } = require('../../utils/session');
 
 /**
- * Mobile App Pairing Routes
- * For secure QR code-based mobile app connection
- * Part of v1.9.5 custom auth system
+ * Get the first non-internal IPv4 LAN address
  */
-
-// In-memory storage for pending pairings (expires after 5 minutes)
-const pendingPairings = new Map();
-
-// Clean up expired pairings every minute
-setInterval(() => {
-  const now = Date.now();
-  for (const [pairingId, data] of pendingPairings.entries()) {
-    if (data.expiresAt < now) {
-      pendingPairings.delete(pairingId);
-      logger.debug(`Expired pairing request removed: ${pairingId}`);
+function getLanIP() {
+  const interfaces = os.networkInterfaces();
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name]) {
+      // Skip internal/loopback and IPv6
+      if (iface.family === 'IPv4' && !iface.internal) {
+        // Prefer 192.168.x.x or 10.x.x.x over docker/virtual interfaces
+        if (iface.address.startsWith('192.168.') || iface.address.startsWith('10.')) {
+          return iface.address;
+        }
+      }
     }
   }
-}, 60000);
+  // Fallback: return any non-internal IPv4
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name]) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        return iface.address;
+      }
+    }
+  }
+  return '127.0.0.1';
+}
+
+/**
+ * Secure Mobile Authentication Routes
+ * Multi-step auth flow: QR Scan → OTP → Login + 2FA → API Key
+ * 
+ * Flow:
+ *   1. Dashboard calls init-pairing → gets QR data + OTP (60s)
+ *   2. Mobile scans QR, user enters OTP → validate-otp → tempToken (5min)
+ *   3. Mobile sends credentials + 2FA + tempToken → complete-auth → apiKey
+ */
+
+// ─── In-memory stores ───
+const pendingPairings = new Map();  // challengeId → { otp, challenge, serverUrl, expiresAt, otpAttempts, userId, username, step }
+const tempTokens = new Map();       // tempToken → { challengeId, userId, username, expiresAt }
+
+// ─── Clean up expired entries every 30s ───
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, data] of pendingPairings.entries()) {
+    if (data.expiresAt < now) {
+      pendingPairings.delete(id);
+      logger.debug(`Expired pairing challenge removed: ${id}`);
+    }
+  }
+  for (const [token, data] of tempTokens.entries()) {
+    if (data.expiresAt < now) {
+      tempTokens.delete(token);
+      logger.debug(`Expired temp token removed`);
+    }
+  }
+}, 30000);
+
 
 // ═══════════════════════════════════════════════════════════════
-// POST /api/mobile/generate-pairing - Generate QR code for pairing
+// POST /api/mobile/init-pairing
+// Dashboard initiates pairing → returns QR data + 6-digit OTP
+// Requires dashboard auth (session token)
 // ═══════════════════════════════════════════════════════════════
 
-router.post('/generate-pairing', authMiddleware, async (req, res) => {
+router.post('/init-pairing', authMiddleware, async (req, res) => {
   try {
-    // Generate unique pairing ID and token
-    const pairingId = `pair_${crypto.randomBytes(8).toString('hex')}`;
-    const pairingToken = crypto.randomBytes(32).toString('hex');
-    const expiresAt = Date.now() + (5 * 60 * 1000); // 5 minutes
+    const challengeId = `ch_${crypto.randomBytes(12).toString('hex')}`;
+    const challenge = crypto.randomBytes(32).toString('hex');
+    const otp = String(crypto.randomInt(100000, 999999)); // 6-digit OTP
+    const otpExpiresAt = Date.now() + 60000; // 60 seconds
 
-    // Get server URL (from request or config)
-    const protocol = req.protocol;
-    const host = req.get('host');
-    const serverUrl = `${protocol}://${host}`;
+    // Determine server URL from request or user-provided override
+    const { serverUrl: userServerUrl } = req.body;
+    let serverUrl = userServerUrl;
 
-    // Create pairing data
-    const pairingData = {
-      version: '1.9.5',
-      server_url: serverUrl,
-      pairing_id: pairingId,
-      token: pairingToken,
-      expires_at: expiresAt,
-      user_id: req.user.userId || req.user.apiKeyId
+    if (!serverUrl) {
+      const protocol = req.protocol;
+      const host = req.get('host');
+      const [hostname, port] = host.split(':');
+
+      // If accessed via localhost/127.0.0.1/0.0.0.0, auto-detect LAN IP
+      // so the mobile device can actually reach the server
+      if (['localhost', '127.0.0.1', '0.0.0.0', '::1'].includes(hostname)) {
+        const lanIp = getLanIP();
+        serverUrl = `${protocol}://${lanIp}${port ? ':' + port : ''}`;
+        logger.info(`Auto-detected LAN IP for mobile pairing: ${serverUrl}`);
+      } else {
+        serverUrl = `${protocol}://${host}`;
+      }
+    }
+
+    // QR payload — scanned by mobile app
+    const qrPayload = {
+      nexus: true,
+      version: '2.0',
+      challengeId,
+      challenge,
+      serverUrl,
+      expiresAt: otpExpiresAt,
     };
 
-    // Store pending pairing
-    pendingPairings.set(pairingId, {
-      token: pairingToken,
-      expiresAt,
-      userId: req.user.userId || req.user.apiKeyId,
-      username: req.user.username || req.user.name
+    // Generate QR code as data URL
+    const qrCodeDataURL = await qrcode.toDataURL(JSON.stringify(qrPayload), {
+      width: 320,
+      margin: 2,
+      color: { dark: '#000000', light: '#ffffff' },
     });
 
-    // Generate QR code
-    const qrCodeDataURL = await qrcode.toDataURL(JSON.stringify(pairingData));
+    // Store pending pairing
+    pendingPairings.set(challengeId, {
+      otp,
+      challenge,
+      serverUrl,
+      expiresAt: otpExpiresAt,
+      otpAttempts: 0,
+      maxAttempts: 3,
+      userId: req.user.userId || req.user.apiKeyId,
+      username: req.user.username || req.user.name,
+      step: 'waiting_otp', // waiting_otp → otp_verified → completed
+    });
 
-    logger.info(`Mobile pairing QR code generated for user ${req.user.username || req.user.name}`);
+    logger.info(`Mobile pairing initiated by ${req.user.username || req.user.name} — challenge ${challengeId}`);
 
     res.json({
       success: true,
-      pairingId,
+      challengeId,
       qrCode: qrCodeDataURL,
-      expiresAt,
-      expiresIn: 300 // 5 minutes in seconds
+      otp,
+      otpExpiresIn: 60,
+      expiresAt: otpExpiresAt,
     });
 
   } catch (error) {
-    logger.error('Generate pairing QR code error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to generate pairing code'
-    });
+    logger.error('Init pairing error:', error);
+    res.status(500).json({ success: false, error: 'Failed to initiate pairing' });
   }
 });
 
+
 // ═══════════════════════════════════════════════════════════════
-// POST /api/mobile/pair - Complete pairing and get API key
+// POST /api/mobile/validate-otp
+// Mobile sends challengeId + challenge + OTP → gets tempToken (5min)
+// No auth required (mobile doesn't have credentials yet)
 // ═══════════════════════════════════════════════════════════════
 
-router.post('/pair', async (req, res) => {
+router.post('/validate-otp', (req, res) => {
   try {
-    const { pairing_id, token, device_name, device_info } = req.body;
+    const { challengeId, challenge, otp } = req.body;
 
-    // Validation
-    if (!pairing_id || !token) {
+    if (!challengeId || !challenge || !otp) {
       return res.status(400).json({
         success: false,
-        error: 'Pairing ID and token are required'
+        error: 'challengeId, challenge, and otp are required',
       });
     }
 
-    // Check if pairing exists
-    const pairingData = pendingPairings.get(pairing_id);
+    const pairing = pendingPairings.get(challengeId);
 
-    if (!pairingData) {
+    if (!pairing) {
       return res.status(404).json({
         success: false,
-        error: 'Invalid or expired pairing code'
+        error: 'Invalid or expired pairing challenge',
       });
     }
 
-    // Verify token
-    if (pairingData.token !== token) {
-      logger.warn(`Invalid pairing token attempt for ${pairing_id}`);
-      return res.status(401).json({
-        success: false,
-        error: 'Invalid pairing token'
-      });
-    }
-
-    // Check expiration
-    if (pairingData.expiresAt < Date.now()) {
-      pendingPairings.delete(pairing_id);
+    // Check expiry
+    if (pairing.expiresAt < Date.now()) {
+      pendingPairings.delete(challengeId);
       return res.status(410).json({
         success: false,
-        error: 'Pairing code has expired'
+        error: 'OTP has expired. Please generate a new pairing code.',
       });
     }
 
-    // Generate API key for mobile device
+    // Verify challenge matches
+    if (pairing.challenge !== challenge) {
+      logger.warn(`Challenge mismatch for ${challengeId}`);
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid challenge',
+      });
+    }
+
+    // Check attempt limit
+    if (pairing.otpAttempts >= pairing.maxAttempts) {
+      pendingPairings.delete(challengeId);
+      logger.warn(`OTP max attempts reached for ${challengeId}`);
+      return res.status(429).json({
+        success: false,
+        error: 'Too many attempts. Please generate a new pairing code.',
+      });
+    }
+
+    pairing.otpAttempts++;
+
+    // Verify OTP (timing-safe)
+    const otpBuffer = Buffer.from(otp.padEnd(6, '0'));
+    const expectedBuffer = Buffer.from(pairing.otp.padEnd(6, '0'));
+    if (otpBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(otpBuffer, expectedBuffer)) {
+      const remaining = pairing.maxAttempts - pairing.otpAttempts;
+      logger.warn(`Invalid OTP for ${challengeId} — ${remaining} attempts remaining`);
+      return res.status(401).json({
+        success: false,
+        error: `Invalid OTP. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining.`,
+        attemptsRemaining: remaining,
+      });
+    }
+
+    // OTP valid — generate temp token (5 minutes)
+    const tempToken = crypto.randomBytes(32).toString('hex');
+    const tempExpiresAt = Date.now() + 5 * 60 * 1000;
+
+    tempTokens.set(tempToken, {
+      challengeId,
+      userId: pairing.userId,
+      username: pairing.username,
+      expiresAt: tempExpiresAt,
+    });
+
+    // Mark pairing as OTP verified
+    pairing.step = 'otp_verified';
+    pairing.expiresAt = tempExpiresAt; // Extend lifetime for auth step
+
+    logger.info(`OTP validated for challenge ${challengeId}`);
+
+    res.json({
+      success: true,
+      tempToken,
+      expiresIn: 300, // 5 mins
+      message: 'OTP verified. Please login with your credentials.',
+    });
+
+  } catch (error) {
+    logger.error('Validate OTP error:', error);
+    res.status(500).json({ success: false, error: 'OTP validation failed' });
+  }
+});
+
+
+// ═══════════════════════════════════════════════════════════════
+// POST /api/mobile/complete-auth
+// Mobile sends tempToken + username + password + totpCode → gets apiKey
+// No auth required (uses tempToken as proof of QR+OTP verification)
+// ═══════════════════════════════════════════════════════════════
+
+router.post('/complete-auth', async (req, res) => {
+  try {
+    const { tempToken, username, password, totpCode, recoveryCode, deviceName, deviceInfo } = req.body;
+
+    // Validate required fields
+    if (!tempToken) {
+      return res.status(400).json({ success: false, error: 'tempToken is required' });
+    }
+    if (!username || !password) {
+      return res.status(400).json({ success: false, error: 'Username and password are required' });
+    }
+    if (!totpCode && !recoveryCode) {
+      return res.status(400).json({ success: false, error: '2FA code is required' });
+    }
+
+    // Verify temp token
+    const tokenData = tempTokens.get(tempToken);
+    if (!tokenData) {
+      return res.status(401).json({ success: false, error: 'Invalid or expired temp token. Please restart pairing.' });
+    }
+    if (tokenData.expiresAt < Date.now()) {
+      tempTokens.delete(tempToken);
+      return res.status(410).json({ success: false, error: 'Temp token expired. Please restart pairing.' });
+    }
+
+    // Verify user credentials
+    const user = database.getUserByUsername(username);
+    if (!user) {
+      logger.warn(`Mobile auth: invalid username "${username}"`);
+      return res.status(401).json({ success: false, error: 'Invalid username or password' });
+    }
+
+    const passwordValid = await comparePassword(password, user.password);
+    if (!passwordValid) {
+      logger.warn(`Mobile auth: invalid password for "${username}"`);
+      return res.status(401).json({ success: false, error: 'Invalid username or password' });
+    }
+
+    // Verify 2FA
+    if (!user.totp_enabled || !user.totp_secret) {
+      return res.status(403).json({ success: false, error: '2FA is not enabled for this account' });
+    }
+
+    const totpSecret = decryptSecret(user.totp_secret);
+    let valid2FA = false;
+
+    if (totpCode) {
+      valid2FA = verifyToken(totpCode, totpSecret);
+      if (!valid2FA) {
+        logger.warn(`Mobile auth: invalid TOTP for "${username}"`);
+        return res.status(401).json({ success: false, error: 'Invalid 2FA code' });
+      }
+    } else if (recoveryCode) {
+      const { verifyRecoveryCode, hashRecoveryCode } = require('../../utils/totp');
+      const recoveryCodes = user.recovery_codes ? JSON.parse(user.recovery_codes) : [];
+      // Try the code as-is, then uppercase, then trimmed — handle case/whitespace from mobile input
+      const codesToTry = [
+        recoveryCode,
+        recoveryCode.toUpperCase(),
+        recoveryCode.trim().toUpperCase(),
+        recoveryCode.replace(/[\s-]/g, '').toUpperCase(),
+      ];
+      let verification = { valid: false, usedIndex: -1 };
+      for (const attempt of codesToTry) {
+        verification = verifyRecoveryCode(attempt, recoveryCodes);
+        if (verification.valid) break;
+      }
+      if (!verification.valid) {
+        return res.status(401).json({ success: false, error: 'Invalid recovery code' });
+      }
+      // Remove used recovery code
+      recoveryCodes.splice(verification.usedIndex, 1);
+      database.updateUser(user.id, { recoveryCodes: JSON.stringify(recoveryCodes) });
+      valid2FA = true;
+    }
+
+    if (!valid2FA) {
+      return res.status(401).json({ success: false, error: 'Invalid 2FA verification' });
+    }
+
+    // ── All checks passed — generate API key for mobile device ──
     const apiKey = crypto.randomBytes(32).toString('hex');
-    const { hashApiKey } = require('../../utils/auth');
     const keyHash = hashApiKey(apiKey);
     const keyId = `mobile_${crypto.randomBytes(8).toString('hex')}`;
-    const deviceNameFinal = device_name || 'Mobile Device';
+    const finalDeviceName = deviceName || 'Mobile Device';
 
-    // Create API key in database
-    const result = database.createApiKey({
+    database.createApiKey({
       id: keyId,
-      name: `${deviceNameFinal} (Mobile)`,
-      keyHash: keyHash,
+      name: `${finalDeviceName} (Mobile)`,
+      keyHash,
       keyPreview: `${apiKey.substring(0, 8)}...`,
       permissions: 'read,write',
       expiresAt: null,
       metadata: JSON.stringify({
         type: 'mobile',
-        deviceName: deviceNameFinal,
-        deviceInfo: device_info || {},
-        pairedBy: pairingData.username,
-        pairedAt: Date.now()
-      })
+        deviceName: finalDeviceName,
+        deviceInfo: deviceInfo || {},
+        pairedBy: username,
+        pairedAt: Date.now(),
+        challengeId: tokenData.challengeId,
+      }),
     });
 
-    // Remove pending pairing
-    pendingPairings.delete(pairing_id);
+    // Clean up temp token and pairing
+    tempTokens.delete(tempToken);
+    pendingPairings.delete(tokenData.challengeId);
 
-    logger.info(`Mobile device paired successfully: ${deviceNameFinal} (API Key ID: ${result.lastInsertRowid})`);
+    // Get the server URL from the pairing data
+    const serverUrl = `${req.protocol}://${req.get('host')}`;
+
+    logger.info(`Mobile device paired: "${finalDeviceName}" for user "${username}" (key: ${keyId})`);
 
     res.json({
       success: true,
-      api_key: apiKey,
-      server_url: req.body.server_url || `${req.protocol}://${req.get('host')}`,
-      message: 'Device paired successfully'
+      apiKey,
+      serverUrl,
+      deviceId: keyId,
+      message: 'Device paired successfully',
     });
 
   } catch (error) {
-    logger.error('Mobile pairing error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to complete pairing'
-    });
+    logger.error('Complete auth error:', error);
+    res.status(500).json({ success: false, error: 'Authentication failed' });
   }
 });
 
+
 // ═══════════════════════════════════════════════════════════════
-// GET /api/mobile/paired-devices - Get list of paired mobile devices
+// GET /api/mobile/pairing-status/:challengeId
+// Dashboard polls to check if mobile has completed pairing
+// ═══════════════════════════════════════════════════════════════
+
+router.get('/pairing-status/:challengeId', authMiddleware, (req, res) => {
+  try {
+    const { challengeId } = req.params;
+    const pairing = pendingPairings.get(challengeId);
+
+    if (!pairing) {
+      // Either completed or expired
+      return res.json({
+        success: true,
+        status: 'completed_or_expired',
+        step: 'unknown',
+        pending: false,
+      });
+    }
+
+    const timeRemaining = Math.max(0, Math.floor((pairing.expiresAt - Date.now()) / 1000));
+
+    res.json({
+      success: true,
+      status: pairing.step,
+      pending: pairing.step !== 'completed',
+      expiresIn: timeRemaining,
+      otpAttempts: pairing.otpAttempts,
+    });
+
+  } catch (error) {
+    logger.error('Pairing status error:', error);
+    res.status(500).json({ success: false, error: 'Failed to check pairing status' });
+  }
+});
+
+
+// ═══════════════════════════════════════════════════════════════
+// GET /api/mobile/paired-devices
+// Get list of paired mobile devices (requires auth)
 // ═══════════════════════════════════════════════════════════════
 
 router.get('/paired-devices', authMiddleware, (req, res) => {
   try {
-    // Get all API keys
     const allKeys = database.getAllApiKeys();
 
-    // Filter for mobile devices
     const mobileDevices = allKeys
       .filter(key => {
         try {
@@ -200,112 +449,56 @@ router.get('/paired-devices', authMiddleware, (req, res) => {
           pairedBy: metadata.pairedBy,
           pairedAt: metadata.pairedAt,
           lastUsed: key.last_used,
-          createdAt: key.created_at
+          createdAt: key.created_at,
         };
       });
 
     res.json({
       success: true,
       devices: mobileDevices,
-      count: mobileDevices.length
+      count: mobileDevices.length,
     });
 
   } catch (error) {
     logger.error('Get paired devices error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to get paired devices'
-    });
+    res.status(500).json({ success: false, error: 'Failed to get paired devices' });
   }
 });
 
+
 // ═══════════════════════════════════════════════════════════════
-// DELETE /api/mobile/unpair/:deviceId - Unpair a mobile device
+// DELETE /api/mobile/unpair/:deviceId
+// Unpair (revoke) a mobile device (requires auth)
 // ═══════════════════════════════════════════════════════════════
 
 router.delete('/unpair/:deviceId', authMiddleware, (req, res) => {
   try {
     const { deviceId } = req.params;
-
-    // Get the API key to verify it's a mobile device
     const apiKey = database.getApiKeyById(deviceId);
 
     if (!apiKey) {
-      return res.status(404).json({
-        success: false,
-        error: 'Device not found'
-      });
+      return res.status(404).json({ success: false, error: 'Device not found' });
     }
 
-    // Verify it's a mobile device
     try {
       const metadata = JSON.parse(apiKey.metadata);
       if (metadata.type !== 'mobile') {
-        return res.status(400).json({
-          success: false,
-          error: 'This is not a mobile device'
-        });
+        return res.status(400).json({ success: false, error: 'Not a mobile device' });
       }
     } catch {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid device metadata'
-      });
+      return res.status(400).json({ success: false, error: 'Invalid device metadata' });
     }
 
-    // Delete the API key
     database.deleteApiKey(deviceId);
-
     logger.info(`Mobile device unpaired: ${apiKey.name} (ID: ${deviceId})`);
 
-    res.json({
-      success: true,
-      message: 'Device unpaired successfully'
-    });
+    res.json({ success: true, message: 'Device unpaired successfully' });
 
   } catch (error) {
     logger.error('Unpair device error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to unpair device'
-    });
+    res.status(500).json({ success: false, error: 'Failed to unpair device' });
   }
 });
 
-// ═══════════════════════════════════════════════════════════════
-// GET /api/mobile/pairing-status/:pairingId - Check pairing status
-// ═══════════════════════════════════════════════════════════════
-
-router.get('/pairing-status/:pairingId', authMiddleware, (req, res) => {
-  try {
-    const { pairingId } = req.params;
-
-    const pairingData = pendingPairings.get(pairingId);
-
-    if (!pairingData) {
-      return res.json({
-        success: true,
-        status: 'completed_or_expired',
-        pending: false
-      });
-    }
-
-    const timeRemaining = Math.max(0, Math.floor((pairingData.expiresAt - Date.now()) / 1000));
-
-    res.json({
-      success: true,
-      status: 'pending',
-      pending: true,
-      expiresIn: timeRemaining
-    });
-
-  } catch (error) {
-    logger.error('Pairing status check error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to check pairing status'
-    });
-  }
-});
 
 module.exports = router;

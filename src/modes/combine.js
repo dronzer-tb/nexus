@@ -12,6 +12,7 @@ class CombineMode {
   async start() {
     logger.info('Starting Nexus in COMBINE mode...');
     logger.info('Running both Node and Server components...');
+    logger.info('Console will use local terminal (no reverse-ssh required for combine mode)');
 
     try {
       // Start server first
@@ -24,7 +25,12 @@ class CombineMode {
       const serverPort = this.serverMode.port || config.get('server.port') || 8080;
       const nodeUrl = `http://127.0.0.1:${serverPort}`;
       config.set('node.serverUrl', nodeUrl);
+      
+      // For combine mode, disable reverse SSH tunnel (use local PTY instead)
+      config.set('node.enableReverseTunnel', false);
+
       logger.info(`Combine mode: node will report to ${nodeUrl}`);
+      logger.info(`Combine mode: console uses local terminal (no SSH tunnel needed)`);
 
       // Start node mode
       await this.nodeMode.start();

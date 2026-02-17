@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const logger = require('../utils/logger');
 const config = require('../utils/config');
+const revTunnelManager = require('../utils/reverse-ssh-tunnel');
 
 /**
  * SSH Terminal Manager v2
@@ -21,6 +22,7 @@ class SSHTerminalManager {
   constructor() {
     this.sessions = new Map(); // socketId -> session
     this._keyPair = null;
+    this._connectCooldown = new Map(); // socketId -> timestamp, prevent rapid reconnects
   }
 
   /* ─── SSH Key Management ─────────────────── */
@@ -170,6 +172,99 @@ class SSHTerminalManager {
 
   /* ─── SSH Connection (uses Nexus keypair) ── */
 
+  /**
+   * Connect via reverse SSH tunnel (node connects back to server)
+   */
+  connectReverse(socket, connectionInfo) {
+    const { nodeId } = connectionInfo;
+    const socketId = socket.id;
+
+    this.disconnect(socketId);
+
+    try {
+      const tunnelInfo = revTunnelManager.getTunnelInfo(nodeId);
+      if (!tunnelInfo) {
+        socket.emit('terminal:error', { 
+          message: `No reverse SSH tunnel active for node ${nodeId}. Make sure the node has started with reverse-ssh enabled.` 
+        });
+        return;
+      }
+
+      const keyPair = this.ensureKeyPair();
+      const conn = new Client();
+
+      logger.info(`Connecting via reverse SSH tunnel to node ${nodeId} on localhost:${tunnelInfo.localPort}`);
+
+      conn.on('ready', () => {
+        logger.info(`Reverse tunnel connection established to node ${nodeId}`);
+
+        conn.shell({ term: 'xterm-256color', cols: 120, rows: 30 }, (err, stream) => {
+          if (err) {
+            logger.error('Reverse SSH shell error:', err);
+            socket.emit('terminal:error', { message: 'Failed to open shell' });
+            return;
+          }
+
+          this.sessions.set(socketId, {
+            conn, stream, host: `${nodeId} (reverse)`, username: 'root', nodeId, isReverse: true,
+          });
+
+          stream.on('data', (data) => socket.emit('terminal:data', data.toString('utf8')));
+          stream.stderr.on('data', (data) => socket.emit('terminal:data', data.toString('utf8')));
+          stream.on('close', () => {
+            logger.info(`Reverse SSH session closed for socket ${socketId}`);
+            socket.emit('terminal:closed');
+            this.sessions.delete(socketId);
+          });
+
+          socket.emit('terminal:connected', {
+            host: `${nodeId} (via reverse tunnel)`,
+            username: 'root',
+            message: `Connected to ${nodeId} via reverse SSH tunnel`,
+          });
+        });
+      });
+
+      conn.on('error', (err) => {
+        logger.error(`Reverse tunnel connection error to node ${nodeId}:`, err.message);
+
+        let userMessage = `Reverse tunnel failed: ${err.message}`;
+        if (err.message.includes('Authentication') || err.message.includes('auth')) {
+          userMessage = `Authentication failed on reverse tunnel. Check node log on node side.`;
+        } else if (err.message.includes('ECONNREFUSED')) {
+          userMessage = `Reverse tunnel not responding. Is reverse-ssh process running on the node?`;
+        }
+
+        socket.emit('terminal:error', { message: userMessage });
+        this.sessions.delete(socketId);
+      });
+
+      conn.on('close', () => {
+        this.sessions.delete(socketId);
+      });
+
+      const connectOpts = {
+        host: '127.0.0.1',
+        port: tunnelInfo.localPort,
+        username: 'root',
+        privateKey: keyPair.privateKey,
+        readyTimeout: 10000,
+      };
+
+      try {
+        conn.connect(connectOpts);
+      } catch (err) {
+        logger.error('Reverse tunnel connect failed:', err);
+        socket.emit('terminal:error', { message: `Tunnel connection failed: ${err.message}` });
+      }
+    } catch (err) {
+      logger.error(`Error setting up reverse tunnel for node ${nodeId}:`, err);
+      socket.emit('terminal:error', { message: `Failed to establish reverse tunnel: ${err.message}` });
+    }
+  }
+
+  /* ─── SSH Connection (uses Nexus keypair) ── */
+
   connect(socket, connectionInfo) {
     const { host, port, username } = connectionInfo;
     const socketId = socket.id;
@@ -246,11 +341,36 @@ class SSHTerminalManager {
 
   connectLocal(socket) {
     const socketId = socket.id;
-    this.disconnect(socketId);
+
+    // If there's already an active healthy PTY session, just re-send connected event
+    const existing = this.sessions.get(socketId);
+    if (existing && existing.pty && existing.isLocal) {
+      logger.debug(`Reusing existing local PTY for socket ${socketId}`);
+      socket.emit('terminal:connected', {
+        host: 'localhost',
+        username: process.env.USER || 'local',
+        message: 'Already connected to local shell',
+      });
+      return;
+    }
+
+    // Prevent rapid reconnection (cooldown of 1 second)
+    const now = Date.now();
+    const lastConnect = this._connectCooldown.get(socketId);
+    if (lastConnect && (now - lastConnect) < 1000) {
+      logger.info(`Ignoring rapid reconnect for socket ${socketId} (${now - lastConnect}ms since last)`);
+      return;
+    }
+    this._connectCooldown.set(socketId, now);
+
+    // Mark existing session as intentionally replaced (don't send terminal:closed)
+    this.disconnect(socketId, true); // true = silent (being replaced)
 
     try {
       const pty = require('node-pty');
       const shell = process.env.SHELL || '/bin/bash';
+
+      logger.info(`Starting local PTY with shell: ${shell}`);
 
       const ptyProcess = pty.spawn(shell, [], {
         name: 'xterm-256color',
@@ -260,28 +380,48 @@ class SSHTerminalManager {
         env: { ...process.env, TERM: 'xterm-256color' },
       });
 
+      // Store session immediately
       this.sessions.set(socketId, {
         pty: ptyProcess, host: 'localhost',
         username: process.env.USER || 'local',
         isLocal: true,
       });
 
-      ptyProcess.onData((data) => socket.emit('terminal:data', data));
-      ptyProcess.onExit(({ exitCode }) => {
-        logger.info(`Local PTY exited with code ${exitCode} (socket: ${socketId})`);
-        socket.emit('terminal:closed');
-        this.sessions.delete(socketId);
-      });
+      logger.info(`Local PTY spawned for socket ${socketId}`);
 
+      // Send connected message first
       socket.emit('terminal:connected', {
         host: 'localhost',
         username: process.env.USER || 'local',
-        message: 'Connected to local shell',
+        message: `Connected to local shell (${shell})`,
+      });
+      
+      logger.info(`Sent terminal:connected event for socket ${socketId}`);
+
+      // Set up data handlers
+      ptyProcess.onData((data) => {
+        logger.debug(`PTY data (${data.length} bytes) for socket ${socketId}`);
+        socket.emit('terminal:data', data);
       });
 
-      logger.info(`Local PTY started for socket ${socketId}`);
+      ptyProcess.onExit(({ exitCode }) => {
+        // Check if this PTY is still the active session (not replaced by a newer one)
+        const currentSession = this.sessions.get(socketId);
+        if (currentSession && currentSession.pty === ptyProcess) {
+          // This PTY exited on its own (user typed exit, shell crashed, etc.)
+          logger.info(`Local PTY exited with code ${exitCode} (socket: ${socketId})`);
+          socket.emit('terminal:closed');
+          this.sessions.delete(socketId);
+        } else {
+          // PTY was replaced by a newer connection, don't emit terminal:closed
+          logger.debug(`Replaced PTY exited for socket ${socketId} (suppressed terminal:closed)`);
+        }
+      });
+
+      logger.info(`Local PTY ready for socket ${socketId}`);
     } catch (err) {
       logger.error('Failed to start local PTY:', err);
+      logger.error('Error stack:', err.stack);
       socket.emit('terminal:error', { message: `Local terminal failed: ${err.message}` });
     }
   }
@@ -290,9 +430,24 @@ class SSHTerminalManager {
 
   write(socketId, data) {
     const session = this.sessions.get(socketId);
-    if (!session) return;
-    if (session.stream) session.stream.write(data);
-    else if (session.pty) session.pty.write(data);
+    if (!session) {
+      logger.warn(`Write attempted for unknown session: ${socketId}`);
+      return;
+    }
+    
+    try {
+      if (session.stream) {
+        logger.debug(`Writing to SSH stream for socket ${socketId} (${data.length} bytes)`);
+        session.stream.write(data);
+      } else if (session.pty) {
+        logger.debug(`Writing to PTY for socket ${socketId} (${data.length} bytes)`);
+        session.pty.write(data);
+      } else {
+        logger.warn(`No stream or PTY found for socket ${socketId}`);
+      }
+    } catch (err) {
+      logger.error(`Error writing to session ${socketId}:`, err);
+    }
   }
 
   resize(socketId, cols, rows) {
@@ -302,9 +457,13 @@ class SSHTerminalManager {
     else if (session.pty) session.pty.resize(cols, rows);
   }
 
-  disconnect(socketId) {
+  disconnect(socketId, silent = false) {
     const session = this.sessions.get(socketId);
     if (!session) return;
+    // Mark as replaced so the onExit handler knows not to emit terminal:closed
+    if (silent) {
+      session._replaced = true;
+    }
     try {
       if (session.stream) session.stream.end();
       if (session.conn) session.conn.end();
@@ -313,6 +472,7 @@ class SSHTerminalManager {
       logger.debug('Error cleaning up session:', err.message);
     }
     this.sessions.delete(socketId);
+    // Note: don't delete _connectCooldown here — it's needed to prevent rapid reconnects
   }
 
   getSessionCount() { return this.sessions.size; }

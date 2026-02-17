@@ -2,31 +2,64 @@ import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { decryptResponse } from './encryption';
 
+/**
+ * Nexus Mobile API Layer
+ * Handles secure storage, multi-step pairing flow, and data fetching
+ */
+
+// ─── Secure Storage Keys ───
 const KEYS = {
   SERVER_URL: 'nexus_server_url',
   API_KEY: 'nexus_api_key',
   ENCRYPTION_SALT: 'nexus_encryption_salt',
+  DEVICE_ID: 'nexus_device_id',
+  IS_PAIRED: 'nexus_is_paired',
 };
 
-// Get stored connection settings
+// ═══════════════════════════════════════════════════════════════
+// Secure Storage
+// ═══════════════════════════════════════════════════════════════
+
 export async function getSettings() {
-  const serverUrl = await SecureStore.getItemAsync(KEYS.SERVER_URL);
-  const apiKey = await SecureStore.getItemAsync(KEYS.API_KEY);
-  return { serverUrl: serverUrl || '', apiKey: apiKey || '' };
+  const [serverUrl, apiKey, deviceId, isPaired] = await Promise.all([
+    SecureStore.getItemAsync(KEYS.SERVER_URL),
+    SecureStore.getItemAsync(KEYS.API_KEY),
+    SecureStore.getItemAsync(KEYS.DEVICE_ID),
+    SecureStore.getItemAsync(KEYS.IS_PAIRED),
+  ]);
+  return {
+    serverUrl: serverUrl || '',
+    apiKey: apiKey || '',
+    deviceId: deviceId || '',
+    isPaired: isPaired === 'true',
+  };
 }
 
-// Save connection settings
-export async function saveSettings(serverUrl, apiKey) {
-  await SecureStore.setItemAsync(KEYS.SERVER_URL, serverUrl.trim());
-  await SecureStore.setItemAsync(KEYS.API_KEY, apiKey.trim());
+export async function savePairingResult({ serverUrl, apiKey, deviceId }) {
+  await Promise.all([
+    SecureStore.setItemAsync(KEYS.SERVER_URL, serverUrl),
+    SecureStore.setItemAsync(KEYS.API_KEY, apiKey),
+    SecureStore.setItemAsync(KEYS.DEVICE_ID, deviceId || ''),
+    SecureStore.setItemAsync(KEYS.IS_PAIRED, 'true'),
+  ]);
 }
 
-// Clear connection settings
 export async function clearSettings() {
-  await SecureStore.deleteItemAsync(KEYS.SERVER_URL);
-  await SecureStore.deleteItemAsync(KEYS.API_KEY);
-  await SecureStore.deleteItemAsync(KEYS.ENCRYPTION_SALT);
+  await Promise.all(
+    Object.values(KEYS).map(k => SecureStore.deleteItemAsync(k))
+  );
 }
+
+export async function isPaired() {
+  const val = await SecureStore.getItemAsync(KEYS.IS_PAIRED);
+  return val === 'true';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// API Client Factory (for authenticated requests)
+// ═══════════════════════════════════════════════════════════════
+
+let _apiInstance = null;
 
 // Get the cached encryption salt, or fetch from server
 async function getEncryptionSalt(baseURL, apiKey) {
@@ -49,18 +82,14 @@ async function getEncryptionSalt(baseURL, apiKey) {
   return null;
 }
 
-// Create an axios instance using stored settings with automatic decryption
 export async function createApi() {
   const { serverUrl, apiKey } = await getSettings();
 
   if (!serverUrl || !apiKey) {
-    throw new Error('Server URL and API key are required. Configure them in Settings.');
+    throw new Error('Not paired. Please pair this device first.');
   }
 
-  // Normalize URL — remove trailing slash
   const baseURL = serverUrl.replace(/\/+$/, '');
-
-  // Fetch encryption salt
   const salt = await getEncryptionSalt(baseURL, apiKey);
 
   const instance = axios.create({
@@ -72,7 +101,7 @@ export async function createApi() {
     },
   });
 
-  // Add response interceptor to auto-decrypt encrypted responses
+  // Auto-decrypt encrypted responses
   instance.interceptors.response.use(
     async (response) => {
       if (response.data && response.data.encrypted === true && response.data.data) {
@@ -80,7 +109,6 @@ export async function createApi() {
           response.data = await decryptResponse(response.data, apiKey, salt);
         } catch (err) {
           console.warn('Failed to decrypt response:', err.message);
-          // Return encrypted data as-is if decryption fails
         }
       }
       return response;
@@ -91,16 +119,69 @@ export async function createApi() {
   return instance;
 }
 
-// Verify connection + API key
-export async function verifyConnection(serverUrl, apiKey) {
-  const baseURL = serverUrl.replace(/\/+$/, '');
+export function resetApi() {
+  _apiInstance = null;
+}
 
+async function getApi() {
+  if (_apiInstance) return _apiInstance;
+  _apiInstance = await createApi();
+  return _apiInstance;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Pairing Flow API (no API key needed)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Step 1 result: QR payload parsed from scan
+ * { nexus: true, version, challengeId, challenge, serverUrl, expiresAt }
+ */
+
+/**
+ * Step 2: Validate OTP — sends challengeId + challenge + user-entered OTP
+ * Returns: { success, tempToken, expiresIn, message }
+ */
+export async function validateOTP(serverUrl, challengeId, challenge, otp) {
+  const baseURL = serverUrl.replace(/\/+$/, '');
+  const res = await axios.post(`${baseURL}/api/mobile/validate-otp`, {
+    challengeId,
+    challenge,
+    otp,
+  }, { timeout: 15000 });
+  return res.data;
+}
+
+/**
+ * Step 3: Complete auth — sends tempToken + credentials + 2FA
+ * Returns: { success, apiKey, serverUrl, deviceId, message }
+ */
+export async function completeAuth(serverUrl, { tempToken, username, password, totpCode, recoveryCode, deviceName, deviceInfo }) {
+  const baseURL = serverUrl.replace(/\/+$/, '');
+  const res = await axios.post(`${baseURL}/api/mobile/complete-auth`, {
+    tempToken,
+    username,
+    password,
+    totpCode,
+    recoveryCode,
+    deviceName,
+    deviceInfo,
+  }, { timeout: 15000 });
+  return res.data;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Connection Verification
+// ═══════════════════════════════════════════════════════════════
+
+export async function verifyConnection(serverUrl, apiKey) {
+  const baseURL = (serverUrl || '').replace(/\/+$/, '');
   const res = await axios.get(`${baseURL}/api/auth/api-keys/verify`, {
     headers: { 'X-API-Key': apiKey },
     timeout: 8000,
   });
 
-  // Also fetch and cache encryption salt during verification
+  // Cache encryption salt
   try {
     const encRes = await axios.get(`${baseURL}/api/auth/encryption-info`, {
       headers: { 'X-API-Key': apiKey },
@@ -116,25 +197,26 @@ export async function verifyConnection(serverUrl, apiKey) {
   return res.data;
 }
 
-// Fetch all nodes with metrics
+// ═══════════════════════════════════════════════════════════════
+// Data Fetching (authenticated)
+// ═══════════════════════════════════════════════════════════════
+
 export async function fetchNodes() {
-  const api = await createApi();
+  const api = await getApi();
   const res = await api.get('/api/nodes');
   return res.data.nodes || [];
 }
 
-// Fetch latest metrics for a specific node
+export async function fetchNode(nodeId) {
+  const api = await getApi();
+  const res = await api.get(`/api/nodes/${nodeId}`);
+  return res.data;
+}
+
 export async function fetchNodeMetrics(nodeId, limit = 50) {
-  const api = await createApi();
+  const api = await getApi();
   const res = await api.get(`/api/metrics/${nodeId}/latest`, {
     params: { limit },
   });
   return res.data;
-}
-
-// Fetch a specific node
-export async function fetchNode(nodeId) {
-  const api = await createApi();
-  const res = await api.get(`/api/nodes/${nodeId}`);
-  return res.data.node;
 }

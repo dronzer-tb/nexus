@@ -50,9 +50,8 @@ const TerminalPanel = ({ socket, node, panelId, onClose, isSplit }) => {
   const [status, setStatus] = useState('connecting');
   const [error, setError] = useState(null);
 
-  // Determine connection type: local for combine mode servers, ssh for remote
-  // We always try SSH with the Nexus keypair first
-  const isLocalNode = node.id === 'local' || node.hostname === 'localhost';
+  // Use server-provided isLocal flag (detected in combine mode by hostname match)
+  const isLocalNode = !!node.isLocal;
 
   return (
     <motion.div

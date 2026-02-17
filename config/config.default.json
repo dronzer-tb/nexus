@@ -8,7 +8,20 @@
   "node": {
     "serverUrl": "http://localhost:8080",
     "reportInterval": 5000,
-    "hostname": ""
+    "hostname": "",
+    "enableReverseTunnel": true,
+    "serverHost": "localhost",
+    "serverSSHPort": 22,
+    "reverseUsername": "nexus",
+    "reversePassword": "nexus-tunnel-123",
+    "reverseLocalPort": 9000,
+    "autoRestartReverseTunnel": true
+  },
+  "reverse-ssh": {
+    "enabled": true,
+    "username": "nexus",
+    "password": "nexus-tunnel-123",
+    "port": 9000
   },
   "database": {
     "path": "./data/nexus.db"

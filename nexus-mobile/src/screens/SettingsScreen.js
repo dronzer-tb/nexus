@@ -1,58 +1,45 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TextInput,
-  TouchableOpacity, Alert, ActivityIndicator, KeyboardAvoidingView, Platform,
+  View, Text, StyleSheet, ScrollView,
+  TouchableOpacity, Alert, ActivityIndicator,
 } from 'react-native';
 import { colors, spacing } from '../theme';
-import { getSettings, saveSettings, clearSettings, verifyConnection } from '../api';
+import { getSettings, clearSettings, verifyConnection, resetApi } from '../api';
 
-/* ─── Settings Screen ─── */
-export default function SettingsScreen() {
-  const [serverUrl, setServerUrl] = useState('');
-  const [apiKey, setApiKey] = useState('');
-  const [showKey, setShowKey] = useState(false);
+/**
+ * Settings Screen (Post-Pairing)
+ * Shows connection status, device info, and unpair option
+ */
+export default function SettingsScreen({ onUnpair }) {
+  const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null);
-  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    (async () => {
-      const settings = await getSettings();
-      setServerUrl(settings.serverUrl);
-      setApiKey(settings.apiKey);
-      setLoading(false);
-    })();
+    loadSettings();
   }, []);
 
-  const handleSave = async () => {
-    if (!serverUrl.trim()) {
-      Alert.alert('Error', 'Server URL is required');
-      return;
+  const loadSettings = async () => {
+    setLoading(true);
+    try {
+      const s = await getSettings();
+      setSettings(s);
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
     }
-    if (!apiKey.trim()) {
-      Alert.alert('Error', 'API Key is required');
-      return;
-    }
-
-    await saveSettings(serverUrl, apiKey);
-    setSaved(true);
-    setTestResult(null);
-    setTimeout(() => setSaved(false), 2500);
   };
 
   const handleTest = async () => {
-    if (!serverUrl.trim() || !apiKey.trim()) {
-      Alert.alert('Error', 'Fill in both Server URL and API Key first');
-      return;
-    }
-
+    if (!settings?.serverUrl || !settings?.apiKey) return;
     setTesting(true);
     setTestResult(null);
 
     try {
-      const result = await verifyConnection(serverUrl.trim(), apiKey.trim());
-      setTestResult({ success: true, name: result.name || 'Valid' });
+      const result = await verifyConnection(settings.serverUrl, settings.apiKey);
+      setTestResult({ success: true, name: result.name || 'Connected' });
     } catch (err) {
       const msg = err.response?.data?.message || err.message || 'Connection failed';
       setTestResult({ success: false, message: msg });
@@ -61,20 +48,19 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleClear = () => {
+  const handleUnpair = () => {
     Alert.alert(
-      'Clear Settings',
-      'This will remove your server URL and API key. Continue?',
+      'Unpair Device',
+      'This will remove all credentials from this device. You will need to re-pair to access Nexus.\n\nContinue?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Clear',
+          text: 'Unpair',
           style: 'destructive',
           onPress: async () => {
             await clearSettings();
-            setServerUrl('');
-            setApiKey('');
-            setTestResult(null);
+            resetApi();
+            if (onUnpair) onUnpair();
           },
         },
       ]
@@ -91,165 +77,125 @@ export default function SettingsScreen() {
     );
   }
 
+  const maskedKey = settings?.apiKey
+    ? `${settings.apiKey.substring(0, 8)}${'•'.repeat(20)}${settings.apiKey.slice(-4)}`
+    : '—';
+
   return (
-    <KeyboardAvoidingView
+    <ScrollView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      contentContainerStyle={styles.scrollContent}
     >
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>SETTINGS</Text>
-        </View>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>SETTINGS</Text>
+      </View>
 
-        {/* Connection Section */}
-        <View style={styles.section}>
-          <View style={[styles.sectionHeader, { borderLeftColor: colors.cyan }]}>
-            <Text style={[styles.sectionTitle, { color: colors.cyan }]}>CONNECTION</Text>
-          </View>
+      {/* Connection Status */}
+      <View style={styles.section}>
+        <SectionHeader title="CONNECTION" color={colors.cyan} />
+        <View style={styles.card}>
+          <InfoRow label="Server" value={settings?.serverUrl || '—'} />
+          <InfoRow label="API Key" value={maskedKey} mono />
+          <InfoRow label="Device ID" value={settings?.deviceId || '—'} mono />
+          <InfoRow
+            label="Status"
+            value={settings?.isPaired ? '● PAIRED' : '○ NOT PAIRED'}
+            valueColor={settings?.isPaired ? colors.accent : colors.danger}
+          />
 
-          <View style={styles.card}>
-            {/* Server URL */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>SERVER URL</Text>
-              <TextInput
-                style={styles.input}
-                value={serverUrl}
-                onChangeText={setServerUrl}
-                placeholder="http://192.168.1.100:8080"
-                placeholderTextColor={colors.textMuted}
-                autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="url"
-              />
-              <Text style={styles.inputHint}>
-                The full URL of your Nexus server (include port)
-              </Text>
-            </View>
-
-            {/* API Key */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>API KEY</Text>
-              <View style={styles.inputRow}>
-                <TextInput
-                  style={[styles.input, { flex: 1 }]}
-                  value={apiKey}
-                  onChangeText={setApiKey}
-                  placeholder="nxk_..."
-                  placeholderTextColor={colors.textMuted}
-                  secureTextEntry={!showKey}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-                <TouchableOpacity
-                  style={styles.toggleBtn}
-                  onPress={() => setShowKey(!showKey)}
-                >
-                  <Text style={styles.toggleBtnText}>{showKey ? 'HIDE' : 'SHOW'}</Text>
-                </TouchableOpacity>
-              </View>
-              <Text style={styles.inputHint}>
-                Generate an API key from the Nexus dashboard (Settings → API Keys)
-              </Text>
-            </View>
-
-            {/* Test Result */}
-            {testResult && (
-              <View style={[
-                styles.testResult,
-                { borderColor: testResult.success ? colors.success + '60' : colors.danger + '60' }
+          {/* Test result */}
+          {testResult && (
+            <View style={[
+              styles.testResult,
+              { borderColor: testResult.success ? (colors.success || '#22c55e') + '60' : colors.danger + '60' },
+            ]}>
+              <Text style={[
+                styles.testResultText,
+                { color: testResult.success ? (colors.success || '#22c55e') : colors.danger },
               ]}>
-                <Text style={[
-                  styles.testResultText,
-                  { color: testResult.success ? colors.success : colors.danger }
-                ]}>
-                  {testResult.success
-                    ? `✓ Connected! Key: "${testResult.name}"`
-                    : `✗ ${testResult.message}`}
-                </Text>
-              </View>
-            )}
-
-            {/* Saved Feedback */}
-            {saved && (
-              <View style={[styles.testResult, { borderColor: colors.accent + '60' }]}>
-                <Text style={[styles.testResultText, { color: colors.accent }]}>
-                  ✓ Settings saved!
-                </Text>
-              </View>
-            )}
-
-            {/* Buttons */}
-            <View style={styles.btnRow}>
-              <TouchableOpacity
-                style={[styles.btn, styles.btnPrimary]}
-                onPress={handleTest}
-                disabled={testing}
-              >
-                {testing ? (
-                  <ActivityIndicator size="small" color={colors.bg} />
-                ) : (
-                  <Text style={styles.btnPrimaryText}>Test Connection</Text>
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.btn, styles.btnSecondary]}
-                onPress={handleSave}
-              >
-                <Text style={styles.btnSecondaryText}>Save</Text>
-              </TouchableOpacity>
+                {testResult.success
+                  ? `✓ Connected! (${testResult.name})`
+                  : `✗ ${testResult.message}`}
+              </Text>
             </View>
-          </View>
-        </View>
+          )}
 
-        {/* Help Section */}
-        <View style={styles.section}>
-          <View style={[styles.sectionHeader, { borderLeftColor: colors.pink }]}>
-            <Text style={[styles.sectionTitle, { color: colors.pink }]}>HOW TO CONNECT</Text>
-          </View>
-
-          <View style={styles.card}>
-            <Step number="1" text="Open Nexus dashboard in your browser" />
-            <Step number="2" text="Go to Settings → API Keys" />
-            <Step number="3" text='Click "New Key" and give it a name (e.g. "My Phone")' />
-            <Step number="4" text="Copy the generated key (starts with nxk_)" />
-            <Step number="5" text="Paste the server URL and key above" />
-            <Step number="6" text='Hit "Test Connection" to verify' />
-          </View>
-        </View>
-
-        {/* Danger Zone */}
-        <View style={styles.section}>
-          <View style={[styles.sectionHeader, { borderLeftColor: colors.danger }]}>
-            <Text style={[styles.sectionTitle, { color: colors.danger }]}>DANGER ZONE</Text>
-          </View>
-
-          <TouchableOpacity style={styles.dangerBtn} onPress={handleClear}>
-            <Text style={styles.dangerBtnText}>Clear All Settings</Text>
+          {/* Test button */}
+          <TouchableOpacity
+            style={[styles.btn, styles.btnPrimary]}
+            onPress={handleTest}
+            disabled={testing}
+          >
+            {testing ? (
+              <ActivityIndicator size="small" color={colors.bg} />
+            ) : (
+              <Text style={styles.btnPrimaryText}>Test Connection</Text>
+            )}
           </TouchableOpacity>
         </View>
+      </View>
 
-        {/* Footer */}
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>NEXUS MONITOR v1.0</Text>
-          <Text style={styles.footerText}>DRONZER STUDIOS</Text>
+      {/* Security Info */}
+      <View style={styles.section}>
+        <SectionHeader title="SECURITY" color={colors.pink} />
+        <View style={styles.card}>
+          <Step number="🔒" text="Credentials stored in encrypted secure storage" />
+          <Step number="🛡" text="API key is device-specific and revocable" />
+          <Step number="📱" text="Unpair from dashboard to revoke remote access" />
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </View>
+
+      {/* Danger Zone */}
+      <View style={styles.section}>
+        <SectionHeader title="DANGER ZONE" color={colors.danger} />
+        <TouchableOpacity style={styles.dangerBtn} onPress={handleUnpair}>
+          <Text style={styles.dangerBtnText}>Unpair This Device</Text>
+        </TouchableOpacity>
+        <Text style={styles.dangerHint}>
+          Removes all stored credentials. You'll need to re-pair via QR code.
+        </Text>
+      </View>
+
+      {/* Footer */}
+      <View style={styles.footer}>
+        <Text style={styles.footerText}>NEXUS MONITOR v2.0</Text>
+        <Text style={styles.footerText}>SECURE MOBILE CLIENT</Text>
+      </View>
+    </ScrollView>
+  );
+}
+
+function SectionHeader({ title, color }) {
+  return (
+    <View style={[styles.sectionHeader, { borderLeftColor: color }]}>
+      <Text style={[styles.sectionTitle, { color }]}>{title}</Text>
+    </View>
+  );
+}
+
+function InfoRow({ label, value, mono, valueColor }) {
+  return (
+    <View style={styles.infoRow}>
+      <Text style={styles.infoLabel}>{label}</Text>
+      <Text
+        style={[
+          styles.infoValue,
+          mono && { fontFamily: 'monospace', fontSize: 10 },
+          valueColor && { color: valueColor },
+        ]}
+        numberOfLines={1}
+      >
+        {value}
+      </Text>
+    </View>
   );
 }
 
 function Step({ number, text }) {
   return (
     <View style={styles.step}>
-      <View style={styles.stepNumber}>
-        <Text style={styles.stepNumberText}>{number}</Text>
-      </View>
+      <Text style={styles.stepIcon}>{number}</Text>
       <Text style={styles.stepText}>{text}</Text>
     </View>
   );
@@ -260,7 +206,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
   },
-  scroll: { flex: 1 },
   scrollContent: {
     padding: spacing.md,
     paddingBottom: spacing.xl * 3,
@@ -304,74 +249,50 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
 
-  // Input
-  inputGroup: {
-    marginBottom: spacing.md,
-  },
-  inputLabel: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: colors.textMuted,
-    letterSpacing: 2,
-    marginBottom: spacing.xs,
-  },
-  input: {
-    backgroundColor: colors.bgInput,
-    borderWidth: 2,
-    borderColor: colors.border,
-    color: colors.text,
-    fontSize: 14,
-    fontFamily: 'monospace',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 2,
-  },
-  inputRow: {
+  // Info row
+  infoRow: {
     flexDirection: 'row',
-    gap: spacing.sm,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  inputHint: {
-    fontSize: 10,
-    color: colors.textMuted,
-    marginTop: spacing.xs,
-    fontStyle: 'italic',
-  },
-  toggleBtn: {
-    backgroundColor: colors.bgInput,
-    borderWidth: 2,
-    borderColor: colors.border,
-    paddingHorizontal: spacing.md,
-    justifyContent: 'center',
-  },
-  toggleBtnText: {
+  infoLabel: {
     fontSize: 10,
     fontWeight: '800',
-    color: colors.textSecondary,
+    color: colors.textMuted,
     letterSpacing: 2,
+    textTransform: 'uppercase',
+  },
+  infoValue: {
+    fontSize: 12,
+    color: colors.text,
+    maxWidth: '60%',
+    textAlign: 'right',
   },
 
   // Test result
   testResult: {
     borderWidth: 2,
     padding: spacing.sm,
-    marginBottom: spacing.md,
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
   },
   testResultText: {
     fontSize: 12,
     fontWeight: '700',
     fontFamily: 'monospace',
+    textAlign: 'center',
   },
 
   // Buttons
-  btnRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
   btn: {
-    flex: 1,
     paddingVertical: spacing.sm + 4,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
+    marginTop: spacing.sm,
   },
   btnPrimary: {
     backgroundColor: colors.cyan,
@@ -384,17 +305,6 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     textTransform: 'uppercase',
   },
-  btnSecondary: {
-    backgroundColor: 'transparent',
-    borderColor: colors.accent,
-  },
-  btnSecondaryText: {
-    fontSize: 11,
-    fontWeight: '900',
-    color: colors.accent,
-    letterSpacing: 2,
-    textTransform: 'uppercase',
-  },
 
   // Steps
   step: {
@@ -403,27 +313,16 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     marginBottom: spacing.sm,
   },
-  stepNumber: {
-    width: 22,
-    height: 22,
-    backgroundColor: colors.pink + '20',
-    borderWidth: 1,
-    borderColor: colors.pink + '40',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepNumberText: {
-    fontSize: 11,
-    fontWeight: '900',
-    color: colors.pink,
-    fontFamily: 'monospace',
+  stepIcon: {
+    fontSize: 16,
+    width: 24,
+    textAlign: 'center',
   },
   stepText: {
     flex: 1,
     fontSize: 12,
     color: colors.textSecondary,
     lineHeight: 20,
-    paddingTop: 1,
   },
 
   // Danger
@@ -439,6 +338,13 @@ const styles = StyleSheet.create({
     color: colors.danger,
     letterSpacing: 2,
     textTransform: 'uppercase',
+  },
+  dangerHint: {
+    fontSize: 10,
+    color: colors.textMuted,
+    marginTop: spacing.xs,
+    fontStyle: 'italic',
+    textAlign: 'center',
   },
 
   // Footer

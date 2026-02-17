@@ -19,6 +19,9 @@ const commandsRouter = require('../api/routes/commands');
 const logsRouter = require('../api/routes/logs');
 const updateRouter = require('../api/routes/update');
 
+// Import WebSocket handler
+const WebSocketHandler = require('../api/websocket');
+
 class ServerMode {
   constructor() {
     this.app = express();
@@ -399,23 +402,13 @@ class ServerMode {
       }
     });
 
-    dashboardNamespace.on('connection', (socket) => {
-      logger.info(`Dashboard client connected: ${socket.id} (user: ${socket.user.username})`);
+    // Initialize WebSocket handler for terminal, nodes, and metrics
+    const wsHandler = new WebSocketHandler(this.io);
+    wsHandler.init();
 
-      // Send current agent list on connection
-      socket.emit('agents:update', Array.from(this.agents.values()).map(a => ({
-        id: a.id,
-        hostname: a.hostname,
-        ip: a.ip,
-        status: a.status,
-        metrics: a.metrics,
-        lastSeen: a.lastSeen
-      })));
-
-      socket.on('disconnect', () => {
-        logger.info(`Dashboard client disconnected: ${socket.id}`);
-      });
-    });
+    // Create a mechanism to monitor agents for backward compatibility with dashboard
+    // This broadcasts agents list periodically
+    this.setupAgentBroadcast();
 
     logger.info('WebSocket server initialized');
   }
@@ -465,6 +458,24 @@ class ServerMode {
         logger.error('Error broadcasting node metrics:', error);
       }
     }, 5000);
+  }
+
+  setupAgentBroadcast() {
+    // Broadcast agents list periodically for backward compatibility
+    setInterval(() => {
+      try {
+        this.io.emit('agents:update', Array.from(this.agents.values()).map(a => ({
+          id: a.id,
+          hostname: a.hostname,
+          ip: a.ip,
+          status: a.status,
+          metrics: a.metrics,
+          lastSeen: a.lastSeen
+        })));
+      } catch (error) {
+        logger.error('Error broadcasting agents update:', error);
+      }
+    }, 10000);
   }
 
   setupGracefulShutdown() {

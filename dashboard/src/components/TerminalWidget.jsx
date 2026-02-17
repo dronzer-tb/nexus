@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
@@ -61,7 +61,16 @@ export default function TerminalWidget({
   const fitAddon = useRef(null);
   const cleanupRef = useRef(null);
 
-  const initAndConnect = useCallback(() => {
+  // Store callbacks in refs so they never trigger re-connect cycles
+  const onConnectedRef = useRef(onConnected);
+  const onDisconnectedRef = useRef(onDisconnected);
+  const onErrorRef = useRef(onError);
+  onConnectedRef.current = onConnected;
+  onDisconnectedRef.current = onDisconnected;
+  onErrorRef.current = onError;
+
+  // Initialize terminal once on mount, tear down on unmount
+  useEffect(() => {
     if (!termRef.current || !socket) return;
     if (termInstance.current) return; // already mounted
 
@@ -105,12 +114,12 @@ export default function TerminalWidget({
           socket.emit('terminal:resize', { cols: term.cols, rows: term.rows });
         } catch {}
       }, 150);
-      onConnected?.(info);
+      onConnectedRef.current?.(info);
     };
-    const handleError = (err) => onError?.(err);
+    const handleError = (err) => onErrorRef.current?.(err);
     const handleClosed = () => {
       term.writeln('\r\n\x1b[31m── Session ended ──\x1b[0m');
-      onDisconnected?.();
+      onDisconnectedRef.current?.();
     };
 
     socket.on('terminal:data', handleData);
@@ -132,11 +141,6 @@ export default function TerminalWidget({
       host: host || undefined,
       username: username || undefined,
     });
-  }, [socket, nodeId, isLocal, host, username, onConnected, onDisconnected, onError]);
-
-  // Initialize on mount
-  useEffect(() => {
-    initAndConnect();
 
     return () => {
       cleanupRef.current?.();
@@ -146,7 +150,9 @@ export default function TerminalWidget({
         termInstance.current = null;
       }
     };
-  }, [initAndConnect]);
+  // Only re-connect when connection identity changes, NOT when callbacks change
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [socket, nodeId, isLocal, host, username]);
 
   // Window resize → refit
   useEffect(() => {
