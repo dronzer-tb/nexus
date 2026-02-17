@@ -60,6 +60,7 @@ export async function isPaired() {
 // ═══════════════════════════════════════════════════════════════
 
 let _apiInstance = null;
+let _apiSalt = null;
 
 // Get the cached encryption salt, or fetch from server
 async function getEncryptionSalt(baseURL, apiKey) {
@@ -76,8 +77,8 @@ async function getEncryptionSalt(baseURL, apiKey) {
       await SecureStore.setItemAsync(KEYS.ENCRYPTION_SALT, salt);
       return salt;
     }
-  } catch {
-    // Encryption info not available
+  } catch (err) {
+    console.warn('Failed to fetch encryption salt:', err.message);
   }
   return null;
 }
@@ -90,7 +91,8 @@ export async function createApi() {
   }
 
   const baseURL = serverUrl.replace(/\/+$/, '');
-  const salt = await getEncryptionSalt(baseURL, apiKey);
+  // Do not proactively fetch encryption salt here — defer to response interceptor
+  // which will fetch it lazily when an encrypted response is received.
 
   const instance = axios.create({
     baseURL,
@@ -105,10 +107,23 @@ export async function createApi() {
   instance.interceptors.response.use(
     async (response) => {
       if (response.data && response.data.encrypted === true && response.data.data) {
+        // If we don't have the salt yet, try fetching it now
+        if (!_apiSalt) {
+          _apiSalt = await getEncryptionSalt(baseURL, apiKey);
+        }
         try {
-          response.data = await decryptResponse(response.data, apiKey, salt);
+          response.data = decryptResponse(response.data, apiKey, _apiSalt);
         } catch (err) {
-          console.warn('Failed to decrypt response:', err.message);
+          // If decryption fails, try re-fetching salt in case it changed
+          try {
+            await SecureStore.deleteItemAsync(KEYS.ENCRYPTION_SALT);
+            _apiSalt = await getEncryptionSalt(baseURL, apiKey);
+            if (_apiSalt) {
+              response.data = decryptResponse(response.data, apiKey, _apiSalt);
+            }
+          } catch (retryErr) {
+            console.warn('Decrypt retry also failed:', retryErr.message);
+          }
         }
       }
       return response;
@@ -121,6 +136,7 @@ export async function createApi() {
 
 export function resetApi() {
   _apiInstance = null;
+  _apiSalt = null;
 }
 
 async function getApi() {
@@ -218,5 +234,27 @@ export async function fetchNodeMetrics(nodeId, limit = 50) {
   const res = await api.get(`/api/metrics/${nodeId}/latest`, {
     params: { limit },
   });
+  return res.data;
+}
+
+/**
+ * Poll server for new alerts since a timestamp
+ * @param {number} since - Unix timestamp in ms (0 for recent alerts)
+ * @returns {{ alerts: Array, thresholds: object, serverTime: number }}
+ */
+export async function fetchAlertsPoll(since = 0) {
+  const api = await getApi();
+  const res = await api.get('/api/mobile/alerts/poll', {
+    params: { since },
+  });
+  return res.data;
+}
+
+/**
+ * Acknowledge an alert on the server
+ */
+export async function acknowledgeAlert(alertId) {
+  const api = await getApi();
+  const res = await api.post(`/api/mobile/alerts/${alertId}/acknowledge`);
   return res.data;
 }

@@ -336,9 +336,9 @@ function Console({ socket }) {
       </div>
 
       {/* Main content */}
-      <div className="flex gap-4 flex-1 min-h-0">
+      <div className="flex flex-col md:flex-row gap-4 flex-1 min-h-0">
         {/* Node list sidebar */}
-        <div className="w-56 flex-shrink-0 flex flex-col min-h-0">
+        <div className="w-full md:w-56 flex-shrink-0 flex flex-col md:min-h-0 max-h-40 md:max-h-none overflow-y-auto md:overflow-visible">
           <div className="text-[10px] font-black uppercase tracking-widest text-tx/20 mb-2 px-1">
             Nodes
           </div>
@@ -391,7 +391,7 @@ function Console({ socket }) {
             /* Terminal panels */
             <div className={clsx(
               'h-full gap-3',
-              splitMode && terminals.length === 2 ? 'grid grid-cols-2' : 'flex flex-col',
+              splitMode && terminals.length === 2 ? 'grid grid-cols-1 lg:grid-cols-2' : 'flex flex-col',
             )}>
               <AnimatePresence mode="sync">
                 {terminals.map(term => (

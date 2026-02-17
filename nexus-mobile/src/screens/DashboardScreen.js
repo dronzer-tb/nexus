@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, RefreshControl,
-  TouchableOpacity, ActivityIndicator, Dimensions,
+  TouchableOpacity, ActivityIndicator,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { colors, spacing } from '../theme';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { colors, spacing, fontScale, scale, SCREEN_WIDTH } from '../theme';
 import { fetchNodes, getSettings } from '../api';
 import { getPercentColor, timeAgo } from '../utils';
+import { Settings as SettingsIcon, AlertTriangle, Radio } from 'lucide-react-native';
 
-const { width } = Dimensions.get('window');
+const cardWidth = SCREEN_WIDTH - spacing.md * 2;
 
 /* ─── Metric Bar ─── */
 function MetricBar({ label, value, color }) {
@@ -155,9 +157,9 @@ export default function DashboardScreen({ navigation }) {
   // Not configured state
   if (!configured && !loading) {
     return (
-      <View style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.emptyState}>
-          <Text style={styles.emptyIcon}>⚙️</Text>
+          <SettingsIcon size={40} color={colors.textMuted} style={{ marginBottom: spacing.sm }} />
           <Text style={styles.emptyTitle}>Setup Required</Text>
           <Text style={styles.emptyDesc}>
             Configure your server URL and API key in Settings to get started.
@@ -169,12 +171,12 @@ export default function DashboardScreen({ navigation }) {
             <Text style={styles.emptyBtnText}>Go to Settings</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>NEXUS</Text>
@@ -188,7 +190,7 @@ export default function DashboardScreen({ navigation }) {
         </View>
       ) : error ? (
         <View style={styles.emptyState}>
-          <Text style={styles.emptyIcon}>⚠️</Text>
+          <AlertTriangle size={40} color={colors.danger} style={{ marginBottom: spacing.sm }} />
           <Text style={[styles.emptyTitle, { color: colors.danger }]}>Connection Error</Text>
           <Text style={styles.emptyDesc}>{error}</Text>
           <TouchableOpacity style={styles.emptyBtn} onPress={() => load()}>
@@ -215,7 +217,7 @@ export default function DashboardScreen({ navigation }) {
           {/* Node Cards */}
           {nodes.length === 0 ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyIcon}>📡</Text>
+              <Radio size={40} color={colors.textMuted} style={{ marginBottom: spacing.sm }} />
               <Text style={styles.emptyTitle}>No Nodes</Text>
               <Text style={styles.emptyDesc}>No nodes are registered with this server yet.</Text>
             </View>
@@ -230,7 +232,7 @@ export default function DashboardScreen({ navigation }) {
           )}
         </ScrollView>
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -248,13 +250,13 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: fontScale(28),
     fontWeight: '900',
     color: colors.text,
     letterSpacing: -1,
   },
   headerSubtitle: {
-    fontSize: 28,
+    fontSize: fontScale(28),
     fontWeight: '900',
     color: colors.pink,
     letterSpacing: -1,
@@ -297,7 +299,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   summaryValue: {
-    fontSize: 20,
+    fontSize: fontScale(20),
     fontWeight: '900',
     fontFamily: 'monospace',
   },
@@ -334,7 +336,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   cardHostname: {
-    fontSize: 15,
+    fontSize: fontScale(15),
     fontWeight: '800',
     color: colors.text,
     textTransform: 'uppercase',
@@ -429,7 +431,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   emptyTitle: {
-    fontSize: 18,
+    fontSize: fontScale(18),
     fontWeight: '900',
     color: colors.text,
     textTransform: 'uppercase',
@@ -437,12 +439,12 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   emptyDesc: {
-    fontSize: 13,
+    fontSize: fontScale(13),
     color: colors.textSecondary,
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: fontScale(20),
     marginBottom: spacing.lg,
-    maxWidth: 280,
+    maxWidth: scale(280),
   },
   emptyBtn: {
     backgroundColor: colors.accent,

@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { Server, CheckCircle, Xmark } from 'iconoir-react';
 
 function Stats({ nodes }) {
   const stats = useMemo(() => {
@@ -16,7 +17,7 @@ function Stats({ nodes }) {
           <p className="text-sm text-gray-400 mb-1">{title}</p>
           <p className={`text-3xl font-bold ${color}`}>{value}</p>
         </div>
-        <div className={`text-4xl ${color} opacity-20`}>
+        <div className={`${color} opacity-20`}>
           {icon}
         </div>
       </div>
@@ -29,19 +30,19 @@ function Stats({ nodes }) {
         title="Total Nodes" 
         value={stats.total} 
         color="text-blue-400"
-        icon="📊"
+        icon={<Server className="w-10 h-10" />}
       />
       <StatCard 
         title="Online" 
         value={stats.online} 
         color="text-green-400"
-        icon="✅"
+        icon={<CheckCircle className="w-10 h-10" />}
       />
       <StatCard 
         title="Offline" 
         value={stats.offline} 
         color="text-red-400"
-        icon="❌"
+        icon={<Xmark className="w-10 h-10" />}
       />
     </div>
   );

@@ -4,9 +4,10 @@ import {
   ActivityIndicator, Dimensions,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { colors, spacing } from '../theme';
+import { colors, spacing, fontScale, scale } from '../theme';
 import { fetchNodeMetrics, fetchNode } from '../api';
 import { formatBytes, formatUptime, getPercentColor, timeAgo } from '../utils';
+import { AlertTriangle } from 'lucide-react-native';
 
 /* ─── Stat Card ─── */
 function StatCard({ label, value, sub, color }) {
@@ -100,7 +101,7 @@ export default function NodeDetailsScreen({ route }) {
     return (
       <View style={styles.container}>
         <View style={styles.center}>
-          <Text style={{ fontSize: 40, marginBottom: spacing.md }}>⚠️</Text>
+          <AlertTriangle size={40} color={colors.danger} style={{ marginBottom: spacing.md }} />
           <Text style={[styles.errorText, { color: colors.danger }]}>{error}</Text>
         </View>
       </View>

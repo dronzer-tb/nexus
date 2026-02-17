@@ -501,4 +501,61 @@ router.delete('/unpair/:deviceId', authMiddleware, (req, res) => {
 });
 
 
+// ═══════════════════════════════════════════════════════════════
+// MOBILE ALERT POLLING (no FCM — app polls for new alerts)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * GET /api/mobile/alerts/poll?since=<timestamp>&limit=50
+ * Returns alerts fired after the given timestamp.
+ * Mobile app calls this on a timer to fetch new alerts.
+ * Authenticated via X-API-Key (same as all mobile requests).
+ */
+router.get('/alerts/poll', authMiddleware, (req, res) => {
+  try {
+    const since = parseInt(req.query.since) || 0;
+    const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+
+    const alerts = since > 0
+      ? database.getAlertsSince(since, limit)
+      : database.getRecentAlerts(limit);
+
+    // Get alert thresholds so app can display settings
+    const thresholdsRaw = database.getSetting('alerts_thresholds');
+    let thresholds = { cpu: 80, memory: 85, disk: 90 };
+    if (thresholdsRaw) {
+      try { thresholds = JSON.parse(thresholdsRaw); } catch {}
+    }
+
+    res.json({
+      success: true,
+      alerts,
+      thresholds,
+      serverTime: Date.now(),
+    });
+  } catch (error) {
+    logger.error('Alert poll error:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch alerts' });
+  }
+});
+
+/**
+ * POST /api/mobile/alerts/:alertId/acknowledge
+ * Mark an alert as acknowledged from the mobile app.
+ */
+router.post('/alerts/:alertId/acknowledge', authMiddleware, (req, res) => {
+  try {
+    const alertId = parseInt(req.params.alertId);
+    if (!alertId) {
+      return res.status(400).json({ success: false, error: 'Invalid alert ID' });
+    }
+    database.acknowledgeAlert(alertId);
+    res.json({ success: true, message: 'Alert acknowledged' });
+  } catch (error) {
+    logger.error('Alert acknowledge error:', error);
+    res.status(500).json({ success: false, error: 'Failed to acknowledge alert' });
+  }
+});
+
+
 module.exports = router;

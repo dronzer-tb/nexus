@@ -310,7 +310,7 @@ function TwoFactorSettings() {
       {!setupMode && enabled && (
         <div className="p-4 bg-neon-cyan/5 border-2 border-neon-cyan/20">
           <p className="text-xs text-tx/50 font-mono">
-            💡 Two-factor authentication is enabled for your account. You'll need to enter a code from your authenticator app when logging in.
+            Two-factor authentication is enabled for your account. You'll need to enter a code from your authenticator app when logging in.
           </p>
         </div>
       )}

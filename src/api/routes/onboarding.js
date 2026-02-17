@@ -261,16 +261,15 @@ router.post('/step2', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════
-// POST /api/onboarding/step3 - Configure alerts
+// POST /api/onboarding/step3 - Configure alerts (Discord bot)
 // ═══════════════════════════════════════════════════════════════
 
-router.post('/step3', (req, res) => {
+router.post('/step3', async (req, res) => {
   try {
-    const { enabled, webhookUrl, thresholds } = req.body;
+    const { enabled, botToken, userId, thresholds } = req.body;
 
     const alertConfig = {
       enabled: enabled || false,
-      webhookUrl: webhookUrl || '',
       thresholds: thresholds || {
         cpu: 80,
         memory: 85,
@@ -280,8 +279,25 @@ router.post('/step3', (req, res) => {
 
     // Save to settings
     database.setSetting('alerts_enabled', alertConfig.enabled.toString());
-    database.setSetting('alerts_webhook_url', alertConfig.webhookUrl);
     database.setSetting('alerts_thresholds', JSON.stringify(alertConfig.thresholds));
+
+    // Save Discord bot settings if provided
+    if (botToken) {
+      database.setSetting('discord_bot_token', botToken);
+    }
+    if (userId) {
+      database.setSetting('discord_user_id', userId);
+    }
+
+    // Initialize Discord bot if token provided
+    if (botToken && enabled) {
+      try {
+        const discordBot = require('../../utils/discord-bot');
+        await discordBot.restart();
+      } catch (botErr) {
+        logger.warn('Discord bot init during onboarding failed:', botErr.message);
+      }
+    }
 
     // Save step progress
     onboarding.saveOnboardingStep(3, {
@@ -289,7 +305,7 @@ router.post('/step3', (req, res) => {
       completedAt: Date.now()
     });
 
-    logger.info('Alert configuration saved during onboarding');
+    logger.info('Alert configuration saved during onboarding (Discord bot)');
 
     res.json({
       success: true,
@@ -389,42 +405,52 @@ router.post('/complete', (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════
-// POST /api/onboarding/test-webhook - Test alert webhook
+// POST /api/onboarding/test-discord - Test Discord bot alert
 // ═══════════════════════════════════════════════════════════════
 
-router.post('/test-webhook', async (req, res) => {
+router.post('/test-discord', async (req, res) => {
   try {
-    const { webhookUrl } = req.body;
+    const { botToken, userId } = req.body;
 
-    if (!webhookUrl) {
+    if (!botToken || !userId) {
       return res.status(400).json({
         success: false,
-        error: 'Webhook URL is required'
+        error: 'Bot token and Discord user ID are required'
       });
     }
 
-    const axios = require('axios');
+    // Temporarily save settings for the test
+    database.setSetting('discord_bot_token', botToken);
+    database.setSetting('discord_user_id', userId);
 
-    const testPayload = {
-      alert_type: 'test',
-      severity: 'info',
-      node_name: 'test-node',
-      message: '🧪 This is a test alert from Nexus onboarding setup',
-      timestamp: new Date().toISOString()
-    };
+    const discordBot = require('../../utils/discord-bot');
 
-    await axios.post(webhookUrl, testPayload, {
-      timeout: 5000
-    });
+    // Restart bot with new token
+    const connected = await discordBot.restart();
+    if (!connected) {
+      return res.status(400).json({
+        success: false,
+        error: 'Failed to connect Discord bot. Check the bot token.'
+      });
+    }
 
-    logger.info('Test webhook sent successfully');
+    // Send test message
+    const sent = await discordBot.sendTestMessage();
 
-    res.json({
-      success: true,
-      message: 'Test alert sent successfully'
-    });
+    if (sent) {
+      logger.info('Test Discord alert sent during onboarding');
+      res.json({
+        success: true,
+        message: 'Test alert sent! Check your Discord DMs.'
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: 'Bot connected but failed to send DM. Make sure the user ID is correct and you share a server with the bot.'
+      });
+    }
   } catch (error) {
-    logger.error('Test webhook error:', error);
+    logger.error('Test Discord error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to send test alert: ' + error.message

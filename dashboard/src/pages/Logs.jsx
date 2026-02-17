@@ -124,9 +124,9 @@ function Logs({ socket }) {
       {/* Header */}
       <header className="mb-8 border-b-[3px] border-neon-pink/20 pb-6">
         <div className="flex items-center gap-4">
-          <Page className="w-10 h-10 text-neon-pink" strokeWidth={2.5} />
+          <Page className="w-8 sm:w-10 h-8 sm:h-10 text-neon-pink shrink-0" strokeWidth={2.5} />
           <div>
-            <h1 className="text-5xl font-black uppercase tracking-tighter leading-[0.9]">
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black uppercase tracking-tighter leading-[0.9]">
               <span className="text-tx">System</span>{' '}
               <span className="text-neon-pink" style={{ textShadow: '0 0 25px var(--neon-pink)' }}>Logs</span>
             </h1>

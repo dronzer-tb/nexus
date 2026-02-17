@@ -1,0 +1,54 @@
+# ─────────────────────────────────────────────
+#  Nexus — Docker Compose
+#  Dronzer Studios — v2.0-pre-release
+# ─────────────────────────────────────────────
+
+services:
+  nexus:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nexus
+    restart: unless-stopped
+    ports:
+      - "${NEXUS_PORT:-8080}:8080"
+    volumes:
+      - nexus-data:/app/data
+      - nexus-config:/app/config
+    environment:
+      - NEXUS_MODE=${NEXUS_MODE:-combine}
+      - NEXUS_PORT=8080
+      - NEXUS_HOST=0.0.0.0
+      - NODE_ENV=production
+      # Optional: Discord bot configuration
+      # - DISCORD_BOT_TOKEN=your_bot_token
+      # - DISCORD_USER_ID=your_user_id
+      # Optional: Tailscale API
+      # - TAILSCALE_API_KEY=tskey-api-xxx
+      # - TAILSCALE_TAILNET=your-tailnet.ts.net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # Optional: Nexus node reporter (uncomment to use)
+  # nexus-node:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: nexus-node
+  #   restart: unless-stopped
+  #   environment:
+  #     - NEXUS_MODE=node
+  #     - NEXUS_SERVER_URL=http://nexus:8080
+  #   depends_on:
+  #     nexus:
+  #       condition: service_healthy
+
+volumes:
+  nexus-data:
+    driver: local
+  nexus-config:
+    driver: local

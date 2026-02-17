@@ -160,7 +160,7 @@ function TwoFactorChallengeModal({ isOpen, onClose, onSuccess, title = 'Security
         {/* Info */}
         <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
           <p className="text-xs text-gray-400">
-            💡 This extra security step protects sensitive operations like remote command execution.
+            This extra security step protects sensitive operations like remote command execution.
           </p>
         </div>
       </div>

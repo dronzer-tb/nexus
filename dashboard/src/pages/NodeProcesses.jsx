@@ -174,10 +174,10 @@ function NodeProcesses({ socket }) {
 
       {/* Header */}
       <header className="mb-6 border-b-[3px] border-neon-purple/20 pb-4">
-        <div className="flex items-center gap-4">
-          <List className="w-8 h-8 text-neon-purple" strokeWidth={2.5} />
-          <div className="flex-1">
-            <h1 className="text-4xl font-black uppercase tracking-tighter leading-[0.9]">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+          <List className="w-8 h-8 text-neon-purple shrink-0" strokeWidth={2.5} />
+          <div className="flex-1 min-w-0">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black uppercase tracking-tighter leading-[0.9]">
               <span className="text-tx">Node</span>{' '}
               <span className="text-neon-purple" style={{ textShadow: '0 0 25px var(--neon-purple)' }}>Processes</span>
             </h1>
@@ -247,7 +247,7 @@ function NodeProcesses({ socket }) {
       {/* Process table */}
       <div className="border-[3px] border-neon-purple/15 bg-brutal-card shadow-brutal overflow-hidden">
         {/* Table header */}
-        <div className="grid grid-cols-12 gap-2 px-4 py-2.5 text-[9px] font-bold uppercase tracking-widest text-tx/25 border-b-[3px] border-neon-purple/10 bg-neon-purple/[0.03]">
+        <div className="hidden sm:grid grid-cols-12 gap-2 px-4 py-2.5 text-[9px] font-bold uppercase tracking-widest text-tx/25 border-b-[3px] border-neon-purple/10 bg-neon-purple/[0.03]">
           <div className="col-span-1 cursor-pointer hover:text-neon-purple" onClick={() => toggleSort('pid')}>
             PID <SortIcon field="pid" />
           </div>
@@ -279,18 +279,20 @@ function NodeProcesses({ socket }) {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: i * 0.01 }}
-                className="grid grid-cols-12 gap-2 px-4 py-2 text-xs border-b border-neon-purple/[0.04] hover:bg-neon-purple/[0.03] transition-colors items-center group"
+                className="flex flex-col sm:grid sm:grid-cols-12 gap-1 sm:gap-2 px-4 py-2 text-xs border-b border-neon-purple/[0.04] hover:bg-neon-purple/[0.03] transition-colors sm:items-center group"
               >
-                <div className="col-span-1 font-mono text-tx/30">{proc.pid}</div>
-                <div className="col-span-4 font-bold text-tx/80 truncate" title={proc.name}>{proc.name}</div>
-                <div className="col-span-2 text-right font-mono font-bold"
-                  style={{ color: (proc.cpu || 0) > 50 ? 'var(--neon-pink)' : (proc.cpu || 0) > 10 ? 'var(--neon-yellow)' : 'var(--neon-cyan)' }}>
-                  {(proc.cpu || 0).toFixed(1)}
+                <div className="sm:col-span-1 font-mono text-tx/30"><span className="sm:hidden text-tx/20">PID </span>{proc.pid}</div>
+                <div className="sm:col-span-4 font-bold text-tx/80 truncate" title={proc.name}>{proc.name}</div>
+                <div className="flex sm:contents gap-4">
+                  <div className="sm:col-span-2 sm:text-right font-mono font-bold"
+                    style={{ color: (proc.cpu || 0) > 50 ? 'var(--neon-pink)' : (proc.cpu || 0) > 10 ? 'var(--neon-yellow)' : 'var(--neon-cyan)' }}>
+                    <span className="sm:hidden text-tx/20">CPU </span>{(proc.cpu || 0).toFixed(1)}%
+                  </div>
+                  <div className="sm:col-span-2 sm:text-right font-mono text-tx/40">
+                    <span className="sm:hidden text-tx/20">MEM </span>{(proc.mem || 0).toFixed(1)}%
+                  </div>
                 </div>
-                <div className="col-span-2 text-right font-mono text-tx/40">
-                  {(proc.mem || 0).toFixed(1)}
-                </div>
-                <div className="col-span-3 flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="sm:col-span-3 flex sm:justify-end gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                   {actionInProgress === proc.pid ? (
                     <span className="text-[9px] font-mono text-neon-yellow animate-pulse">Working...</span>
                   ) : (

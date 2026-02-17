@@ -93,7 +93,7 @@ function UninstallSettings() {
         <div className="flex items-start gap-3">
           <WarningTriangle className="w-6 h-6 text-red-400 flex-shrink-0" />
           <div className="flex-1">
-            <h4 className="font-bold uppercase text-sm text-red-400 mb-2">⚠️ Danger Zone</h4>
+            <h4 className="font-bold uppercase text-sm text-red-400 mb-2">Danger Zone</h4>
             <p className="text-sm text-tx/70 mb-4">
               Uninstalling Nexus will permanently delete:
             </p>

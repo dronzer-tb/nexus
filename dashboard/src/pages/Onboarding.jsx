@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 
 import axios from 'axios';
-import { Shield, Check, WarningTriangle, Clock, Flash, Palette, SunLight, HalfMoon, Computer } from 'iconoir-react';
+import { Shield, Check, WarningTriangle, Clock, Flash, Palette, SunLight, HalfMoon, Computer, InfoCircle, Key } from 'iconoir-react';
 import { useTheme, BUILT_IN_PRESETS } from '../context/ThemeContext';
 
 /**
@@ -34,10 +34,12 @@ function Onboarding() {
 
   // Step 5: Alert data
   const [alertsEnabled, setAlertsEnabled] = useState(false);
-  const [webhookUrl, setWebhookUrl] = useState('');
+  const [botToken, setBotToken] = useState('');
+  const [discordUserId, setDiscordUserId] = useState('');
   const [cpuThreshold, setCpuThreshold] = useState(80);
   const [memoryThreshold, setMemoryThreshold] = useState(85);
   const [diskThreshold, setDiskThreshold] = useState(90);
+  const [discordTestSuccess, setDiscordTestSuccess] = useState(false);
 
   // Step 6: Metrics interval
   const [metricsInterval, setMetricsInterval] = useState(15);
@@ -124,13 +126,14 @@ function Onboarding() {
     }
   };
 
-  const handleTestWebhook = async () => {
+  const handleTestDiscord = async () => {
     setError('');
     setLoading(true);
+    setDiscordTestSuccess(false);
 
     try {
-      await axios.post('/api/onboarding/test-webhook', { webhookUrl });
-      alert('✅ Test alert sent successfully! Check your Telegram/Discord.');
+      await axios.post('/api/onboarding/test-discord', { botToken, userId: discordUserId });
+      setDiscordTestSuccess(true);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to send test alert');
     } finally {
@@ -145,7 +148,8 @@ function Onboarding() {
     try {
       await axios.post('/api/onboarding/step3', {
         enabled: alertsEnabled,
-        webhookUrl,
+        botToken,
+        userId: discordUserId,
         thresholds: {
           cpu: cpuThreshold,
           memory: memoryThreshold,
@@ -246,7 +250,7 @@ function Onboarding() {
           {/* ═══ Step 1: Welcome ═══ */}
           {currentStep === 1 && (
             <div className="text-center space-y-6">
-              <div className="text-6xl mb-6">🎯</div>
+              <img src="/favicon.png" alt="Nexus" className="w-20 h-20 mx-auto mb-6" />
               <h1 className="text-4xl font-bold text-neon-pink">Welcome to Nexus</h1>
               <p className="text-xl text-gray-300 max-w-2xl mx-auto">
                 Remote resource monitoring and management platform
@@ -389,10 +393,10 @@ function Onboarding() {
                 <div className="bg-background-light p-4 rounded-lg border border-gray-700">
                   <p className="text-sm font-medium mb-2">Password Requirements:</p>
                   <ul className="text-xs text-gray-400 space-y-1">
-                    <li>✓ At least 8 characters</li>
-                    <li>✓ Uppercase & lowercase letters</li>
-                    <li>✓ At least one number</li>
-                    <li>✓ At least one special character (@$!%*?&)</li>
+                    <li className="flex items-center gap-2"><Check className="w-4 h-4 text-green-400" /> At least 8 characters</li>
+                    <li className="flex items-center gap-2"><Check className="w-4 h-4 text-green-400" /> Uppercase & lowercase letters</li>
+                    <li className="flex items-center gap-2"><Check className="w-4 h-4 text-green-400" /> At least one number</li>
+                    <li className="flex items-center gap-2"><Check className="w-4 h-4 text-green-400" /> At least one special character (@$!%*?&)</li>
                   </ul>
                 </div>
 
@@ -412,7 +416,7 @@ function Onboarding() {
             <div className="max-w-lg mx-auto">
               <h2 className="text-3xl font-bold text-neon-pink mb-2">Two-Factor Authentication</h2>
               <p className="text-gray-400 mb-6">
-                <span className="text-red-400 font-bold">⚠️ Required:</span> 2FA cannot be skipped
+                <span className="text-red-400 font-bold flex items-center gap-1"><WarningTriangle className="w-4 h-4" /> Required:</span> 2FA cannot be skipped
               </p>
 
               {errorBanner}
@@ -473,12 +477,12 @@ function Onboarding() {
               ) : (
                 <div className="space-y-6">
                   <div className="bg-green-500/20 border border-green-500 rounded-lg p-4">
-                    <h3 className="font-bold text-green-300 mb-2">✅ 2FA Enabled Successfully!</h3>
+                    <h3 className="font-bold text-green-300 mb-2 flex items-center gap-2"><Check className="w-5 h-5" /> 2FA Enabled Successfully!</h3>
                     <p className="text-sm text-gray-300">Save these recovery codes in a safe place.</p>
                   </div>
 
                   <div className="bg-background-light p-4 rounded-lg border border-yellow-500">
-                    <h3 className="font-bold text-yellow-300 mb-3">🔑 Recovery Codes</h3>
+                    <h3 className="font-bold text-yellow-300 mb-3 flex items-center gap-2"><Key className="w-5 h-5" /> Recovery Codes</h3>
                     <p className="text-xs text-gray-400 mb-3">Use these codes if you lose access to your authenticator app. Each code can only be used once.</p>
                     <div className="grid grid-cols-2 gap-2 font-mono text-sm">
                       {recoveryCodes.map((code, i) => (
@@ -498,11 +502,11 @@ function Onboarding() {
             </div>
           )}
 
-          {/* ═══ Step 5: Alerts ═══ */}
+          {/* ═══ Step 5: Alerts (Discord Bot) ═══ */}
           {currentStep === 5 && (
             <div className="max-w-2xl mx-auto">
               <h2 className="text-3xl font-bold text-neon-pink mb-2">Alert Notifications</h2>
-              <p className="text-gray-400 mb-6">Get notified when metrics exceed thresholds</p>
+              <p className="text-gray-400 mb-6">Get notified via Discord DM when metrics exceed thresholds</p>
 
               {errorBanner}
 
@@ -520,31 +524,54 @@ function Onboarding() {
 
                 {alertsEnabled && (
                   <>
-                    <div>
-                      <label className="block text-sm font-medium mb-2">Alert Method</label>
-                      <select className="w-full px-4 py-2 bg-background-light border border-gray-600 rounded-lg focus:outline-none focus:border-primary">
-                        <option>Webhook (Telegram/Discord)</option>
-                        <option disabled>Email (Coming Soon)</option>
-                        <option disabled>SMS (Coming Soon)</option>
-                      </select>
+                    <div className="bg-background-light p-4 rounded-lg border border-gray-700">
+                      <p className="text-sm font-medium mb-3 flex items-center gap-2">
+                        <InfoCircle className="w-4 h-4 text-blue-400" /> Discord Bot Setup
+                      </p>
+                      <ol className="text-xs text-gray-400 space-y-1 mb-4">
+                        <li>1. Go to <a href="https://discord.com/developers/applications" target="_blank" rel="noopener noreferrer" className="text-neon-cyan underline">Discord Developer Portal</a></li>
+                        <li>2. Create a new Application → Bot → Copy the bot token</li>
+                        <li>3. Enable "Message Content Intent" under Privileged Gateway Intents</li>
+                        <li>4. Invite the bot to a server you share using the OAuth2 URL Generator</li>
+                        <li>5. Right-click your Discord profile → Copy User ID (enable Developer Mode in settings)</li>
+                      </ol>
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium mb-2">Webhook URL</label>
+                      <label className="block text-sm font-medium mb-2">Discord Bot Token</label>
                       <input
-                        type="url"
-                        value={webhookUrl}
-                        onChange={(e) => setWebhookUrl(e.target.value)}
+                        type="password"
+                        value={botToken}
+                        onChange={(e) => setBotToken(e.target.value)}
                         className="w-full px-4 py-2 bg-background-light border border-gray-600 rounded-lg focus:outline-none focus:border-primary"
-                        placeholder="https://api.telegram.org/bot..."
+                        placeholder="Paste your bot token here"
                       />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Your Discord User ID</label>
+                      <input
+                        type="text"
+                        value={discordUserId}
+                        onChange={(e) => setDiscordUserId(e.target.value.replace(/\D/g, ''))}
+                        className="w-full px-4 py-2 bg-background-light border border-gray-600 rounded-lg focus:outline-none focus:border-primary"
+                        placeholder="e.g. 123456789012345678"
+                      />
+                    </div>
+
+                    <div>
                       <button
-                        onClick={handleTestWebhook}
-                        disabled={!webhookUrl || loading}
-                        className="mt-2 px-4 py-2 bg-neon-cyan text-black font-bold rounded-lg hover:bg-neon-cyan/90 disabled:opacity-50 text-sm"
+                        onClick={handleTestDiscord}
+                        disabled={!botToken || !discordUserId || loading}
+                        className="px-4 py-2 bg-neon-cyan text-black font-bold rounded-lg hover:bg-neon-cyan/90 disabled:opacity-50 text-sm"
                       >
-                        Send Test Alert
+                        {loading ? 'Testing...' : 'Send Test DM'}
                       </button>
+                      {discordTestSuccess && (
+                        <span className="ml-3 text-sm text-green-400 flex items-center gap-1 inline-flex">
+                          <Check className="w-4 h-4" /> Test alert sent! Check your DMs.
+                        </span>
+                      )}
                     </div>
 
                     <div className="grid md:grid-cols-3 gap-4">
@@ -639,8 +666,8 @@ function Onboarding() {
               </div>
 
               <div className="mt-6 bg-background-light p-4 rounded-lg border border-blue-500/30">
-                <p className="text-sm text-gray-300">
-                  ℹ️ Lower intervals provide real-time data but increase CPU usage on monitored nodes.
+                <p className="text-sm text-gray-300 flex items-center gap-2">
+                  <InfoCircle className="w-4 h-4 text-blue-400 flex-shrink-0" /> Lower intervals provide real-time data but increase CPU usage on monitored nodes.
                 </p>
               </div>
 
@@ -657,7 +684,9 @@ function Onboarding() {
           {/* ═══ Step 7: Completion ═══ */}
           {currentStep === 7 && (
             <div className="text-center max-w-2xl mx-auto">
-              <div className="text-6xl mb-6">✅</div>
+              <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-green-500/20 border-2 border-green-500 flex items-center justify-center">
+                <Check className="w-10 h-10 text-green-400" />
+              </div>
               <h1 className="text-4xl font-bold text-neon-pink mb-4">Nexus is Ready!</h1>
               <p className="text-xl text-gray-300 mb-8">
                 Your dashboard is now fully configured and ready to use.
@@ -680,7 +709,7 @@ function Onboarding() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Check className="w-5 h-5 text-green-400" />
-                    <span>Alerts {alertsEnabled ? 'enabled' : 'disabled'}</span>
+                    <span>Alerts {alertsEnabled ? 'enabled (Discord bot)' : 'disabled'}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Check className="w-5 h-5 text-green-400" />

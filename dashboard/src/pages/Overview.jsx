@@ -114,9 +114,9 @@ function Overview({ socket }) {
   return (
     <div className="max-w-7xl mx-auto">
       {/* Header */}
-      <header className="mb-10 flex items-end gap-6 border-b-[3px] border-neon-pink/20 pb-6">
+      <header className="mb-6 md:mb-10 flex flex-col sm:flex-row sm:items-end gap-4 sm:gap-6 border-b-[3px] border-neon-pink/20 pb-4 md:pb-6">
         <div>
-          <h1 className="text-6xl font-black uppercase tracking-tighter leading-[0.85]">
+          <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black uppercase tracking-tighter leading-[0.85]">
             <span className="text-tx">System</span><br />
             <span className="text-neon-pink" style={{ textShadow: '0 0 30px var(--neon-pink)' }}>
               Overview
@@ -130,7 +130,7 @@ function Overview({ socket }) {
       </header>
 
       {/* Stat Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6 mb-6 md:mb-10">
         <BrutalCard title="Nodes" value={agents.length} icon={Server} color="neon-cyan" delay={0.05}
           sub={`${online.length} online`} />
         <BrutalCard title="Avg CPU" value={`${avgCpu.toFixed(0)}%`} icon={Cpu} color="neon-pink" delay={0.1}

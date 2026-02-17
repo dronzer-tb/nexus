@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ViewGrid, Server, Page, LogOut, Settings as SettingsIcon,
   NavArrowLeft, NavArrowRight, NavArrowDown, Terminal, List,
-  Palette, ArrowUpCircle, Key, Group, Computer, SmartphoneDevice
+  Palette, ArrowUpCircle, Key, Group, Computer, SmartphoneDevice, Menu
 } from 'iconoir-react';
 import clsx from 'clsx';
 import axios from 'axios';
@@ -78,6 +78,8 @@ function Dashboard({ socket }) {
     try { return localStorage.getItem('nexus-sidebar') === 'collapsed'; } catch { return false; }
   });
 
+  const [mobileOpen, setMobileOpen] = useState(false);
+
   const [nodes, setNodes] = useState([]);
   const [expandedNode, setExpandedNode] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -119,6 +121,11 @@ function Dashboard({ socket }) {
     if (match) setExpandedNode(match[1]);
   }, [location.pathname]);
 
+  // Close mobile drawer on route change
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname]);
+
   const isActive = (path) => {
     if (path === '/') return location.pathname === '/';
     return location.pathname === path || location.pathname.startsWith(path + '/');
@@ -143,9 +150,16 @@ function Dashboard({ socket }) {
     <div className="min-h-screen bg-brutal-bg text-tx font-brutal selection:bg-neon-pink selection:text-white">
       <div className="flex h-screen overflow-hidden">
 
+        {/* ── Mobile overlay ── */}
+        {mobileOpen && (
+          <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden" onClick={() => setMobileOpen(false)} />
+        )}
+
         {/* ── Sidebar ── */}
         <aside className={clsx(
           "border-r-[3px] border-neon-pink/20 flex flex-col bg-brutal-surface transition-all duration-200 shrink-0",
+          // Desktop: normal sidebar
+          "hidden lg:flex",
           sidebarWidth
         )}>
           {/* Logo block */}
@@ -190,14 +204,9 @@ function Dashboard({ socket }) {
 
               {/* Main nav items */}
               <SidebarItem icon={ViewGrid} label="Overview" path="/" active={isActive('/')} collapsed={collapsed} />
-
-              {/* Nodes section */}
               <SidebarItem icon={Server} label="Nodes" path="/nodes" active={location.pathname.startsWith('/nodes')} collapsed={collapsed} />
-
               <SidebarItem icon={Page} label="Logs" path="/logs" active={isActive('/logs')} collapsed={collapsed} />
-
               <SidebarItem icon={Terminal} label="Console" path="/console" active={isActive('/console')} collapsed={collapsed} />
-
               <SidebarItem icon={SmartphoneDevice} label="Mobile" path="/mobile-pairing" active={isActive('/mobile-pairing')} collapsed={collapsed} />
 
               {/* Settings with submenu */}
@@ -283,10 +292,84 @@ function Dashboard({ socket }) {
           </div>
         </aside>
 
+        {/* ── Mobile sidebar drawer ── */}
+        <aside className={clsx(
+          "fixed inset-y-0 left-0 z-50 w-72 border-r-[3px] border-neon-pink/20 flex flex-col bg-brutal-surface transition-transform duration-300 lg:hidden",
+          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        )}>
+          {/* Mobile logo */}
+          <div className="p-6 border-b-[3px] border-neon-pink/20 bg-gradient-to-br from-neon-pink/10 to-neon-purple/10">
+            <h1 className="text-4xl font-black tracking-tighter italic text-neon-pink"
+              style={{ textShadow: '0 0 30px var(--neon-pink)' }}>NEXUS</h1>
+            <p className="text-[9px] font-bold uppercase mt-2 border border-neon-cyan/30 inline-block px-2 py-1 bg-brutal-bg/60 text-neon-cyan tracking-[0.25em]">
+              SYS_MONITOR // RAW
+            </p>
+          </div>
+
+          {/* Mobile nav */}
+          <div className="flex-1 overflow-y-auto p-3 custom-scrollbar">
+            <div className="space-y-3">
+              <div className="bg-neon-pink px-2 py-1 text-[10px] font-bold uppercase inline-block rotate-[-2deg] tracking-widest"
+                style={{ color: 'var(--on-neon-pink)' }}>
+                Navigation
+              </div>
+              <SidebarItem icon={ViewGrid} label="Overview" path="/" active={isActive('/')} collapsed={false} />
+              <SidebarItem icon={Server} label="Nodes" path="/nodes" active={location.pathname.startsWith('/nodes')} collapsed={false} />
+              <SidebarItem icon={Page} label="Logs" path="/logs" active={isActive('/logs')} collapsed={false} />
+              <SidebarItem icon={Terminal} label="Console" path="/console" active={isActive('/console')} collapsed={false} />
+              <SidebarItem icon={SmartphoneDevice} label="Mobile" path="/mobile-pairing" active={isActive('/mobile-pairing')} collapsed={false} />
+              <div>
+                <SidebarItem
+                  icon={SettingsIcon}
+                  label="Settings"
+                  active={location.pathname.startsWith('/settings')}
+                  collapsed={false}
+                  onClick={() => {
+                    setSettingsOpen(o => !o);
+                    if (!settingsOpen) navigate('/settings/themes');
+                  }}
+                />
+                <AnimatePresence>
+                  {settingsOpen && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.15 }}
+                      className="overflow-hidden"
+                    >
+                      {settingsSubItems.map(item => (
+                        <SubItem key={item.path} icon={item.icon} label={item.label} path={item.path} active={isActive(item.path)} collapsed={false} />
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
+          </div>
+
+          {/* Mobile logout */}
+          <div className="p-3 border-t-[3px] border-neon-pink/20 bg-brutal-surface">
+            <button
+              onClick={logout}
+              className="w-full py-2.5 border-2 border-red-500/50 bg-red-500/10 text-red-400 font-bold uppercase tracking-widest text-xs flex items-center justify-center gap-2 hover:bg-red-500/20 transition-all"
+            >
+              <LogOut className="w-4 h-4" />
+              Disconnect
+            </button>
+          </div>
+        </aside>
+
         {/* ── Main Content ── */}
         <main className="flex-1 flex flex-col min-w-0 bg-brutal-bg overflow-hidden relative">
-          {/* Ticker tape */}
+          {/* Ticker tape with mobile hamburger */}
           <header className="h-11 border-b-[3px] border-neon-pink/20 bg-neon-pink/[0.07] flex items-center overflow-hidden whitespace-nowrap">
+            <button
+              onClick={() => setMobileOpen(true)}
+              className="lg:hidden flex-shrink-0 px-3 py-2 text-neon-pink hover:bg-neon-pink/10 transition-colors"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
             <div className="animate-marquee flex items-center gap-12 font-bold font-mono text-[11px] uppercase tracking-widest text-neon-pink/50">
               <span>/// SYSTEM STATUS: OPERATIONAL</span>
               <span>/// NEXUS MONITORING ACTIVE</span>
@@ -301,7 +384,7 @@ function Dashboard({ socket }) {
             </div>
           </header>
 
-          <div className="flex-1 overflow-y-auto p-8">
+          <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
             <motion.div
               key={location.pathname}
               initial={{ opacity: 0, x: -20 }}
@@ -322,9 +405,9 @@ function Dashboard({ socket }) {
             </motion.div>
           </div>
 
-          {/* Decorative corners */}
-          <div className="absolute top-16 right-8 w-12 h-12 border-t-[3px] border-r-[3px] border-neon-pink/[0.08] pointer-events-none" />
-          <div className="absolute bottom-8 right-8 w-12 h-12 border-b-[3px] border-r-[3px] border-neon-cyan/[0.08] pointer-events-none" />
+          {/* Decorative corners — hidden on small screens */}
+          <div className="absolute top-16 right-8 w-12 h-12 border-t-[3px] border-r-[3px] border-neon-pink/[0.08] pointer-events-none hidden md:block" />
+          <div className="absolute bottom-8 right-8 w-12 h-12 border-b-[3px] border-r-[3px] border-neon-cyan/[0.08] pointer-events-none hidden md:block" />
         </main>
       </div>
     </div>

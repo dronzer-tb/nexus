@@ -4,12 +4,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Palette, FloppyDisk, Trash, Check, Undo, Key, Copy, Plus, Shield, Eye, EyeClosed,
   Download, Refresh, ArrowUpCircle, Server, SendDiagonal, RefreshDouble, OpenNewWindow,
-  WarningTriangle, Group, UserPlus, Upload, EditPencil, Xmark
+  WarningTriangle, Group, UserPlus, Upload, EditPencil, Xmark, Flash
 } from 'iconoir-react';
 import { useTheme, BUILT_IN_PRESETS, COLOR_LABELS, luminance } from '../context/ThemeContext';
 import axios from 'axios';
 import TwoFactorSettings from '../components/TwoFactorSettings';
 import UninstallSettings from '../components/UninstallSettings';
+import DiscordAlertSettings from '../components/DiscordAlertSettings';
 
 /* ═══════════════════════════════════════
    SHARED COMPONENTS
@@ -113,10 +114,10 @@ function ThemeSettings({ showFeedback }) {
   };
 
   const colorGroups = [
-    { title: 'Backgrounds', icon: '◼', keys: ['bgPrimary', 'bgSecondary', 'bgCard'] },
-    { title: 'Accents', icon: '◆', keys: ['accent1', 'accent2', 'accent3', 'accent4'] },
-    { title: 'Text', icon: '◇', keys: ['text', 'textSecondary', 'textMuted'] },
-    { title: 'Status', icon: '●', keys: ['danger', 'success'] },
+    { title: 'Backgrounds', Icon: Palette, keys: ['bgPrimary', 'bgSecondary', 'bgCard'] },
+    { title: 'Accents', Icon: Flash, keys: ['accent1', 'accent2', 'accent3', 'accent4'] },
+    { title: 'Text', Icon: EditPencil, keys: ['text', 'textSecondary', 'textMuted'] },
+    { title: 'Status', Icon: Shield, keys: ['danger', 'success'] },
   ];
 
   const isThemeEqual = (a, b) => {
@@ -168,7 +169,7 @@ function ThemeSettings({ showFeedback }) {
               style={{ color: 'var(--on-neon-cyan)' }}>
               Your Presets ({userPresets.length}/{maxUserPresets})
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <button
                 onClick={() => fileInputRef.current?.click()}
                 className="flex items-center gap-1.5 px-3 py-1.5 border-2 border-tx/10 text-tx/40 font-bold uppercase text-[9px] tracking-wider hover:border-neon-cyan/40 hover:text-neon-cyan transition-all"
@@ -284,7 +285,7 @@ function ThemeSettings({ showFeedback }) {
                 transition={{ delay: gi * 0.05 }}
                 className="border-[3px] border-tx/10 bg-brutal-card p-4">
                 <h3 className="font-bold text-xs uppercase tracking-widest text-tx/50 mb-3 flex items-center gap-2">
-                  <span className="text-neon-pink">{group.icon}</span>{group.title}
+                  <group.Icon className="w-4 h-4 text-neon-pink" />{group.title}
                 </h3>
                 <div className="space-y-3">
                   {group.keys.map((key) => (
@@ -574,7 +575,7 @@ function UpdateSettings({ showFeedback }) {
             <div className="border-[3px] border-neon-purple/20 bg-brutal-card p-5">
               <div className="flex items-center justify-between mb-4">
                 <div className="text-xs font-bold uppercase tracking-widest text-neon-purple">Recent Releases</div>
-                <button onClick={() => setShowChangelog(false)} className="text-tx/20 hover:text-tx text-xs">✕</button>
+                <button onClick={() => setShowChangelog(false)} className="text-tx/20 hover:text-tx"><Xmark className="w-4 h-4" /></button>
               </div>
               <div className="space-y-4 max-h-60 overflow-y-auto pr-2">
                 {releases.map((release, i) => (
@@ -744,7 +745,7 @@ function SecuritySettings({ showFeedback }) {
   return (
     <div className="space-y-6">
       {/* Security Sub-tabs */}
-      <div className="flex gap-2 border-b-2 border-tx/10 pb-4">
+      <div className="flex flex-wrap gap-2 border-b-2 border-tx/10 pb-4">
         {securityTabs.map(t => (
           <button
             key={t.id}
@@ -923,6 +924,7 @@ function Settings() {
 
   const tabs = [
     { id: 'themes', label: 'Themes', icon: Palette, color: 'neon-pink' },
+    { id: 'alerts', label: 'Alerts', icon: SendDiagonal, color: 'neon-purple' },
     { id: 'security', label: 'Security', icon: Shield, color: 'neon-cyan' },
     { id: 'updates', label: 'Updates', icon: ArrowUpCircle, color: 'neon-purple' },
   ];
@@ -932,8 +934,8 @@ function Settings() {
   return (
     <div className="max-w-7xl mx-auto">
       {/* Header */}
-      <header className="mb-8 border-b-[3px] border-neon-pink/20 pb-6">
-        <h1 className="text-5xl font-black uppercase tracking-tighter leading-[0.9]">
+      <header className="mb-6 md:mb-8 border-b-[3px] border-neon-pink/20 pb-4 md:pb-6">
+        <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black uppercase tracking-tighter leading-[0.9]">
           <span className="text-tx">System</span>{' '}
           <span className="text-neon-pink" style={{ textShadow: '0 0 25px var(--neon-pink)' }}>Settings</span>
         </h1>
@@ -988,6 +990,7 @@ function Settings() {
           transition={{ duration: 0.2 }}
         >
           {activeTab === 'themes' && <ThemeSettings showFeedback={showFeedback} />}
+          {activeTab === 'alerts' && <DiscordAlertSettings showFeedback={showFeedback} />}
           {activeTab === 'security' && <SecuritySettings showFeedback={showFeedback} />}
           {activeTab === 'updates' && <UpdateSettings showFeedback={showFeedback} />}
         </motion.div>

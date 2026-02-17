@@ -6,6 +6,7 @@ import {
 import * as Haptics from 'expo-haptics';
 import { colors, spacing } from '../theme';
 import { completeAuth, savePairingResult } from '../api';
+import { CircleCheck, ShieldCheck, XCircle } from 'lucide-react-native';
 
 const CODE_LENGTH = 6;
 
@@ -115,7 +116,7 @@ export default function TwoFactorScreen({ route, navigation }) {
   if (success) {
     return (
       <View style={[styles.container, styles.successContainer]}>
-        <Text style={styles.successEmoji}>✅</Text>
+        <CircleCheck size={64} color={colors.accent} strokeWidth={2} style={{ marginBottom: spacing.md }} />
         <Text style={styles.successTitle}>PAIRED SUCCESSFULLY</Text>
         <Text style={styles.successSubtitle}>
           Your device is now securely connected to Nexus
@@ -141,7 +142,7 @@ export default function TwoFactorScreen({ route, navigation }) {
         <View style={styles.content}>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.emoji}>🛡️</Text>
+            <ShieldCheck size={40} color={colors.accent} strokeWidth={2} style={{ marginBottom: 8 }} />
             <Text style={styles.title}>2FA VERIFY</Text>
             <Text style={styles.subtitle}>
               Enter the code from your{'\n'}authenticator app
@@ -217,7 +218,10 @@ export default function TwoFactorScreen({ route, navigation }) {
           {/* Error */}
           {error && (
             <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>✗ {error}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <XCircle size={14} color={colors.danger} />
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
             </View>
           )}
 

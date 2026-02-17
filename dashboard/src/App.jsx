@@ -7,6 +7,7 @@ import Onboarding from './pages/Onboarding';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './pages/Login';
+import { Activity } from 'iconoir-react';
 
 // Auth Guard Component
 const RequireAuth = ({ children }) => {
@@ -86,7 +87,7 @@ function App() {
       <ThemeProvider>
         <div className="min-h-screen bg-background-dark flex items-center justify-center">
           <div className="text-center">
-            <div className="text-6xl mb-4">🎯</div>
+            <img src="/favicon.png" alt="Nexus" className="w-16 h-16 mx-auto mb-4" />
             <div className="font-mono text-neon-pink text-lg uppercase tracking-widest animate-pulse">
               Initializing Nexus...
             </div>

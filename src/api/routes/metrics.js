@@ -4,6 +4,7 @@ const auth = require('../../utils/auth');
 const authenticate = require('../../middleware/auth');
 const logger = require('../../utils/logger');
 const encryption = require('../../utils/encryption');
+const alerts = require('../../utils/alerts');
 
 const router = express.Router();
 
@@ -43,6 +44,11 @@ router.post('/', (req, res) => {
 
     // Save metrics
     database.saveMetrics(nodeId, metrics);
+
+    // Check alert thresholds (async, non-blocking)
+    alerts.checkMetrics(nodeId, metrics, node.hostname).catch(err => {
+      logger.error('Alert check failed:', err.message);
+    });
 
     res.json({
       success: true,

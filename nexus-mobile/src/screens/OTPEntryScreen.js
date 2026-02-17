@@ -6,6 +6,7 @@ import {
 import * as Haptics from 'expo-haptics';
 import { colors, spacing } from '../theme';
 import { validateOTP } from '../api';
+import { Hash, Timer, XCircle } from 'lucide-react-native';
 
 const OTP_LENGTH = 6;
 
@@ -144,7 +145,7 @@ export default function OTPEntryScreen({ route, navigation }) {
       <View style={styles.content}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.emoji}>🔢</Text>
+          <Hash size={40} color={colors.accent} strokeWidth={2} style={{ marginBottom: 8 }} />
           <Text style={styles.title}>ENTER OTP</Text>
           <Text style={styles.subtitle}>
             Enter the 6-digit code shown on the{'\n'}Nexus dashboard
@@ -156,9 +157,12 @@ export default function OTPEntryScreen({ route, navigation }) {
           styles.timerContainer,
           isUrgent && styles.timerUrgent,
         ]}>
-          <Text style={[styles.timerLabel, isUrgent && { color: colors.danger }]}>
-            ⏱ EXPIRES IN
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <Timer size={14} color={isUrgent ? colors.danger : colors.textMuted} />
+            <Text style={[styles.timerLabel, isUrgent && { color: colors.danger }]}>
+              EXPIRES IN
+            </Text>
+          </View>
           <Text style={[styles.timerValue, isUrgent && { color: colors.danger }]}>
             {timeRemaining}s
           </Text>
@@ -198,7 +202,10 @@ export default function OTPEntryScreen({ route, navigation }) {
         {/* Error */}
         {error && (
           <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>✗ {error}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <XCircle size={14} color={colors.danger} />
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
           </View>
         )}
 

@@ -2,7 +2,7 @@
   "expo": {
     "name": "Nexus Monitor",
     "slug": "nexus",
-    "version": "2.0.0",
+    "version": "2.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -13,7 +13,8 @@
       "backgroundColor": "#0a0a0a"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.dronzer.nexus"
     },
     "android": {
       "adaptiveIcon": {
@@ -36,6 +37,16 @@
         "expo-camera",
         {
           "cameraPermission": "Nexus needs camera access to scan QR codes for secure pairing."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#00ff41",
+          "sounds": [],
+          "androidMode": "default",
+          "androidCollapsedTitle": "Nexus Alerts"
         }
       ]
     ],

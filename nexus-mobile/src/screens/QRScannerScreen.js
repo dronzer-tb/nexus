@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { colors, spacing } from '../theme';
+import { Camera } from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
 const SCAN_SIZE = width * 0.7;
@@ -106,7 +107,7 @@ export default function QRScannerScreen({ navigation }) {
     return (
       <View style={styles.container}>
         <View style={styles.center}>
-          <Text style={styles.icon}>📷</Text>
+          <Camera size={48} color={colors.textMuted} style={{ marginBottom: spacing.md }} />
           <Text style={styles.permTitle}>Camera Access Required</Text>
           <Text style={styles.permDesc}>
             We need camera access to scan the pairing QR code from the Nexus dashboard.

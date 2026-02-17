@@ -21,6 +21,7 @@ const updateRouter = require('../api/routes/update');
 
 // Import WebSocket handler
 const WebSocketHandler = require('../api/websocket');
+const discordBot = require('../utils/discord-bot');
 
 class ServerMode {
   constructor() {
@@ -68,6 +69,11 @@ class ServerMode {
       logger.info(`Server mode started on http://${this.host}:${this.port}`);
       logger.info(`Dashboard available at http://${this.host}:${this.port}/`);
       logger.info('Default credentials: admin / admin123');
+    });
+
+    // Initialize Discord bot (non-blocking)
+    discordBot.init().catch(err => {
+      logger.warn('[Discord] Bot init skipped:', err.message);
     });
 
     // Graceful shutdown
@@ -136,6 +142,11 @@ class ServerMode {
         if (origin.startsWith('http://127.0.0.1:')) {
           return callback(null, true);
         }
+
+        // Allow Tailscale IPs (100.x.x.x)
+        if (/^https?:\/\/100\.\d+\.\d+\.\d+/.test(origin)) {
+          return callback(null, true);
+        }
         
         // Allow nginx domain if configured
         const nginxDomain = config.get('nginx.domain');
@@ -184,6 +195,8 @@ class ServerMode {
     this.app.use('/api/console', require('../api/routes/console'));
     this.app.use('/api/update', updateRouter);
     this.app.use('/api/audit', require('../api/routes/audit'));
+    this.app.use('/api/alerts', require('../api/routes/alerts'));
+    this.app.use('/api/tailscale', require('../api/routes/tailscale'));
 
     // Health check
     this.app.get('/health', (req, res) => {
@@ -481,6 +494,9 @@ class ServerMode {
   setupGracefulShutdown() {
     const shutdown = () => {
       logger.info('Shutting down server...');
+
+      // Disconnect Discord bot
+      discordBot.destroy().catch(() => {});
 
       if (this.io) {
         this.io.close();

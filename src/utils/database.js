@@ -134,6 +134,20 @@ class DatabaseManager {
     // Migrate nodes table to add console_enabled column
     this.migrateConsoleColumn();
 
+    // Create node_alert_settings table for per-node alert overrides
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS node_alert_settings (
+        node_id TEXT PRIMARY KEY,
+        enabled INTEGER DEFAULT 1,
+        cpu_threshold REAL DEFAULT 80,
+        memory_threshold REAL DEFAULT 85,
+        disk_threshold REAL DEFAULT 90,
+        discord_user_id TEXT,
+        updated_at INTEGER DEFAULT (strftime('%s', 'now')),
+        FOREIGN KEY (node_id) REFERENCES nodes(id) ON DELETE CASCADE
+      )
+    `);
+
     // Sessions table for authentication
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS sessions (
@@ -153,6 +167,29 @@ class DatabaseManager {
       CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);
       CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
       CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
+    `);
+
+    // Alert history table for mobile polling
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS alert_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        node_id TEXT,
+        node_name TEXT,
+        metric TEXT NOT NULL,
+        severity TEXT NOT NULL,
+        type TEXT NOT NULL,
+        message TEXT NOT NULL,
+        value REAL,
+        threshold REAL,
+        top_process TEXT,
+        fired_at INTEGER NOT NULL DEFAULT (strftime('%s','now') * 1000),
+        resolved_at INTEGER,
+        acknowledged INTEGER DEFAULT 0
+      )
+    `);
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_alert_history_fired_at ON alert_history(fired_at);
+      CREATE INDEX IF NOT EXISTS idx_alert_history_node_id ON alert_history(node_id);
     `);
   }
 
@@ -643,6 +680,99 @@ class DatabaseManager {
   cleanExpiredSessions() {
     const stmt = this.db.prepare('DELETE FROM sessions WHERE expires_at < ?');
     return stmt.run(Date.now());
+  }
+
+  // Node Alert Settings operations
+  getNodeAlertSettings(nodeId) {
+    const stmt = this.db.prepare('SELECT * FROM node_alert_settings WHERE node_id = ?');
+    return stmt.get(nodeId) || null;
+  }
+
+  getAllNodeAlertSettings() {
+    const stmt = this.db.prepare('SELECT * FROM node_alert_settings ORDER BY node_id');
+    return stmt.all();
+  }
+
+  setNodeAlertSettings(nodeId, settings) {
+    const stmt = this.db.prepare(`
+      INSERT OR REPLACE INTO node_alert_settings (node_id, enabled, cpu_threshold, memory_threshold, disk_threshold, discord_user_id, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+    return stmt.run(
+      nodeId,
+      settings.enabled !== undefined ? (settings.enabled ? 1 : 0) : 1,
+      settings.cpuThreshold ?? 80,
+      settings.memoryThreshold ?? 85,
+      settings.diskThreshold ?? 90,
+      settings.discordUserId || null,
+      Date.now()
+    );
+  }
+
+  deleteNodeAlertSettings(nodeId) {
+    const stmt = this.db.prepare('DELETE FROM node_alert_settings WHERE node_id = ?');
+    return stmt.run(nodeId);
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // Alert History (for mobile polling)
+  // ═══════════════════════════════════════════════════════════════
+
+  addAlertHistory(alert) {
+    const stmt = this.db.prepare(`
+      INSERT INTO alert_history (node_id, node_name, metric, severity, type, message, value, threshold, top_process, fired_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    return stmt.run(
+      alert.nodeId || null,
+      alert.nodeName || null,
+      alert.metric || 'unknown',
+      alert.severity || 'info',
+      alert.type || '',
+      alert.message || '',
+      alert.value ?? null,
+      alert.threshold ?? null,
+      alert.topProcess ? JSON.stringify(alert.topProcess) : null,
+      alert.firedAt || Date.now(),
+    );
+  }
+
+  getAlertsSince(sinceTimestamp, limit = 50) {
+    const stmt = this.db.prepare(`
+      SELECT * FROM alert_history 
+      WHERE fired_at > ? 
+      ORDER BY fired_at DESC 
+      LIMIT ?
+    `);
+    const rows = stmt.all(sinceTimestamp, limit);
+    return rows.map(r => {
+      if (r.top_process) try { r.top_process = JSON.parse(r.top_process); } catch {}
+      return r;
+    });
+  }
+
+  getRecentAlerts(limit = 50) {
+    const stmt = this.db.prepare(`
+      SELECT * FROM alert_history 
+      ORDER BY fired_at DESC 
+      LIMIT ?
+    `);
+    const rows = stmt.all(limit);
+    return rows.map(r => {
+      if (r.top_process) try { r.top_process = JSON.parse(r.top_process); } catch {}
+      return r;
+    });
+  }
+
+  acknowledgeAlert(alertId) {
+    const stmt = this.db.prepare('UPDATE alert_history SET acknowledged = 1 WHERE id = ?');
+    return stmt.run(alertId);
+  }
+
+  cleanOldAlerts(olderThanMs = 7 * 24 * 60 * 60 * 1000) {
+    const cutoff = Date.now() - olderThanMs;
+    const stmt = this.db.prepare('DELETE FROM alert_history WHERE fired_at < ?');
+    return stmt.run(cutoff);
   }
 
   close() {

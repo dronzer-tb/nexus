@@ -54,7 +54,7 @@ function Login() {
       <div className="w-full max-w-md">
         {/* Logo/Header */}
         <div className="text-center mb-8">
-          <div className="text-6xl mb-4">🎯</div>
+          <img src="/favicon.png" alt="Nexus" className="w-16 h-16 mx-auto mb-4" />
           <h1 className="text-4xl font-bold text-neon-pink mb-2">Nexus</h1>
           <p className="text-gray-400">Remote Resource Monitoring</p>
         </div>

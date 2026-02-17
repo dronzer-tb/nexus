@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { colors, spacing } from '../theme';
+import { KeyRound, XCircle, ArrowRight } from 'lucide-react-native';
 
 /**
  * Step 3: Login Screen
@@ -75,7 +76,7 @@ export default function LoginScreen({ route, navigation }) {
         <View style={styles.content}>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.emoji}>🔐</Text>
+            <KeyRound size={40} color={colors.accent} strokeWidth={2} style={{ marginBottom: 8 }} />
             <Text style={styles.title}>LOGIN</Text>
             <Text style={styles.subtitle}>
               Enter your Nexus dashboard credentials
@@ -143,7 +144,10 @@ export default function LoginScreen({ route, navigation }) {
           {/* Error */}
           {error && (
             <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>✗ {error}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <XCircle size={14} color={colors.danger} />
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
             </View>
           )}
 
@@ -156,7 +160,7 @@ export default function LoginScreen({ route, navigation }) {
             onPress={handleContinue}
             disabled={!username.trim() || !password.trim()}
           >
-            <Text style={styles.continueBtnText}>CONTINUE TO 2FA →</Text>
+            <Text style={styles.continueBtnText}>CONTINUE TO 2FA</Text>
           </TouchableOpacity>
 
           {/* Server info */}

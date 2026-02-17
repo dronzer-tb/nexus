@@ -150,10 +150,10 @@ function AgentDetails({ socket }) {
         animate={{ opacity: 1 }}
         className="border-[3px] border-neon-pink/20 bg-brutal-card p-6 mb-6 shadow-brutal"
       >
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <div className="flex items-center gap-3 mb-2">
-              <h1 className="text-4xl font-black uppercase tracking-tighter text-tx">{node.hostname}</h1>
+        <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-3 mb-2">
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black uppercase tracking-tighter text-tx">{node.hostname}</h1>
               <span className={`px-3 py-1 text-[10px] font-bold uppercase tracking-widest border-2 ${
                 isOnline
                   ? 'border-neon-cyan/40 text-neon-cyan bg-neon-cyan/10'
@@ -162,13 +162,13 @@ function AgentDetails({ socket }) {
                 {isOnline ? '● ONLINE' : '● OFFLINE'}
               </span>
             </div>
-            <div className="font-mono text-[10px] text-tx/30 flex gap-4 tracking-wider uppercase">
+            <div className="font-mono text-[10px] text-tx/30 flex flex-wrap gap-x-4 gap-y-1 tracking-wider uppercase">
               <span>ID: {node.id.substring(0, 24)}...</span>
               <span>{node.system_info?.os?.distro || '—'}</span>
               {node.system_info?.uptime && <span>Uptime: {formatUptime(node.system_info.uptime)}</span>}
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <button
               onClick={() => navigate(`/console`)}
               className="flex items-center gap-2 px-4 py-2 border-2 border-neon-cyan/40 bg-neon-cyan/10 text-neon-cyan font-bold text-xs uppercase tracking-wider hover:bg-neon-cyan/20 hover:translate-x-[-2px] hover:translate-y-[-2px] transition-all"
@@ -185,7 +185,7 @@ function AgentDetails({ socket }) {
               <List className="w-4 h-4" />
               Processes
             </button>
-            <div className="font-mono text-[10px] bg-brutal-bg border-2 border-neon-pink/10 text-tx/25 p-3 tracking-wider">
+            <div className="font-mono text-[10px] bg-brutal-bg border-2 border-neon-pink/10 text-tx/25 p-3 tracking-wider hidden sm:block">
               ARCH: {node.system_info?.os?.arch || '—'}<br />
               KERNEL: {node.system_info?.os?.kernel || '—'}
             </div>
@@ -269,7 +269,7 @@ function AgentDetails({ socket }) {
           </div>
 
           {/* Process grid header */}
-          <div className="grid grid-cols-12 gap-2 px-5 py-2 text-[9px] font-bold uppercase tracking-widest text-tx/20 border-b-2 border-neon-purple/[0.06]">
+          <div className="hidden sm:grid grid-cols-12 gap-2 px-5 py-2 text-[9px] font-bold uppercase tracking-widest text-tx/20 border-b-2 border-neon-purple/[0.06]">
             <div className="col-span-2">PID</div>
             <div className="col-span-6">Name</div>
             <div className="col-span-2 text-right">CPU %</div>
@@ -278,16 +278,18 @@ function AgentDetails({ socket }) {
 
           {data.processes.list.slice(0, 10).map((proc, i) => (
             <div key={i}
-              className="grid grid-cols-12 gap-2 px-5 py-2.5 text-xs border-b border-neon-purple/[0.04] hover:bg-neon-purple/[0.03] transition-colors"
+              className="flex flex-col sm:grid sm:grid-cols-12 gap-1 sm:gap-2 px-4 sm:px-5 py-2.5 text-xs border-b border-neon-purple/[0.04] hover:bg-neon-purple/[0.03] transition-colors"
             >
-              <div className="col-span-2 font-mono text-tx/30">{proc.pid}</div>
-              <div className="col-span-6 font-bold text-tx/80 truncate">{proc.name}</div>
-              <div className="col-span-2 text-right font-mono font-bold"
-                style={{ color: proc.cpu > 50 ? 'var(--neon-pink)' : 'var(--neon-cyan)' }}>
-                {proc.cpu?.toFixed(1)}
-              </div>
-              <div className="col-span-2 text-right font-mono text-tx/40">
-                {proc.mem?.toFixed(1)}
+              <div className="sm:col-span-2 font-mono text-tx/30"><span className="sm:hidden text-tx/20">PID </span>{proc.pid}</div>
+              <div className="sm:col-span-6 font-bold text-tx/80 truncate">{proc.name}</div>
+              <div className="flex sm:contents gap-4">
+                <div className="sm:col-span-2 sm:text-right font-mono font-bold"
+                  style={{ color: proc.cpu > 50 ? 'var(--neon-pink)' : 'var(--neon-cyan)' }}>
+                  <span className="sm:hidden text-tx/20">CPU </span>{proc.cpu?.toFixed(1)}%
+                </div>
+                <div className="sm:col-span-2 sm:text-right font-mono text-tx/40">
+                  <span className="sm:hidden text-tx/20">MEM </span>{proc.mem?.toFixed(1)}%
+                </div>
               </div>
             </div>
           ))}

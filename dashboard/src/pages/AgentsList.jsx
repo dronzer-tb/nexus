@@ -34,60 +34,59 @@ const NodeRow = ({ node, index, onDelete }) => {
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: index * 0.04 + 0.2 }}
     >
-      <div className="grid grid-cols-12 gap-4 items-center px-5 py-4 border-b-2 border-neon-pink/[0.07] hover:bg-neon-pink/[0.03] transition-colors group">
-        {/* Status + Name */}
-        <Link to={`/nodes/${node.id}`} className="col-span-4 flex items-center gap-3">
-          <div className={`w-4 h-4 border-2 flex-shrink-0 ${isOnline ? 'bg-neon-cyan border-neon-cyan/60' : 'bg-red-500 border-red-500/60'}`} />
-          <div className="min-w-0">
-            <div className="font-bold uppercase text-sm text-tx truncate group-hover:text-neon-pink transition-colors">
-              {node.hostname || node.id?.substring(0, 16)}
+      <Link to={`/nodes/${node.id}`} className="block">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 px-4 md:px-5 py-3 md:py-4 border-b-2 border-neon-pink/[0.07] hover:bg-neon-pink/[0.03] transition-colors group">
+          {/* Status + Name */}
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div className={`w-4 h-4 border-2 flex-shrink-0 ${isOnline ? 'bg-neon-cyan border-neon-cyan/60' : 'bg-red-500 border-red-500/60'}`} />
+            <div className="min-w-0 flex-1">
+              <div className="font-bold uppercase text-sm text-tx truncate group-hover:text-neon-pink transition-colors">
+                {node.hostname || node.id?.substring(0, 16)}
+              </div>
+              <div className="font-mono text-[10px] text-tx/25 truncate">
+                {node.system_info?.os?.distro || '—'}
+              </div>
             </div>
-            <div className="font-mono text-[10px] text-tx/25 truncate">
-              {node.system_info?.os?.distro || '—'}
-            </div>
+            <span className={`inline-block px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider border-2 sm:hidden ${
+              isOnline ? 'border-neon-cyan/40 text-neon-cyan bg-neon-cyan/10' : 'border-red-500/40 text-red-400 bg-red-500/10'
+            }`}>
+              {isOnline ? '●' : '●'}
+            </span>
           </div>
-        </Link>
 
-        {/* Status badge */}
-        <Link to={`/nodes/${node.id}`} className="col-span-2">
-          <span className={`inline-block px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider border-2 ${
-            isOnline
-              ? 'border-neon-cyan/40 text-neon-cyan bg-neon-cyan/10'
-              : 'border-red-500/40 text-red-400 bg-red-500/10'
+          {/* Status badge — desktop */}
+          <span className={`hidden sm:inline-block px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider border-2 shrink-0 ${
+            isOnline ? 'border-neon-cyan/40 text-neon-cyan bg-neon-cyan/10' : 'border-red-500/40 text-red-400 bg-red-500/10'
           }`}>
             {isOnline ? '● ONLINE' : '● OFFLINE'}
           </span>
-        </Link>
 
-        {/* CPU */}
-        <Link to={`/nodes/${node.id}`} className="col-span-2">
-          <BarCell value={cpu} color="var(--neon-pink)" />
-        </Link>
+          {/* Metric bars */}
+          <div className="flex items-center gap-3 sm:gap-4 pl-7 sm:pl-0">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] text-tx/25 uppercase hidden md:inline">CPU</span>
+              <BarCell value={cpu} color="var(--neon-pink)" />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] text-tx/25 uppercase hidden md:inline">MEM</span>
+              <BarCell value={mem} color="var(--neon-cyan)" />
+            </div>
+            <span className="font-mono font-bold text-xs text-neon-purple hidden md:inline">{disk.toFixed(0)}%</span>
+          </div>
 
-        {/* RAM */}
-        <Link to={`/nodes/${node.id}`} className="col-span-2">
-          <BarCell value={mem} color="var(--neon-cyan)" />
-        </Link>
-
-        {/* Disk */}
-        <Link to={`/nodes/${node.id}`} className="col-span-1">
-          <span className="font-mono font-bold text-xs text-neon-purple">{disk.toFixed(0)}%</span>
-        </Link>
-
-        {/* Actions */}
-        <div className="col-span-1 flex items-center justify-end gap-2">
-          <button
-            onClick={handleDelete}
-            className="p-1.5 border-2 border-transparent hover:border-red-500/40 hover:bg-red-500/10 text-tx/30 hover:text-red-400 transition-all"
-            title="Delete node"
-          >
-            <Trash className="w-3.5 h-3.5" />
-          </button>
-          <Link to={`/nodes/${node.id}`}>
-            <ArrowUpRight className="w-4 h-4 text-tx/15 group-hover:text-neon-pink transition-colors inline-block" />
-          </Link>
+          {/* Actions */}
+          <div className="flex items-center gap-2 shrink-0 pl-7 sm:pl-0">
+            <button
+              onClick={handleDelete}
+              className="p-1.5 border-2 border-transparent hover:border-red-500/40 hover:bg-red-500/10 text-tx/30 hover:text-red-400 transition-all"
+              title="Delete node"
+            >
+              <Trash className="w-3.5 h-3.5" />
+            </button>
+            <ArrowUpRight className="w-4 h-4 text-tx/15 group-hover:text-neon-pink transition-colors" />
+          </div>
         </div>
-      </div>
+      </Link>
     </motion.div>
   );
 };
@@ -153,9 +152,9 @@ function AgentsList({ socket }) {
   return (
     <div className="max-w-7xl mx-auto">
       {/* Header */}
-      <header className="mb-8 flex items-end justify-between border-b-[3px] border-neon-pink/20 pb-6">
+      <header className="mb-6 md:mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b-[3px] border-neon-pink/20 pb-4 md:pb-6">
         <div>
-          <h1 className="text-5xl font-black uppercase tracking-tighter leading-[0.9]">
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black uppercase tracking-tighter leading-[0.9]">
             <span className="text-tx">All</span>{' '}
             <span className="text-neon-pink" style={{ textShadow: '0 0 25px var(--neon-pink)' }}>Nodes</span>
           </h1>
@@ -163,7 +162,7 @@ function AgentsList({ socket }) {
             {agents.length} registered · {agents.filter(a => a.status === 'online').length} online
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <button
             onClick={() => setShowAddNode(true)}
             className="flex items-center gap-2 px-4 py-2 border-2 border-neon-cyan/40 text-neon-cyan font-bold uppercase text-[10px] tracking-widest hover:bg-neon-cyan transition-all shadow-brutal-sm hover:shadow-none hover:translate-x-[3px] hover:translate-y-[3px]"
@@ -192,13 +191,13 @@ function AgentsList({ socket }) {
         className="border-[3px] border-neon-pink/20 bg-brutal-card shadow-brutal"
       >
         {/* Table header */}
-        <div className="grid grid-cols-12 gap-4 px-5 py-3 text-[10px] font-bold uppercase tracking-widest border-b-[3px] border-neon-pink/20 bg-neon-pink/[0.05] text-tx/30">
-          <div className="col-span-4">Node</div>
-          <div className="col-span-2">Status</div>
-          <div className="col-span-2">CPU</div>
-          <div className="col-span-2">Memory</div>
-          <div className="col-span-1">Disk</div>
-          <div className="col-span-1"></div>
+        <div className="hidden sm:flex items-center gap-4 px-5 py-3 text-[10px] font-bold uppercase tracking-widest border-b-[3px] border-neon-pink/20 bg-neon-pink/[0.05] text-tx/30">
+          <div className="flex-1">Node</div>
+          <div className="w-20 shrink-0">Status</div>
+          <div className="w-36 shrink-0">CPU</div>
+          <div className="w-36 shrink-0">MEM</div>
+          <div className="w-12 shrink-0 hidden md:block">Disk</div>
+          <div className="w-16 shrink-0"></div>
         </div>
 
         {/* Rows */}
@@ -255,55 +254,31 @@ function AgentsList({ socket }) {
 
               {/* Modal body */}
               <div className="p-6 space-y-6">
-                {/* Step 1 */}
+                {/* Single command — display only */}
                 <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="w-6 h-6 border-2 border-neon-cyan/40 bg-neon-cyan/10 text-neon-cyan font-bold text-xs flex items-center justify-center">1</span>
-                    <span className="font-bold text-sm uppercase tracking-wider text-tx">Install Nexus on the target machine</span>
+                  <div className="font-bold text-xs uppercase tracking-wider text-tx/60 mb-3">
+                    Run this command on the target machine:
                   </div>
-                  <div className="bg-brutal-bg border-2 border-tx/10 p-3 font-mono text-sm text-tx/80 flex items-center">
-                    <Terminal className="w-4 h-4 text-neon-cyan/40 mr-2 shrink-0" />
-                    <code className="flex-1 break-all">git clone https://github.com/dronzer-tb/nexus.git && cd nexus && npm install</code>
-                    <CopyButton text="git clone https://github.com/dronzer-tb/nexus.git && cd nexus && npm install" label="install" />
-                  </div>
-                </div>
-
-                {/* Step 2 */}
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="w-6 h-6 border-2 border-neon-cyan/40 bg-neon-cyan/10 text-neon-cyan font-bold text-xs flex items-center justify-center">2</span>
-                    <span className="font-bold text-sm uppercase tracking-wider text-tx">Configure the server URL</span>
-                  </div>
-                  <div className="font-mono text-[11px] text-tx/50 mb-2">
-                    Edit <span className="text-neon-cyan">config.json</span> and set the server URL:
-                  </div>
-                  <div className="bg-brutal-bg border-2 border-tx/10 p-3 font-mono text-sm text-tx/80">
-                    <div className="flex items-center">
-                      <code className="flex-1 break-all">{`"node": { "serverUrl": "${serverUrl}" }`}</code>
-                      <CopyButton text={`"node": { "serverUrl": "${serverUrl}" }`} label="config" />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Step 3 */}
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="w-6 h-6 border-2 border-neon-cyan/40 bg-neon-cyan/10 text-neon-cyan font-bold text-xs flex items-center justify-center">3</span>
-                    <span className="font-bold text-sm uppercase tracking-wider text-tx">Start in Node mode</span>
-                  </div>
-                  <div className="bg-brutal-bg border-2 border-tx/10 p-3 font-mono text-sm text-tx/80 flex items-center">
-                    <Terminal className="w-4 h-4 text-neon-cyan/40 mr-2 shrink-0" />
-                    <code className="flex-1">node src/index.js --mode=node</code>
-                    <CopyButton text="node src/index.js --mode=node" label="start" />
-                  </div>
-                </div>
-
-                {/* Quick one-liner */}
-                <div className="border-[3px] border-neon-pink/20 bg-neon-pink/5 p-4">
-                  <div className="font-bold text-xs uppercase tracking-wider text-neon-pink mb-2">⚡ Quick one-liner</div>
-                  <div className="bg-brutal-bg border-2 border-tx/10 p-3 font-mono text-xs text-tx/80 flex items-start">
+                  <div className="bg-brutal-bg border-2 border-tx/10 p-4 font-mono text-xs text-tx/80 flex items-start">
+                    <Terminal className="w-4 h-4 text-neon-cyan/40 mr-2 mt-0.5 shrink-0" />
                     <code className="flex-1 break-all whitespace-pre-wrap">{`git clone https://github.com/dronzer-tb/nexus.git && cd nexus && npm install && node -e "const c=require('./src/utils/config');c.set('node.serverUrl','${serverUrl}');console.log('Configured!')" && node src/index.js --mode=node`}</code>
-                    <CopyButton text={`git clone https://github.com/dronzer-tb/nexus.git && cd nexus && npm install && node -e "const c=require('./src/utils/config');c.set('node.serverUrl','${serverUrl}');console.log('Configured!')" && node src/index.js --mode=node`} label="oneliner" />
+                    <CopyButton text={`git clone https://github.com/dronzer-tb/nexus.git && cd nexus && npm install && node -e "const c=require('./src/utils/config');c.set('node.serverUrl','${serverUrl}');console.log('Configured!')" && node src/index.js --mode=node`} label="command" />
+                  </div>
+                </div>
+
+                {/* Systemctl setup */}
+                <div className="border-[3px] border-neon-pink/20 bg-neon-pink/5 p-4">
+                  <div className="font-bold text-xs uppercase tracking-wider text-neon-pink mb-2">⚡ Auto-start as a service</div>
+                  <div className="font-mono text-[11px] text-tx/50 leading-relaxed mb-3">
+                    After the node is running, set it up as a <span className="text-neon-pink">systemd service</span> so it auto-starts on boot:
+                  </div>
+                  <div className="bg-brutal-bg border-2 border-tx/10 p-3 font-mono text-xs text-tx/80 flex items-start">
+                    <Terminal className="w-4 h-4 text-neon-pink/40 mr-2 mt-0.5 shrink-0" />
+                    <code className="flex-1 break-all whitespace-pre-wrap">node src/index.js --mode=node --install-service</code>
+                    <CopyButton text="node src/index.js --mode=node --install-service" label="service" />
+                  </div>
+                  <div className="font-mono text-[10px] text-tx/30 mt-2">
+                    Creates a systemd unit, enables auto-start, and launches the node service.
                   </div>
                 </div>
 

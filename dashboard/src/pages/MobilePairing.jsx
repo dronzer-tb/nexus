@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { SmartphoneDevice, QrCode, Trash, Clock, CheckCircle, WarningTriangle, Shield, Lock, Key } from 'iconoir-react';
+import { SmartphoneDevice, QrCode, Trash, Clock, CheckCircle, WarningTriangle, Shield, Lock, Key, Keyframes, InputField, Check } from 'iconoir-react';
 import axios from 'axios';
 
 /**
@@ -7,12 +7,20 @@ import axios from 'axios';
  * Multi-step auth flow: Generate QR + OTP → Mobile scans → OTP verify → Login + 2FA → Paired
  */
 
+const STEP_ICONS = {
+  1: Key,
+  2: SmartphoneDevice,
+  3: InputField,
+  4: Lock,
+  5: CheckCircle,
+};
+
 const STEPS = [
-  { id: 1, label: 'Generate', icon: '🔑' },
-  { id: 2, label: 'Scan QR', icon: '📱' },
-  { id: 3, label: 'Enter OTP', icon: '🔢' },
-  { id: 4, label: 'Login', icon: '🔐' },
-  { id: 5, label: 'Complete', icon: '✅' },
+  { id: 1, label: 'Generate' },
+  { id: 2, label: 'Scan QR' },
+  { id: 3, label: 'Enter OTP' },
+  { id: 4, label: 'Login' },
+  { id: 5, label: 'Complete' },
 ];
 
 function StepIndicator({ currentStep, pairingStep }) {
@@ -33,7 +41,7 @@ function StepIndicator({ currentStep, pairingStep }) {
                   ? 'bg-neon-cyan/20 border-neon-cyan text-neon-cyan animate-pulse'
                   : 'bg-gray-800 border-gray-600 text-gray-500'
             }`}>
-              {step.id < activeStep ? '✓' : step.icon}
+              {(() => { const Icon = step.id < activeStep ? Check : STEP_ICONS[step.id]; return <Icon className="w-5 h-5" />; })()}
             </div>
             <span className={`text-[10px] mt-1 font-bold tracking-wider uppercase ${
               step.id <= activeStep ? 'text-gray-300' : 'text-gray-600'
@@ -265,7 +273,9 @@ function MobilePairing() {
           {/* Completed state */}
           {currentStep === 5 ? (
             <div className="text-center py-10">
-              <div className="text-6xl mb-4">✅</div>
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-500/20 border-2 border-green-500 flex items-center justify-center">
+                <CheckCircle className="w-8 h-8 text-green-400" />
+              </div>
               <h3 className="text-xl font-bold text-green-400 mb-2">Device Paired Successfully</h3>
               <p className="text-gray-400 text-sm">The mobile device now has secure access.</p>
             </div>
@@ -447,13 +457,13 @@ function MobilePairing() {
         </h3>
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {[
-            { icon: '📱', label: 'QR Challenge', desc: 'Cryptographic challenge via QR code' },
-            { icon: '🔢', label: 'OTP Verification', desc: '6-digit code, 60s expiry, 3 attempts max' },
-            { icon: '🔑', label: 'Credentials', desc: 'Username + password verification' },
-            { icon: '🛡️', label: '2FA Required', desc: 'TOTP authenticator or recovery code' },
+            { Icon: SmartphoneDevice, label: 'QR Challenge', desc: 'Cryptographic challenge via QR code' },
+            { Icon: InputField, label: 'OTP Verification', desc: '6-digit code, 60s expiry, 3 attempts max' },
+            { Icon: Key, label: 'Credentials', desc: 'Username + password verification' },
+            { Icon: Shield, label: '2FA Required', desc: 'TOTP authenticator or recovery code' },
           ].map((layer, i) => (
             <div key={i} className="bg-background-dark/50 p-3 rounded border border-gray-700/50">
-              <div className="text-lg mb-1">{layer.icon}</div>
+              <layer.Icon className="w-5 h-5 text-neon-cyan mb-1" />
               <p className="text-xs font-bold text-gray-300">{layer.label}</p>
               <p className="text-[10px] text-gray-500 mt-0.5">{layer.desc}</p>
             </div>

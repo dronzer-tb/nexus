@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, Alert, ActivityIndicator,
+  TouchableOpacity, Alert, ActivityIndicator, Switch,
 } from 'react-native';
-import { colors, spacing } from '../theme';
+import { colors, spacing, fontScale } from '../theme';
 import { getSettings, clearSettings, verifyConnection, resetApi } from '../api';
+import { getNotificationsEnabled, setNotificationsEnabled, stopAlertPolling, startAlertPolling } from '../notifications';
+import { Lock, ShieldCheck, Smartphone, CheckCircle, XCircle, CircleDot, Circle, Bell, BellOff } from 'lucide-react-native';
 
 /**
  * Settings Screen (Post-Pairing)
@@ -15,9 +17,11 @@ export default function SettingsScreen({ onUnpair }) {
   const [loading, setLoading] = useState(true);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null);
+  const [notifEnabled, setNotifEnabled] = useState(true);
 
   useEffect(() => {
     loadSettings();
+    getNotificationsEnabled().then(setNotifEnabled).catch(() => {});
   }, []);
 
   const loadSettings = async () => {
@@ -100,8 +104,9 @@ export default function SettingsScreen({ onUnpair }) {
           <InfoRow label="Device ID" value={settings?.deviceId || '—'} mono />
           <InfoRow
             label="Status"
-            value={settings?.isPaired ? '● PAIRED' : '○ NOT PAIRED'}
+            value={settings?.isPaired ? 'PAIRED' : 'NOT PAIRED'}
             valueColor={settings?.isPaired ? colors.accent : colors.danger}
+            icon={settings?.isPaired ? <CircleDot size={12} color={colors.accent} /> : <Circle size={12} color={colors.danger} />}
           />
 
           {/* Test result */}
@@ -110,14 +115,19 @@ export default function SettingsScreen({ onUnpair }) {
               styles.testResult,
               { borderColor: testResult.success ? (colors.success || '#22c55e') + '60' : colors.danger + '60' },
             ]}>
-              <Text style={[
-                styles.testResultText,
-                { color: testResult.success ? (colors.success || '#22c55e') : colors.danger },
-              ]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 {testResult.success
-                  ? `✓ Connected! (${testResult.name})`
-                  : `✗ ${testResult.message}`}
-              </Text>
+                  ? <CheckCircle size={14} color={colors.success || '#22c55e'} />
+                  : <XCircle size={14} color={colors.danger} />}
+                <Text style={[
+                  styles.testResultText,
+                  { color: testResult.success ? (colors.success || '#22c55e') : colors.danger },
+                ]}>
+                  {testResult.success
+                    ? `Connected! (${testResult.name})`
+                    : testResult.message}
+                </Text>
+              </View>
             </View>
           )}
 
@@ -138,11 +148,44 @@ export default function SettingsScreen({ onUnpair }) {
 
       {/* Security Info */}
       <View style={styles.section}>
+        <SectionHeader title="NOTIFICATIONS" color={colors.accent} />
+        <View style={styles.card}>
+          <View style={styles.infoRow}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              {notifEnabled
+                ? <Bell size={14} color={colors.accent} />
+                : <BellOff size={14} color={colors.textMuted} />}
+              <Text style={styles.infoLabel}>Push Alerts</Text>
+            </View>
+            <Switch
+              value={notifEnabled}
+              onValueChange={async (val) => {
+                setNotifEnabled(val);
+                await setNotificationsEnabled(val);
+              }}
+              trackColor={{ false: colors.border, true: colors.accent + '60' }}
+              thumbColor={notifEnabled ? colors.accent : colors.textMuted}
+            />
+          </View>
+          <Text style={styles.notifHint}>
+            {notifEnabled
+              ? 'Polling server every 15s for new alerts. Local notifications will fire when thresholds are exceeded.'
+              : 'Notifications are disabled. The app will still collect alerts but won\'t show push banners.'}
+          </Text>
+          <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
+            <Text style={styles.infoLabel}>Method</Text>
+            <Text style={[styles.infoValue, { color: colors.cyan }]}>LOCAL POLLING (NO FCM)</Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Security Info — Original */}
+      <View style={styles.section}>
         <SectionHeader title="SECURITY" color={colors.pink} />
         <View style={styles.card}>
-          <Step number="🔒" text="Credentials stored in encrypted secure storage" />
-          <Step number="🛡" text="API key is device-specific and revocable" />
-          <Step number="📱" text="Unpair from dashboard to revoke remote access" />
+          <Step icon={<Lock size={18} color={colors.pink} />} text="Credentials stored in encrypted secure storage" />
+          <Step icon={<ShieldCheck size={18} color={colors.pink} />} text="API key is device-specific and revocable" />
+          <Step icon={<Smartphone size={18} color={colors.pink} />} text="Unpair from dashboard to revoke remote access" />
         </View>
       </View>
 
@@ -159,7 +202,7 @@ export default function SettingsScreen({ onUnpair }) {
 
       {/* Footer */}
       <View style={styles.footer}>
-        <Text style={styles.footerText}>NEXUS MONITOR v2.0</Text>
+        <Text style={styles.footerText}>NEXUS MONITOR v2.1</Text>
         <Text style={styles.footerText}>SECURE MOBILE CLIENT</Text>
       </View>
     </ScrollView>
@@ -174,28 +217,31 @@ function SectionHeader({ title, color }) {
   );
 }
 
-function InfoRow({ label, value, mono, valueColor }) {
+function InfoRow({ label, value, mono, valueColor, icon }) {
   return (
     <View style={styles.infoRow}>
       <Text style={styles.infoLabel}>{label}</Text>
-      <Text
-        style={[
-          styles.infoValue,
-          mono && { fontFamily: 'monospace', fontSize: 10 },
-          valueColor && { color: valueColor },
-        ]}
-        numberOfLines={1}
-      >
-        {value}
-      </Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+        {icon}
+        <Text
+          style={[
+            styles.infoValue,
+            mono && { fontFamily: 'monospace', fontSize: 10 },
+            valueColor && { color: valueColor },
+          ]}
+          numberOfLines={1}
+        >
+          {value}
+        </Text>
+      </View>
     </View>
   );
 }
 
-function Step({ number, text }) {
+function Step({ icon, text }) {
   return (
     <View style={styles.step}>
-      <Text style={styles.stepIcon}>{number}</Text>
+      {icon}
       <Text style={styles.stepText}>{text}</Text>
     </View>
   );
@@ -345,6 +391,13 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     fontStyle: 'italic',
     textAlign: 'center',
+  },
+  notifHint: {
+    fontSize: 10,
+    color: colors.textMuted,
+    lineHeight: 16,
+    marginVertical: spacing.xs,
+    paddingHorizontal: 2,
   },
 
   // Footer

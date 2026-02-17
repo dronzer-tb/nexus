@@ -1,6 +1,30 @@
 // Nexus Mobile — Synthwave / Brutalist Theme
 // Matches the dashboard's Midnight Hacker preset
 
+import { Dimensions, PixelRatio } from 'react-native';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const BASE_WIDTH = 375; // iPhone design base
+
+// Scale a value proportionally to screen width
+export function scale(size) {
+  return Math.round((SCREEN_WIDTH / BASE_WIDTH) * size);
+}
+
+// Scale font size with a moderate factor (less aggressive than full scale)
+export function fontScale(size) {
+  const factor = SCREEN_WIDTH / BASE_WIDTH;
+  const newSize = size * Math.min(factor, 1.3); // cap at 1.3x
+  return Math.round(PixelRatio.roundToNearestPixel(newSize));
+}
+
+// Moderate scale for spacing/padding (between scale and fontScale)
+export function moderateScale(size, factor = 0.5) {
+  return Math.round(size + (scale(size) - size) * factor);
+}
+
+export { SCREEN_WIDTH, SCREEN_HEIGHT };
+
 export const colors = {
   bg: '#0a0a0a',
   bgCard: '#141414',

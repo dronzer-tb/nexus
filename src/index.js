@@ -34,10 +34,12 @@ function parseArgs() {
   const args = process.argv.slice(2);
   const mode = args.find(arg => arg.startsWith('--mode='))?.split('=')[1];
   const setup = args.includes('--setup');
+  const installService = args.includes('--install-service');
   
   return {
     mode: mode || 'combine', // Default to combine mode
     setup,
+    installService,
   };
 }
 
@@ -59,12 +61,19 @@ async function main() {
     logger.init();
 
     // Parse arguments
-    const { mode, setup } = parseArgs();
+    const { mode, setup, installService } = parseArgs();
 
     // Run setup wizard if --setup flag is passed
     if (setup) {
       const { runWizard } = require('./setup/wizard');
       await runWizard();
+      return;
+    }
+
+    // Install systemd service and start if --install-service flag is passed
+    if (installService) {
+      const NodeMode = require('./modes/node');
+      await NodeMode.installSystemdService(mode);
       return;
     }
 

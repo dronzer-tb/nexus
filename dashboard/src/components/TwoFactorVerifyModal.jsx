@@ -172,7 +172,7 @@ function TwoFactorVerifyModal({
         {/* Info */}
         <div className="mt-4 p-3 bg-neon-cyan/5 border-2 border-neon-cyan/20">
           <p className="text-xs text-tx/50 font-mono">
-            💡 This extra security step protects sensitive operations like remote command execution.
+            This extra security step protects sensitive operations like remote command execution.
           </p>
         </div>
       </div>

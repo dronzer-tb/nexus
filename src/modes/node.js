@@ -317,6 +317,85 @@ class NodeMode {
     }
   }
 
+  /**
+   * Install a systemd service for nexus node mode.
+   * Called via: node src/index.js --mode=node --install-service
+   */
+  static async installSystemdService(mode = 'node') {
+    const { execSync } = require('child_process');
+
+    const installDir = path.resolve(__dirname, '../..');
+    const nodePath = process.execPath;
+    const currentUser = os.userInfo().username;
+    const serviceName = 'nexus';
+    const serviceFile = `/etc/systemd/system/${serviceName}.service`;
+
+    const serviceContent = `[Unit]
+Description=Nexus Monitoring Node
+After=network.target
+
+[Service]
+Type=simple
+User=${currentUser}
+WorkingDirectory=${installDir}
+ExecStart=${nodePath} ${installDir}/src/index.js --mode=${mode}
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target
+`;
+
+    console.log('\x1b[36m── Installing systemd service ──\x1b[0m');
+    console.log(`  Service:    ${serviceName}`);
+    console.log(`  Mode:       ${mode}`);
+    console.log(`  User:       ${currentUser}`);
+    console.log(`  WorkDir:    ${installDir}`);
+    console.log(`  Node:       ${nodePath}`);
+    console.log('');
+
+    try {
+      const isRoot = process.getuid && process.getuid() === 0;
+      const sudo = isRoot ? '' : 'sudo ';
+
+      // Check for sudo if not root
+      if (!isRoot) {
+        try {
+          execSync('command -v sudo', { stdio: 'ignore' });
+        } catch {
+          console.error('\x1b[31mError: Root access required. Run with sudo or as root.\x1b[0m');
+          process.exit(1);
+        }
+      }
+
+      // Write service file
+      const tmpFile = path.join(os.tmpdir(), `${serviceName}.service`);
+      fs.writeFileSync(tmpFile, serviceContent);
+      execSync(`${sudo}cp ${tmpFile} ${serviceFile}`, { stdio: 'inherit' });
+      fs.unlinkSync(tmpFile);
+
+      // Reload, enable, start
+      execSync(`${sudo}systemctl daemon-reload`, { stdio: 'inherit' });
+      execSync(`${sudo}systemctl enable ${serviceName}.service`, { stdio: 'inherit' });
+      execSync(`${sudo}systemctl start ${serviceName}.service`, { stdio: 'inherit' });
+
+      console.log('');
+      console.log('\x1b[32m✓ Systemd service installed, enabled, and started!\x1b[0m');
+      console.log('');
+      console.log('\x1b[33mUseful commands:\x1b[0m');
+      console.log(`  ${sudo}systemctl status ${serviceName}     # Check status`);
+      console.log(`  ${sudo}systemctl stop ${serviceName}       # Stop`);
+      console.log(`  ${sudo}systemctl restart ${serviceName}    # Restart`);
+      console.log(`  ${sudo}journalctl -u ${serviceName} -f     # Live logs`);
+    } catch (error) {
+      console.error(`\x1b[31mFailed to install service: ${error.message}\x1b[0m`);
+      process.exit(1);
+    }
+  }
+
   stop() {
     if (this.intervalId) {
       clearInterval(this.intervalId);
