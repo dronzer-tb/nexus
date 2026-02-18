@@ -175,13 +175,13 @@ arrow_menu() {
   local options=("$@")
   local count=${#options[@]}
   local selected=0
-  local total_lines=$count
-  [[ "$show_back" == "true" ]] && (( total_lines += 2 ))
 
-  _draw_options() {
-    # Move cursor up to the start of the menu, then redraw
-    local up=$(( total_lines ))
-    printf '\033[%dA' "$up" 2>/dev/null || true
+  # Calculate total drawn lines (options + back + hint)
+  local draw_lines=$count
+  [[ "$show_back" == "true" ]] && (( draw_lines += 2 ))  # blank + back
+  (( draw_lines += 2 ))  # blank + hint line
+
+  _draw_all() {
     local i
     for (( i=0; i<count; i++ )); do
       printf '\r\033[2K'
@@ -197,23 +197,20 @@ arrow_menu() {
       printf '\r\033[2K'
       lprint "    ${C_DIM2}    ← Back (q)${C_RESET}"
     fi
+    printf '\r\033[2K'
+    blank
+    printf '\r\033[2K'
+    lprint "  ${C_DIM2}↑/↓ Navigate  ·  Enter Select${C_RESET}"
   }
 
-  # Print initial options
-  local i
-  for (( i=0; i<count; i++ )); do
-    if (( i == selected )); then
-      lprint "    ${C_ACCENT}${C_BOLD}  ❯ ${options[$i]}${C_RESET}"
-    else
-      lprint "    ${C_DIM}    ${options[$i]}${C_RESET}"
-    fi
-  done
-  if [[ "$show_back" == "true" ]]; then
-    blank
-    lprint "    ${C_DIM2}    ← Back (q)${C_RESET}"
-  fi
-  blank
-  lprint "  ${C_DIM2}↑/↓ Navigate  ·  Enter Select${C_RESET}"
+  _redraw() {
+    # Move cursor up to the start, then redraw everything
+    printf '\033[%dA\r' "$draw_lines" 2>/dev/null || true
+    _draw_all
+  }
+
+  # Initial draw
+  _draw_all
 
   hide_cursor
 
@@ -224,34 +221,29 @@ arrow_menu() {
       local seq=""
       IFS= read -rsn2 -t 0.2 seq < /dev/tty || true
       if [[ "$seq" == "[A" ]]; then
-        # Up arrow
         if (( selected > 0 )); then
           (( selected-- )) || true
-          _draw_options
+          _redraw
         fi
       elif [[ "$seq" == "[B" ]]; then
-        # Down arrow
         if (( selected < count - 1 )); then
           (( selected++ )) || true
-          _draw_options
+          _redraw
         fi
       fi
     elif [[ "$key" == "" ]]; then
-      # Enter key
       MENU_RESULT=$(( selected + 1 ))
       show_cursor
       return 0
     elif [[ "$key" == "k" || "$key" == "K" ]]; then
-      # vim-style up
       if (( selected > 0 )); then
         (( selected-- )) || true
-        _draw_options
+        _redraw
       fi
     elif [[ "$key" == "j" || "$key" == "J" ]]; then
-      # vim-style down
       if (( selected < count - 1 )); then
         (( selected++ )) || true
-        _draw_options
+        _redraw
       fi
     elif [[ "$key" == "q" || "$key" == "Q" ]]; then
       if [[ "$show_back" == "true" ]]; then
@@ -260,7 +252,6 @@ arrow_menu() {
         return 0
       fi
     elif [[ "$key" =~ ^[1-9]$ ]] && (( key <= count )); then
-      # Number key shortcut
       MENU_RESULT="$key"
       show_cursor
       return 0
