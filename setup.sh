@@ -175,11 +175,11 @@ arrow_menu() {
   local options=("$@")
   local count=${#options[@]}
   local selected=0
-  local menu_start_row
 
-  _render_menu() {
+  _draw_options() {
+    # Restore cursor to saved position, then redraw all options
+    printf '\033[u'
     for (( i=0; i<count; i++ )); do
-      move_to $(( menu_start_row + i )) 1
       printf '\033[2K'
       if (( i == selected )); then
         lprint "    ${C_ACCENT}${C_BOLD}  ❯ ${options[$i]}${C_RESET}"
@@ -188,30 +188,18 @@ arrow_menu() {
       fi
     done
     if [[ "$show_back" == "true" ]]; then
-      move_to $(( menu_start_row + count + 1 )) 1
+      printf '\033[2K'
+      blank
       printf '\033[2K'
       lprint "    ${C_DIM2}    ← Back (q)${C_RESET}"
     fi
   }
 
-  # Get current cursor row
-  local cur_row
-  IFS=';' read -sdR -p $'\033[6n' _ cur_row < /dev/tty 2>/dev/null || cur_row=10
-  cur_row=${cur_row#*[}
-  menu_start_row=$cur_row
+  # Save cursor position before drawing options
+  printf '\033[s'
 
-  # Print initial
-  for (( i=0; i<count; i++ )); do
-    if (( i == selected )); then
-      lprint "    ${C_ACCENT}${C_BOLD}  ❯ ${options[$i]}${C_RESET}"
-    else
-      lprint "    ${C_DIM}    ${options[$i]}${C_RESET}"
-    fi
-  done
-  if [[ "$show_back" == "true" ]]; then
-    blank
-    lprint "    ${C_DIM2}    ← Back (q)${C_RESET}"
-  fi
+  # Draw initial state
+  _draw_options
   blank
   lprint "  ${C_DIM2}↑/↓ Navigate  ·  Enter Select${C_RESET}"
 
@@ -224,8 +212,8 @@ arrow_menu() {
       $'\033')
         read -rsn2 -t 0.1 key < /dev/tty || true
         case "$key" in
-          '[A') (( selected > 0 )) && (( selected-- )); _render_menu ;;
-          '[B') (( selected < count - 1 )) && (( selected++ )); _render_menu ;;
+          '[A') (( selected > 0 )) && (( selected-- )); _draw_options ;;
+          '[B') (( selected < count - 1 )) && (( selected++ )); _draw_options ;;
         esac
         ;;
       '')
