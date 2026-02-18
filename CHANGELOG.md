@@ -6,10 +6,14 @@ All notable changes to Nexus are documented here.
 
 ## v2.2.3
 
-- **Setup Script Rewrite (v3.0 Split-Panel TUI)** — Complete rewrite of the interactive installer with a split-panel layout: logo/questions on the left, live install logs on the right. Adds progress bars, back-navigation on every step, animated menu selection, and a full configuration summary before install
+- **Full TUI Redesign (v4.0)** — Ground-up rewrite of the interactive installer: replaced the split-panel box-drawing layout with a clean, full-width centered design featuring 256-color gradient accents, animated braille spinners, and a step-dot progress indicator
+- **Arrow-Key Menu Navigation** — All menus are now navigated with ↑/↓ arrow keys and Enter instead of typing numbers; selected option is highlighted with a `❯` cursor
 - **Tailscale VPN Support** — New "Networking & Access" setup step offers Tailscale as an access method alongside Nginx and direct IP; auto-detects installed tools, can install Tailscale inline, and optionally configures API key + tailnet
 - **Web Console Setup** — Dedicated setup step for enabling/disabling the SSH web console and configuring sudo access, with clear security descriptions
-- **Improved Reverse-SSH Detection** — Architecture-aware binary selection for Linux (x86_64, i686, aarch64) and macOS (amd64, arm64) with graceful fallback
+- **Animated Install Spinners** — Each install phase (npm install, dashboard build, reverse-ssh download) shows a smooth braille-dot spinner instead of static text
+- **Configuration Review Step** — Clean summary table before install with back-navigation to change any setting
+- **Architecture-Aware Reverse-SSH** — Binary selection for Linux (x86_64, i686, aarch64) and macOS (amd64, arm64) with graceful fallback
+- **Min Terminal Size Check** — Exits gracefully with a message if terminal is smaller than 60×24
 
 ---
 
