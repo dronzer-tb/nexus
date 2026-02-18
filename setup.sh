@@ -677,8 +677,8 @@ run_installation() {
   install_ok "Configuration updated"
   blank
 
-  # Reverse SSH
-  setup_reverse_ssh
+  # Reverse SSH (disabled by default — enable in config if needed)
+  # setup_reverse_ssh
 
   # Nginx
   if [[ "$SETUP_NGINX" == "y" ]]; then

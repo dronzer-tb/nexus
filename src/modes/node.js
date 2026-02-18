@@ -200,9 +200,9 @@ class NodeMode {
    */
   async initializeReverseSSHTunnel() {
     try {
-      const enableReverseTunnel = config.get('node.enableReverseTunnel') !== false;
+      const enableReverseTunnel = config.get('node.enableReverseTunnel') === true;
       if (!enableReverseTunnel) {
-        logger.info('Reverse SSH tunnel disabled in config');
+        logger.info('Reverse SSH tunnel disabled (set node.enableReverseTunnel=true in config to enable)');
         return;
       }
 

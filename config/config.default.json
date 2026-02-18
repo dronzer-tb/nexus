@@ -9,7 +9,7 @@
     "serverUrl": "http://localhost:8080",
     "reportInterval": 5000,
     "hostname": "",
-    "enableReverseTunnel": true,
+    "enableReverseTunnel": false,
     "serverHost": "localhost",
     "serverSSHPort": 22,
     "reverseUsername": "nexus",
@@ -18,7 +18,7 @@
     "autoRestartReverseTunnel": true
   },
   "reverse-ssh": {
-    "enabled": true,
+    "enabled": false,
     "username": "nexus",
     "password": "nexus-tunnel-123",
     "port": 9000
