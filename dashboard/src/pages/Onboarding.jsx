@@ -78,9 +78,13 @@ function Onboarding() {
       setUserId(response.data.userId);
       setCurrentStep(4); // Move to 2FA setup
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to create account');
-      if (err.response?.data?.details) {
-        setError(err.response.data.details.join(', '));
+      const errData = err.response?.data;
+      if (errData?.details) {
+        setError(errData.details.join(', '));
+      } else if (errData?.message) {
+        setError(`${errData.error}: ${errData.message}`);
+      } else {
+        setError(errData?.error || 'Failed to create account');
       }
     } finally {
       setLoading(false);
@@ -361,7 +365,7 @@ function Onboarding() {
                     required
                     minLength={3}
                     maxLength={32}
-                    pattern="[a-zA-Z0-9_-]+"
+                    pattern="[a-zA-Z0-9_\-]+"
                     autoFocus
                   />
                   <p className="text-xs text-gray-500 mt-1">3-32 characters, letters, numbers, - and _ only</p>

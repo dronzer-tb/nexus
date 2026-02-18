@@ -38,6 +38,14 @@ router.get('/status', (req, res) => {
 
 router.post('/step1', async (req, res) => {
   try {
+    // Ensure database is initialized
+    if (!database.db) {
+      return res.status(503).json({
+        success: false,
+        error: 'Database not initialized. Please restart the server.'
+      });
+    }
+
     const { username, password } = req.body;
 
     // Validation
@@ -139,7 +147,8 @@ router.post('/step1', async (req, res) => {
     logger.error('Onboarding step 1 error:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to create admin account'
+      error: 'Failed to create admin account',
+      message: error.message || 'Unknown error'
     });
   }
 });
