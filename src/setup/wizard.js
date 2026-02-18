@@ -418,12 +418,112 @@ function parseCliArgs() {
 }
 
 // ═══════════════════════════════════════════════
+//  NON-INTERACTIVE MODE (called from setup.sh)
+// ═══════════════════════════════════════════════
+async function runNonInteractive(cliArgs) {
+  const fullDomain = cliArgs.domain;
+  const port = cliArgs.port;
+  const sslFlag = cliArgs.ssl; // "y", "n", "certbot", "none", "custom"
+  const certbotEmail = cliArgs.email || '';
+
+  // Map ssl flag to ssl type
+  let sslType;
+  if (sslFlag === 'y' || sslFlag === 'certbot') {
+    sslType = 'certbot';
+  } else if (sslFlag === 'custom') {
+    sslType = 'custom';
+  } else {
+    sslType = 'none';
+  }
+  const ssl = { type: sslType, email: certbotEmail };
+
+  info(`Non-interactive mode — domain=${fullDomain} port=${port} ssl=${sslType}`);
+
+  // Step 1: Check nginx
+  const nginxPath = detectNginx();
+  if (!nginxPath) {
+    fail('nginx is not installed');
+    process.exit(1);
+  }
+  info('nginx found');
+
+  // Step 2: Detect config dirs
+  const configDir = detectNginxConfigDir() || '/etc/nginx/sites-available';
+  const enabledDir = detectNginxEnabledDir() || configDir;
+  info(`Config dir: ${configDir}`);
+
+  // Ensure config dir exists
+  if (!fs.existsSync(configDir)) {
+    fs.mkdirSync(configDir, { recursive: true });
+    info(`Created ${configDir}`);
+  }
+
+  // Step 3: Generate & write nginx config
+  const nginxConfig = generateNginxConfig(fullDomain, port, ssl);
+  const writeResult = writeNginxConfig(configDir, enabledDir, fullDomain, nginxConfig);
+  if (!writeResult) {
+    fail('Failed to write nginx config');
+    process.exit(1);
+  }
+
+  // Step 4: Update main config
+  updateMainConfig(fullDomain, ssl, port);
+
+  // Step 5: Run certbot if needed (skip if SSL already present)
+  if (sslType === 'certbot' && certbotEmail) {
+    const existingConfigPath = path.join(configDir, `nexus-${fullDomain.replace(/\./g, '_')}`);
+    let alreadyHasSsl = false;
+    try {
+      if (fs.existsSync(existingConfigPath)) {
+        const content = fs.readFileSync(existingConfigPath, 'utf8');
+        alreadyHasSsl = /ssl_certificate/.test(content);
+      }
+    } catch {}
+    if (alreadyHasSsl) {
+      info('SSL already configured — skipping certbot');
+    } else {
+      runCertbot(fullDomain, certbotEmail);
+    }
+  }
+
+  // Step 6: Save setup state
+  const domainParts = fullDomain.split('.');
+  const subdomain = domainParts[0];
+  const mainDomain = domainParts.slice(1).join('.');
+
+  const setupData = {
+    completed: true,
+    domain: fullDomain,
+    subdomain,
+    mainDomain,
+    port: parseInt(port, 10),
+    ssl: sslType,
+    sslCertPath: null,
+    sslKeyPath: null,
+    nginxConfigDir: configDir,
+    nginxEnabledDir: enabledDir,
+    configuredAt: new Date().toISOString(),
+  };
+  saveSetupConfig(setupData);
+
+  info('Nginx configured successfully');
+  return setupData;
+}
+
+// ═══════════════════════════════════════════════
 //  MAIN WIZARD
 // ═══════════════════════════════════════════════
 async function runWizard() {
+  const cliArgs = parseCliArgs();
+
+  // ─── Non-interactive mode (called from setup.sh with all args) ───
+  if (cliArgs.domain && cliArgs.ssl !== undefined && cliArgs.port) {
+    return runNonInteractive(cliArgs);
+  }
+
+  // ─── Interactive mode ────────────────────────
   banner();
   const rl = createRL();
-  const cliArgs = parseCliArgs();
 
   try {
     // ─── Check existing setup ────────────────
