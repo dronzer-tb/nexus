@@ -5,7 +5,7 @@ import axios from 'axios';
 /**
  * Two-Factor Challenge Modal
  * Requires 2FA verification before granting access to sensitive operations (like console)
- * For custom auth system v1.9.5
+ * For custom auth system v2.2.8
  */
 
 function TwoFactorChallengeModal({ isOpen, onClose, onSuccess, title = 'Security Verification' }) {

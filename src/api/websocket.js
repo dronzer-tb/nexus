@@ -39,25 +39,44 @@ class WebSocketHandler {
 
       // ─── SSH Terminal Events ─────────────────
       socket.on('terminal:connect', (data) => {
-        logger.info(`terminal:connect received from ${socket.id}: ${JSON.stringify(data)}`);
-        this.handleTerminalConnect(socket, data);
+        const sessionId = data?.sessionId || socket.id;
+        logger.info(`terminal:connect received from ${socket.id} (session: ${sessionId}): ${JSON.stringify(data)}`);
+        this.handleTerminalConnect(socket, data, sessionId);
       });
 
-      socket.on('terminal:data', (data) => {
-        sshTerminal.write(socket.id, data);
+      socket.on('terminal:data', (payload) => {
+        // Support both old format (string) and new format ({ sessionId, data })
+        if (typeof payload === 'object' && payload.sessionId) {
+          const sessionKey = `${socket.id}:${payload.sessionId}`;
+          sshTerminal.write(sessionKey, payload.data);
+        } else {
+          // Legacy: no sessionId
+          sshTerminal.write(socket.id, payload);
+        }
       });
 
-      socket.on('terminal:resize', ({ cols, rows }) => {
-        sshTerminal.resize(socket.id, cols, rows);
+      socket.on('terminal:resize', (payload) => {
+        const { cols, rows, sessionId } = payload || {};
+        if (sessionId) {
+          const sessionKey = `${socket.id}:${sessionId}`;
+          sshTerminal.resize(sessionKey, cols, rows);
+        } else {
+          sshTerminal.resize(socket.id, cols, rows);
+        }
       });
 
-      socket.on('terminal:disconnect', () => {
-        sshTerminal.disconnect(socket.id);
+      socket.on('terminal:disconnect', (payload) => {
+        if (payload && payload.sessionId) {
+          const sessionKey = `${socket.id}:${payload.sessionId}`;
+          sshTerminal.disconnect(sessionKey);
+        } else {
+          sshTerminal.disconnect(socket.id);
+        }
       });
 
       socket.on('disconnect', () => {
         logger.info(`WebSocket client disconnected: ${socket.id}`);
-        sshTerminal.disconnect(socket.id);
+        sshTerminal.disconnectAllForSocket(socket.id);
         this.clients.delete(socket.id);
       });
     });
@@ -66,19 +85,20 @@ class WebSocketHandler {
   }
 
   // Handle terminal connection requests
-  handleTerminalConnect(socket, data) {
+  handleTerminalConnect(socket, data, sessionId) {
     const { nodeId, host, port, username, password, privateKey, isLocal, useReverseTunnel } = data || {};
+    const sessionKey = `${socket.id}:${sessionId}`;
 
     // Check if console is globally enabled
     if (!sshTerminal.isConsoleEnabled()) {
-      socket.emit('terminal:error', { message: 'Console is disabled globally. Enable it in Settings.' });
+      socket.emit('terminal:error', { sessionId, message: 'Console is disabled globally. Enable it in Settings.' });
       return;
     }
 
     // Explicit local connection request
     if (isLocal === true) {
-      logger.info(`Local terminal requested by socket ${socket.id}`);
-      sshTerminal.connectLocal(socket);
+      logger.info(`Local terminal requested by socket ${socket.id} (session: ${sessionId})`);
+      sshTerminal.connectLocal(socket, sessionKey, sessionId);
       return;
     }
 
@@ -86,17 +106,16 @@ class WebSocketHandler {
     if (nodeId) {
       const node = database.getNode(nodeId);
       if (node && node.console_enabled === 0) {
-        socket.emit('terminal:error', { message: `Console is disabled for node "${node.hostname || nodeId}". Enable it in node settings.` });
+        socket.emit('terminal:error', { sessionId, message: `Console is disabled for node "${node.hostname || nodeId}". Enable it in node settings.` });
         return;
       }
 
       // Check if this is the local node (combine mode)
-      // If hostname matches current machine, use local PTY
       if (node) {
         const localHostname = os.hostname();
         if (node.hostname === localHostname || node.system_info?.os?.hostname === localHostname) {
-          logger.info(`Local console for node ${nodeId} (hostname: ${node.hostname}) matches current machine (socket: ${socket.id})`);
-          sshTerminal.connectLocal(socket);
+          logger.info(`Local console for node ${nodeId} (hostname: ${node.hostname}) matches current machine (socket: ${socket.id}, session: ${sessionId})`);
+          sshTerminal.connectLocal(socket, sessionKey, sessionId);
           return;
         }
       }
@@ -104,29 +123,28 @@ class WebSocketHandler {
       // Try reverse SSH tunnel for remote nodes
       const tunnelInfo = revTunnelManager.getTunnelInfo(nodeId);
       if (tunnelInfo || useReverseTunnel) {
-        logger.info(`Using reverse SSH tunnel for node ${nodeId} (socket: ${socket.id})`);
-        sshTerminal.connectReverse(socket, { nodeId });
+        logger.info(`Using reverse SSH tunnel for node ${nodeId} (socket: ${socket.id}, session: ${sessionId})`);
+        sshTerminal.connectReverse(socket, { nodeId }, sessionKey, sessionId);
         return;
       }
     }
 
     // SSH to remote node
     if (host) {
-      logger.info(`SSH terminal requested: ${username || 'root'}@${host}:${port || 22} (socket: ${socket.id})`);
+      logger.info(`SSH terminal requested: ${username || 'root'}@${host}:${port || 22} (socket: ${socket.id}, session: ${sessionId})`);
       sshTerminal.connect(socket, {
         host,
         port: port || 22,
         username: username || 'root',
         password,
         privateKey,
-      });
+      }, sessionKey, sessionId);
       return;
     }
 
     // Default to local PTY (combine mode fallback)
-    // If no host specified and no remote node found, use local terminal
-    logger.info(`No remote host specified, using local terminal (combine mode) (socket: ${socket.id})`);
-    sshTerminal.connectLocal(socket);
+    logger.info(`No remote host specified, using local terminal (combine mode) (socket: ${socket.id}, session: ${sessionId})`);
+    sshTerminal.connectLocal(socket, sessionKey, sessionId);
   }
 
   sendInitialData(socket) {

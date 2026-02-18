@@ -791,6 +791,8 @@ function UserSettings({ showFeedback }) {
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [newUser, setNewUser] = useState({ username: '', password: '', role: 'viewer' });
+  const [resetTarget, setResetTarget] = useState(null); // { id, username }
+  const [resetPassword, setResetPassword] = useState('');
 
   const fetchUsers = useCallback(async () => {
     try { const res = await axios.get('/api/auth/users'); setUsers(res.data.users || []); }
@@ -813,6 +815,15 @@ function UserSettings({ showFeedback }) {
     if (!confirm(`Delete user '${username}'? This cannot be undone.`)) return;
     try { await axios.delete(`/api/auth/users/${userId}`); showFeedback(`User '${username}' deleted`); fetchUsers(); }
     catch (err) { showFeedback(err.response?.data?.message || 'Failed to delete user'); }
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetTarget || resetPassword.length < 8) return;
+    try {
+      await axios.put(`/api/auth/users/${resetTarget.id}/reset-password`, { newPassword: resetPassword });
+      showFeedback(`Password reset for '${resetTarget.username}'`);
+      setResetTarget(null); setResetPassword('');
+    } catch (err) { showFeedback(err.response?.data?.message || 'Failed to reset password'); }
   };
 
   const roleBadge = (role) => {
@@ -897,21 +908,55 @@ function UserSettings({ showFeedback }) {
               </div>
               {roleBadge(u.role)}
               {u.source !== 'file' && (
-                <button onClick={() => handleDelete(u.id, u.username)} className="text-tx/20 hover:text-red-500 transition-colors p-1">
-                  <Trash className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => { setResetTarget({ id: u.id, username: u.username }); setResetPassword(''); }} className="text-tx/20 hover:text-neon-cyan transition-colors p-1" title="Reset password">
+                    <Key className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => handleDelete(u.id, u.username)} className="text-tx/20 hover:text-red-500 transition-colors p-1" title="Delete user">
+                    <Trash className="w-4 h-4" />
+                  </button>
+                </div>
               )}
             </motion.div>
           ))}
         </div>
       )}
+
+      {/* Reset Password Modal */}
+      <AnimatePresence>
+        {resetTarget && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+            onClick={() => setResetTarget(null)}>
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              className="border-[3px] border-neon-cyan/30 bg-brutal-card p-6 w-full max-w-md shadow-brutal mx-4"
+              onClick={(e) => e.stopPropagation()}>
+              <h3 className="font-black uppercase tracking-wider text-sm text-tx mb-1">Reset Password</h3>
+              <div className="font-mono text-[10px] text-tx/30 mb-4">Set a new password for <span className="text-neon-cyan">{resetTarget.username}</span></div>
+              <div className="mb-4">
+                <div className="text-[9px] font-bold uppercase tracking-widest text-tx/30 mb-1">New Password</div>
+                <input type="password" value={resetPassword} onChange={(e) => setResetPassword(e.target.value)}
+                  placeholder="min 8 characters"
+                  className="w-full bg-brutal-bg border-2 border-tx/10 px-3 py-2 font-mono text-sm text-tx focus:border-neon-cyan/40 focus:outline-none transition-colors"
+                  autoFocus />
+              </div>
+              <div className="flex justify-end gap-2">
+                <button onClick={() => setResetTarget(null)}
+                  className="px-4 py-2 border-2 border-tx/10 text-tx/50 font-bold uppercase text-[10px] tracking-widest hover:border-tx/30 transition-colors">
+                  Cancel
+                </button>
+                <button onClick={handleResetPassword} disabled={resetPassword.length < 8}
+                  className="px-4 py-2 bg-neon-cyan font-bold uppercase text-xs tracking-wider border-2 border-neon-cyan hover:translate-x-[2px] hover:translate-y-[2px] shadow-brutal-sm hover:shadow-none transition-all disabled:opacity-30 text-white">
+                  Reset
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
-
-/* ═══════════════════════════════════════
-   SETTINGS PAGE (Tab Router)
-   ═══════════════════════════════════════ */
 function Settings() {
   const { tab } = useParams();
   const navigate = useNavigate();

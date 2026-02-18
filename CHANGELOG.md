@@ -4,6 +4,17 @@ All notable changes to Nexus are documented here.
 
 ---
 
+## v2.2.8
+
+- **Fix: Version Display Inconsistency** — Replaced hardcoded "v1.9.5" version strings across Login, App, Onboarding, TwoFactorChallengeModal, and backend onboarding with correct "v2.2.8"
+- **Fix: User Deletion** — Added `DELETE /api/auth/users/:id` route with session cleanup; prevents self-deletion
+- **Fix: Password Reset** — Added `PUT /api/auth/users/:id/reset-password` (admin) and `PUT /api/auth/change-password` (self-service) routes; Settings UI now shows a reset password button per user
+- **Fix: 2FA Login Flow** — Rewrote login to multi-step: credentials first, then detect 2FA status; new users without 2FA are guided through QR code setup and recovery code generation before completing login
+- **Fix: Console 2FA Bypass** — Fixed property name mismatch (`totp_enabled` vs `totpEnabled`) that caused the Console page to never require 2FA verification; users without 2FA enabled are now shown a prompt to set it up in Settings
+- **Fix: Split Mode Duplicate Commands** — Added session-scoped terminal events so each terminal panel in split mode operates independently; all Socket.IO terminal events now carry a unique `sessionId` to prevent cross-panel interference
+
+---
+
 ## v2.2.7
 
 - **Fix: Update All Nodes Not Working** — Replaced broken Socket.IO `/agent` namespace broadcast with HTTP-based signaling; server now stores `pending_node_update` in the database, nodes pick it up via metrics response on next heartbeat, and execute `git pull && npm install && restart` automatically

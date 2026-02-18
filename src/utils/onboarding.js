@@ -3,12 +3,12 @@ const logger = require('./logger');
 
 /**
  * Onboarding Detection and Management
- * For first-time setup flow in v1.9.5
+ * For first-time setup flow in v2.2.8
  */
 
 const ONBOARDING_KEY = 'onboarding_completed';
 const ONBOARDING_VERSION_KEY = 'onboarding_version';
-const CURRENT_ONBOARDING_VERSION = '1.9.5';
+const CURRENT_ONBOARDING_VERSION = '2.2.8';
 
 /**
  * Check if onboarding has been completed

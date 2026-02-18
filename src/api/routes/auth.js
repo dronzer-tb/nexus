@@ -10,8 +10,8 @@ const { hashPassword } = require('../../utils/password');
 const crypto = require('crypto');
 
 /**
- * Authentication Routes with Mandatory 2FA
- * For custom auth system v1.9.5
+ * Authentication Routes with 2FA support
+ * For custom auth system v2.2.8
  */
 
 // Rate limiter for login attempts (5 attempts per 15 minutes)
@@ -50,13 +50,6 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    if (!totpCode && !recoveryCode) {
-      return res.status(400).json({
-        success: false,
-        error: '2FA code is required (TOTP code or recovery code)'
-      });
-    }
-
     // Get user by username
     const user = database.getUserByUsername(username);
 
@@ -79,12 +72,37 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Check if 2FA is enabled (it should be mandatory after onboarding)
+    // Check if 2FA is enabled for this user
     if (!user.totp_enabled || !user.totp_secret) {
-      logger.error(`User ${username} doesn't have 2FA enabled - this should not happen after onboarding`);
-      return res.status(403).json({
-        success: false,
-        error: '2FA is not enabled for this account. Please contact administrator.'
+      // User doesn't have 2FA set up yet — create a temporary session
+      // and tell the client to set up 2FA
+      const session = createSession(user.id, {
+        ipAddress,
+        userAgent: req.headers['user-agent']
+      });
+
+      logger.info(`User ${username} logged in (no 2FA) — needs 2FA setup`);
+
+      return res.json({
+        success: true,
+        message: 'Login successful — 2FA setup required',
+        requires2FASetup: true,
+        token: session.token,
+        expiresAt: session.expiresAt,
+        user: {
+          id: user.id,
+          username: user.username,
+          role: user.role
+        }
+      });
+    }
+
+    // User has 2FA — require code
+    if (!totpCode && !recoveryCode) {
+      return res.json({
+        success: true,
+        requires2FA: true,
+        message: 'Please provide your 2FA code'
       });
     }
 
@@ -138,11 +156,6 @@ router.post('/login', async (req, res) => {
     const session = createSession(user.id, {
       ipAddress,
       userAgent: req.headers['user-agent']
-    });
-
-    // Update last login
-    database.updateUser(user.id, {
-      // Add last_login field if needed (would need migration)
     });
 
     logger.info(`User ${username} logged in successfully from ${ipAddress}`);
@@ -318,6 +331,124 @@ router.post('/users', async (req, res) => {
     });
   } catch (error) {
     logger.error('Error creating user:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// DELETE /api/auth/users/:id - Delete a user
+router.delete('/users/:id', async (req, res) => {
+  try {
+    const token = extractTokenFromRequest(req);
+    if (!token) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
+    const session = validateSession(token);
+    if (!session) return res.status(401).json({ success: false, error: 'Invalid session' });
+
+    const { id } = req.params;
+    const userId = parseInt(id, 10);
+
+    // Prevent deleting yourself
+    if (session.user_id === userId) {
+      return res.status(400).json({ success: false, error: 'Cannot delete your own account' });
+    }
+
+    const user = database.getUserById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+
+    // Delete user sessions first
+    database.deleteUserSessions(userId);
+    // Delete the user
+    database.deleteUser(userId);
+
+    logger.info(`User ${user.username} (id: ${userId}) deleted by user id ${session.user_id}`);
+
+    res.json({ success: true, message: `User '${user.username}' deleted` });
+  } catch (error) {
+    logger.error('Error deleting user:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// PUT /api/auth/users/:id/reset-password - Reset a user's password (admin)
+router.put('/users/:id/reset-password', async (req, res) => {
+  try {
+    const token = extractTokenFromRequest(req);
+    if (!token) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
+    const session = validateSession(token);
+    if (!session) return res.status(401).json({ success: false, error: 'Invalid session' });
+
+    // Check if requesting user is admin
+    const requestingUser = database.getUserById(session.user_id);
+    if (!requestingUser || requestingUser.role !== 'admin') {
+      return res.status(403).json({ success: false, error: 'Only admins can reset passwords' });
+    }
+
+    const { id } = req.params;
+    const userId = parseInt(id, 10);
+    const { newPassword } = req.body;
+
+    if (!newPassword || newPassword.length < 8) {
+      return res.status(400).json({ success: false, error: 'Password must be at least 8 characters' });
+    }
+
+    const targetUser = database.getUserById(userId);
+    if (!targetUser) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+
+    const hashedPassword = await hashPassword(newPassword);
+    database.updateUser(userId, { password: hashedPassword, mustChangePassword: true });
+
+    // Destroy all sessions for this user so they have to log in again
+    database.deleteUserSessions(userId);
+
+    logger.info(`Password reset for user ${targetUser.username} by admin ${requestingUser.username}`);
+
+    res.json({ success: true, message: `Password reset for '${targetUser.username}'` });
+  } catch (error) {
+    logger.error('Error resetting password:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// PUT /api/auth/change-password - Change own password
+router.put('/change-password', async (req, res) => {
+  try {
+    const token = extractTokenFromRequest(req);
+    if (!token) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
+    const session = validateSession(token);
+    if (!session) return res.status(401).json({ success: false, error: 'Invalid session' });
+
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, error: 'Current password and new password are required' });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({ success: false, error: 'New password must be at least 8 characters' });
+    }
+
+    const user = database.getUserById(session.user_id);
+    if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+
+    const passwordValid = await comparePassword(currentPassword, user.password);
+    if (!passwordValid) {
+      return res.status(401).json({ success: false, error: 'Current password is incorrect' });
+    }
+
+    const hashedPassword = await hashPassword(newPassword);
+    database.updateUser(session.user_id, { password: hashedPassword, mustChangePassword: false });
+
+    logger.info(`User ${user.username} changed their password`);
+
+    res.json({ success: true, message: 'Password changed successfully' });
+  } catch (error) {
+    logger.error('Error changing password:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });

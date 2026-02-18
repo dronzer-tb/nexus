@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
@@ -30,9 +30,14 @@ const TERMINAL_THEME = {
   brightWhite: '#ffffff',
 };
 
+let _sessionCounter = 0;
+
 /**
  * Reusable terminal widget — mounts xterm into a container,
  * connects via WebSocket events, and handles lifecycle.
+ *
+ * Each widget creates a unique sessionId so multiple terminals
+ * on the same socket don't interfere with each other (split mode).
  *
  * Props:
  *  - socket        : socket.io instance
@@ -60,6 +65,9 @@ export default function TerminalWidget({
   const termInstance = useRef(null);
   const fitAddon = useRef(null);
   const cleanupRef = useRef(null);
+
+  // Generate a stable unique sessionId for this widget instance
+  const sessionId = useMemo(() => `term_${Date.now()}_${++_sessionCounter}`, []);
 
   // Store callbacks in refs so they never trigger re-connect cycles
   const onConnectedRef = useRef(onConnected);
@@ -100,24 +108,38 @@ export default function TerminalWidget({
       try { fit.fit(); } catch {}
     }, 50);
 
-    // Terminal input → socket
-    term.onData((data) => socket.emit('terminal:data', data));
-    term.onResize(({ cols, rows }) => socket.emit('terminal:resize', { cols, rows }));
+    // Terminal input → socket (scoped by sessionId)
+    term.onData((data) => socket.emit('terminal:data', { sessionId, data }));
+    term.onResize(({ cols, rows }) => socket.emit('terminal:resize', { sessionId, cols, rows }));
 
-    // Socket → terminal output handlers
-    const handleData = (data) => term.write(data);
+    // Socket → terminal output handlers (filtered by sessionId)
+    const handleData = (payload) => {
+      // Support both old format (string) and new format ({ sessionId, data })
+      if (typeof payload === 'object' && payload.sessionId) {
+        if (payload.sessionId !== sessionId) return; // not for us
+        term.write(payload.data);
+      } else {
+        // Legacy: no sessionId — write to all (backwards compat)
+        term.write(payload);
+      }
+    };
     const handleConnected = (info) => {
+      if (info && info.sessionId && info.sessionId !== sessionId) return;
       term.focus();
       setTimeout(() => {
         try {
           fit.fit();
-          socket.emit('terminal:resize', { cols: term.cols, rows: term.rows });
+          socket.emit('terminal:resize', { sessionId, cols: term.cols, rows: term.rows });
         } catch {}
       }, 150);
       onConnectedRef.current?.(info);
     };
-    const handleError = (err) => onErrorRef.current?.(err);
-    const handleClosed = () => {
+    const handleError = (err) => {
+      if (err && err.sessionId && err.sessionId !== sessionId) return;
+      onErrorRef.current?.(err);
+    };
+    const handleClosed = (info) => {
+      if (info && info.sessionId && info.sessionId !== sessionId) return;
       term.writeln('\r\n\x1b[31m── Session ended ──\x1b[0m');
       onDisconnectedRef.current?.();
     };
@@ -134,8 +156,9 @@ export default function TerminalWidget({
       socket.off('terminal:closed', handleClosed);
     };
 
-    // Start connection
+    // Start connection (include sessionId)
     socket.emit('terminal:connect', {
+      sessionId,
       nodeId,
       isLocal,
       host: host || undefined,
@@ -144,7 +167,7 @@ export default function TerminalWidget({
 
     return () => {
       cleanupRef.current?.();
-      if (socket) socket.emit('terminal:disconnect');
+      if (socket) socket.emit('terminal:disconnect', { sessionId });
       if (termInstance.current) {
         termInstance.current.dispose();
         termInstance.current = null;
@@ -152,7 +175,7 @@ export default function TerminalWidget({
     };
   // Only re-connect when connection identity changes, NOT when callbacks change
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [socket, nodeId, isLocal, host, username]);
+  }, [socket, nodeId, isLocal, host, username, sessionId]);
 
   // Window resize → refit
   useEffect(() => {

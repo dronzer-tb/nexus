@@ -5,7 +5,7 @@ import { Shield, Check, WarningTriangle, Clock, Flash, Palette, SunLight, HalfMo
 import { useTheme, BUILT_IN_PRESETS } from '../context/ThemeContext';
 
 /**
- * Onboarding Wizard - Multi-step setup for Nexus v1.9.5
+ * Onboarding Wizard - Multi-step setup for Nexus v2.2.8
  * Step order: Welcome → Theme → Admin Account → 2FA → Alerts → Metrics → Complete
  *
  * IMPORTANT: Steps are rendered inline (not as inner component functions)

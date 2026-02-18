@@ -137,11 +137,10 @@ function Console({ socket }) {
   useEffect(() => {
     axios.get('/api/auth/me')
       .then(res => {
-        setHas2FA(res.data.user?.totp_enabled === 1);
-        // If no 2FA configured, auto-verify (but show warning)
-        if (res.data.user?.totp_enabled !== 1) {
-          setVerified(true);
-        }
+        const has2fa = !!res.data.user?.totpEnabled;
+        setHas2FA(has2fa);
+        // If no 2FA configured, still require verification gate
+        // They shouldn't be able to access console without 2FA
       })
       .catch(() => setHas2FA(false));
   }, []);
@@ -259,31 +258,53 @@ function Console({ socket }) {
               </div>
               <div>
                 <h2 className="text-xl font-black uppercase tracking-tight text-tx">Security Gate</h2>
-                <p className="text-xs text-tx/30 font-mono mt-1">2FA verification required for console access</p>
+                <p className="text-xs text-tx/30 font-mono mt-1">
+                  {has2FA ? '2FA verification required for console access' : '2FA must be enabled to access console'}
+                </p>
               </div>
             </div>
 
-            <p className="text-sm text-tx/40 mb-6">
-              The console provides direct shell access to your nodes. Verify your identity with two-factor authentication to proceed.
-            </p>
+            {has2FA ? (
+              <>
+                <p className="text-sm text-tx/40 mb-6">
+                  The console provides direct shell access to your nodes. Verify your identity with two-factor authentication to proceed.
+                </p>
 
-            <button
-              onClick={() => setShow2FA(true)}
-              className="w-full py-3 bg-neon-cyan/10 border-[3px] border-neon-cyan text-neon-cyan font-black uppercase tracking-widest text-sm hover:bg-neon-cyan/20 transition-all"
-              style={{ boxShadow: '4px 4px 0 rgba(0,240,255,0.15)' }}
-            >
-              Verify 2FA
-            </button>
+                <button
+                  onClick={() => setShow2FA(true)}
+                  className="w-full py-3 bg-neon-cyan/10 border-[3px] border-neon-cyan text-neon-cyan font-black uppercase tracking-widest text-sm hover:bg-neon-cyan/20 transition-all"
+                  style={{ boxShadow: '4px 4px 0 rgba(0,240,255,0.15)' }}
+                >
+                  Verify 2FA
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-tx/40 mb-6">
+                  Two-factor authentication must be enabled on your account before you can access the console. Go to Settings → Security → Two-Factor Auth to set it up.
+                </p>
+
+                <a
+                  href="/settings/security"
+                  className="block w-full py-3 bg-neon-pink/10 border-[3px] border-neon-pink text-neon-pink font-black uppercase tracking-widest text-sm hover:bg-neon-pink/20 transition-all text-center"
+                  style={{ boxShadow: '4px 4px 0 rgba(255,56,96,0.15)' }}
+                >
+                  Go to Security Settings
+                </a>
+              </>
+            )}
           </motion.div>
         </div>
 
-        <TwoFactorVerifyModal
-          isOpen={show2FA}
-          onClose={() => setShow2FA(false)}
-          onVerified={handleVerified}
-          title="Console Access"
-          description="Enter your 2FA code to access the terminal console."
-        />
+        {has2FA && (
+          <TwoFactorVerifyModal
+            isOpen={show2FA}
+            onClose={() => setShow2FA(false)}
+            onVerified={handleVerified}
+            title="Console Access"
+            description="Enter your 2FA code to access the terminal console."
+          />
+        )}
       </div>
     );
   }

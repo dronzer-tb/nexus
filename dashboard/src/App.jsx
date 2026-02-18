@@ -29,7 +29,7 @@ const RequireAuth = ({ children }) => {
 };
 
 /**
- * Nexus App - v1.9.5 with Onboarding
+ * Nexus App - v2.2.8 with Onboarding
  * Checks if onboarding is complete, otherwise shows setup wizard
  */
 
