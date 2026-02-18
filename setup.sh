@@ -3,143 +3,307 @@ set -euo pipefail
 
 # ──────────────────────────────────────────────
 #  Nexus Setup — Dronzer Studios
-#  Beautiful TUI installer v2.0-pre-release
+#  Split-Panel TUI Installer v3.0
+#  Layout:
+#    ┌──────────────────┬──────────────┐
+#    │   LOGO / HEADER  │              │
+#    ├──────────────────┤  LIVE LOGS   │
+#    │   QUESTIONS      │              │
+#    └──────────────────┴──────────────┘
 # ──────────────────────────────────────────────
 
-# ─── Colors & Styles ─────────────────────────
-
+# ─── Colors ──────────────────────────────────
 CYAN=$'\033[0;36m'
 GREEN=$'\033[0;32m'
 YELLOW=$'\033[1;33m'
 RED=$'\033[0;31m'
 MAGENTA=$'\033[0;35m'
+BLUE=$'\033[0;34m'
 BOLD=$'\033[1m'
 DIM=$'\033[2m'
 NC=$'\033[0m'
+BG_DARK=$'\033[48;5;234m'
 
-# Theme color (overridden to RED in bypass mode)
-THEME_COLOR="$CYAN"
-THEME_ACCENT="$MAGENTA"
-
-# Box drawing characters
-H_LINE='─'
-V_LINE='│'
-TL='┌'
-TR='┐'
-BL='└'
-BR='┘'
-T_LEFT='├'
-T_RIGHT='┤'
-BULLET='●'
-ARROW='▸'
-CHECK='✓'
-CROSS='✗'
+THEME=$CYAN
+ACCENT=$MAGENTA
 
 REQUIRED_NODE_MAJOR=18
-TERM_WIDTH=$(tput cols 2>/dev/null || echo 60)
-BOX_WIDTH=$((TERM_WIDTH > 70 ? 64 : TERM_WIDTH - 6))
-
 TOTAL_STEPS=7
 
-# ─── Drawing Helpers ─────────────────────────
+# ─── Terminal Dimensions ─────────────────────
+TERM_H=$(tput lines)
+TERM_W=$(tput cols)
+
+# Panel layout
+LEFT_W=$(( TERM_W * 2 / 3 ))       # Input/logo panel width (wider)
+RIGHT_W=$(( TERM_W - LEFT_W - 1 ))  # Log panel width (narrower)
+LOGO_H=14                           # Height of logo panel (top-left)
+INPUT_H=$(( TERM_H - LOGO_H - 1 ))  # Height of input panel (bottom-left)
+LOG_H=$(( TERM_H - 2 ))             # Height of log panel
+
+# Panel start columns
+LEFT_COL=1
+RIGHT_COL=$(( LEFT_W + 2 ))  # Log panel starts here
+
+# Panel start rows
+LOGO_ROW=1
+INPUT_ROW=$(( LOGO_H + 2 ))
+
+# ─── State ───────────────────────────────────
+LOG_LINES=()
+LOG_CURRENT_LINE=0
+
+MENU_RESULT=""
+INPUT_RESULT=""
+YESNO_RESULT=""
+PORT_RESULT=""
+
+# Setup variables
+MODE_NAME="combine"
+SETUP_PORT="8080"
+NODE_SERVER_URL="http://localhost:8080"
+CONSOLE_ENABLED=false
+ALLOW_SUDO=false
+SETUP_NGINX="n"
+NGINX_DOMAIN=""
+NGINX_SSL="n"
+SETUP_SYSTEMD="n"
+SETUP_START="y"
+USE_TAILSCALE="n"
+TAILSCALE_API_KEY=""
+TAILSCALE_TAILNET=""
+
+# ─── Cursor & Screen Helpers ─────────────────
+
+hide_cursor()   { tput civis 2>/dev/null || true; }
+show_cursor()   { tput cnorm 2>/dev/null || true; }
+clear_screen()  { tput clear; }
+move_to()       { tput cup "$(( $1 - 1 ))" "$(( $2 - 1 ))"; }  # row, col (1-based)
+save_cursor()   { tput sc; }
+restore_cursor(){ tput rc; }
+
+strip_ansi() {
+  echo -e "$1" | sed 's/\x1b\[[0-9;]*m//g'
+}
+
+pad_right() {
+  local str="$1" width="$2"
+  local plain; plain=$(strip_ansi "$str")
+  local len=${#plain}
+  local pad=$(( width - len ))
+  [[ $pad -lt 0 ]] && pad=0
+  printf '%s%*s' "$str" "$pad" ''
+}
 
 repeat_char() {
-  local char="$1" count="$2"
-  printf '%0.s'"$char" $(seq 1 "$count")
+  local c="$1" n="$2"
+  [[ $n -le 0 ]] && return
+  printf '%*s' "$n" '' | tr ' ' "$c"
 }
 
-draw_box_top() {
-  echo -e "  ${THEME_COLOR}${TL}$(repeat_char "$H_LINE" $BOX_WIDTH)${TR}${NC}"
+# ─── Draw Static Frame ───────────────────────
+
+draw_frame() {
+  clear_screen
+  hide_cursor
+
+  local dv='│'
+  local dh='─'
+  local tl='┌' tr='┐' bl='└' br='┘'
+  local tm='┬' bm='┴' lm='├' rm='┤' cx='┼'
+
+  # Top border
+  move_to 1 1
+  printf "${THEME}${tl}$(repeat_char "$dh" $(( LEFT_W )))${tm}$(repeat_char "$dh" $(( RIGHT_W )))${tr}${NC}"
+
+  # Left panel vertical lines + right panel dividers
+  local row
+  for (( row=2; row<=TERM_H-1; row++ )); do
+    move_to "$row" 1
+    printf "${THEME}${dv}${NC}"
+    move_to "$row" $(( LEFT_W + 2 ))
+    printf "${THEME}${dv}${NC}"
+    move_to "$row" $(( TERM_W ))
+    printf "${THEME}${dv}${NC}"
+  done
+
+  # Horizontal divider between logo and input (right side)
+  move_to $(( LOGO_H + 1 )) $(( LEFT_W + 2 ))
+  printf "${THEME}${lm}$(repeat_char "$dh" $(( RIGHT_W )))${rm}${NC}"
+
+  # Bottom border
+  move_to $(( TERM_H )) 1
+  printf "${THEME}${bl}$(repeat_char "$dh" $(( LEFT_W )))${bm}$(repeat_char "$dh" $(( RIGHT_W )))${br}${NC}"
+
+  # Right panel header (log title on top border)
+  local log_title=" LIVE INSTALL LOG "
+  local log_title_x=$(( LEFT_W + 2 + (RIGHT_W - ${#log_title}) / 2 ))
+  move_to 1 $(( log_title_x ))
+  printf "${THEME}${BOLD}${log_title}${NC}"
+
+  draw_logo
 }
 
-draw_box_bottom() {
-  echo -e "  ${THEME_COLOR}${BL}$(repeat_char "$H_LINE" $BOX_WIDTH)${BR}${NC}"
+# ─── Draw Logo (top-left) ────────────────────
+
+draw_logo() {
+  local col=3  # inside left panel
+
+  move_to 2  "$col"; printf "${THEME}${BOLD}███╗   ██╗███████╗██╗  ██╗██╗   ██╗███████╗${NC}"
+  move_to 3  "$col"; printf "${THEME}${BOLD}████╗  ██║██╔════╝╚██╗██╔╝██║   ██║██╔════╝${NC}"
+  move_to 4  "$col"; printf "${THEME}${BOLD}██╔██╗ ██║█████╗   ╚███╔╝ ██║   ██║███████╗${NC}"
+  move_to 5  "$col"; printf "${THEME}${BOLD}██║╚██╗██║██╔══╝   ██╔██╗ ██║   ██║╚════██║${NC}"
+  move_to 6  "$col"; printf "${THEME}${BOLD}██║ ╚████║███████╗██╔╝ ██╗╚██████╔╝███████║${NC}"
+  move_to 7  "$col"; printf "${THEME}${BOLD}╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝${NC}"
+
+  move_to 9  "$col"; printf "${BOLD}Dronzer Studios${NC} ${DIM}— Interactive Setup${NC}"
+  local version; version=$(cat VERSION 2>/dev/null || echo "2.2.2")
+  move_to 10 "$col"; printf "${DIM}v${version}${NC}"
+
+  move_to 12 "$col"; printf "${DIM}Node.js:${NC} $(node -v 2>/dev/null || echo 'not found')"
+  move_to 13 "$col"; printf "${DIM}npm:${NC}     $(npm -v 2>/dev/null || echo 'not found')"
 }
 
-draw_box_separator() {
-  echo -e "  ${THEME_COLOR}${T_LEFT}$(repeat_char "$H_LINE" $BOX_WIDTH)${T_RIGHT}${NC}"
+# ─── Log Panel ───────────────────────────────
+
+log_line_count=2  # next log row inside right panel
+
+add_log() {
+  local type="$1" msg="$2"
+  local icon color
+
+  case "$type" in
+    info)  icon="✓" color="$GREEN" ;;
+    warn)  icon="!" color="$YELLOW" ;;
+    error) icon="✗" color="$RED" ;;
+    step)  icon="▸" color="$THEME" ;;
+    dim)   icon=" " color="$DIM" ;;
+    *)     icon=" " color="$NC" ;;
+  esac
+
+  local max_log=$(( TERM_H - 2 ))
+  if (( log_line_count > max_log )); then
+    # Reset and clear right panel content
+    log_line_count=2
+    local r
+    for (( r=2; r<=max_log; r++ )); do
+      move_to "$r" $(( RIGHT_COL + 1 ))
+      printf '%*s' $(( RIGHT_W - 1 )) ''
+    done
+  fi
+
+  local log_col=$(( RIGHT_COL + 2 ))
+  local trunc_len=$(( RIGHT_W - 3 ))
+  local full_msg="${color}${icon}${NC} ${msg}"
+  local plain; plain=$(strip_ansi "${icon} ${msg}")
+  if (( ${#plain} > trunc_len )); then
+    full_msg="${color}${icon}${NC} ${msg:0:$trunc_len}"
+  fi
+
+  move_to "$log_line_count" "$log_col"
+  printf '%s' "$full_msg"
+
+  (( log_line_count++ )) || true
 }
 
-draw_box_line() {
-  local text="$1"
-  local stripped
-  stripped=$(echo -e "$text" | sed 's/\x1b\[[0-9;]*m//g')
-  local len=${#stripped}
-  local pad=$((BOX_WIDTH - len - 1))
-  if [ "$pad" -lt 0 ]; then pad=0; fi
-  echo -e "  ${THEME_COLOR}${V_LINE}${NC} ${text}$(repeat_char ' ' $pad)${THEME_COLOR}${V_LINE}${NC}"
+log_info()  { add_log info  "$*"; }
+log_step()  { add_log step  "$*"; }
+log_warn()  { add_log warn  "$*"; }
+log_error() { add_log error "$*"; }
+log_dim()   { add_log dim   "$*"; }
+log_blank() { 
+  local max_log=$(( TERM_H - 2 ))
+  (( log_line_count <= max_log )) && (( log_line_count++ )) || true
 }
 
-draw_box_empty() {
-  echo -e "  ${THEME_COLOR}${V_LINE}${NC}$(repeat_char ' ' $BOX_WIDTH)${THEME_COLOR}${V_LINE}${NC}"
+# ─── Input Panel Helpers ──────────────────────
+
+INPUT_CURRENT_ROW=$(( INPUT_ROW + 1 ))
+
+clear_input_panel() {
+  local r
+  for (( r=INPUT_ROW+1; r<=TERM_H-1; r++ )); do
+    move_to "$r" 2
+    printf '%*s' $(( LEFT_W - 1 )) ''
+  done
+  INPUT_CURRENT_ROW=$(( INPUT_ROW + 1 ))
 }
 
-draw_box_center() {
-  local text="$1"
-  local stripped
-  stripped=$(echo -e "$text" | sed 's/\x1b\[[0-9;]*m//g')
-  local len=${#stripped}
-  local total_pad=$((BOX_WIDTH - len))
-  local left_pad=$((total_pad / 2))
-  local right_pad=$((total_pad - left_pad))
-  echo -e "  ${THEME_COLOR}${V_LINE}${NC}$(repeat_char ' ' $left_pad)${text}$(repeat_char ' ' $right_pad)${THEME_COLOR}${V_LINE}${NC}"
+input_print() {
+  local text="${1:-}"
+  local col=3
+  local avail=$(( LEFT_W - 3 ))
+
+  if (( INPUT_CURRENT_ROW >= TERM_H - 1 )); then return; fi
+
+  local plain; plain=$(strip_ansi "$text")
+  if (( ${#plain} > avail )); then
+    text="${text:0:$avail}"
+  fi
+
+  move_to "$INPUT_CURRENT_ROW" "$col"
+  printf '%s' "$text"
+  (( INPUT_CURRENT_ROW++ )) || true
 }
 
-# ─── Banner ──────────────────────────────────
-
-banner() {
-  clear
-  echo ""
-  draw_box_top
-  draw_box_empty
-  draw_box_center "${THEME_COLOR}${BOLD}███╗   ██╗███████╗██╗  ██╗██╗   ██╗███████╗${NC}"
-  draw_box_center "${THEME_COLOR}${BOLD}████╗  ██║██╔════╝╚██╗██╔╝██║   ██║██╔════╝${NC}"
-  draw_box_center "${THEME_COLOR}${BOLD}██╔██╗ ██║█████╗   ╚███╔╝ ██║   ██║███████╗${NC}"
-  draw_box_center "${THEME_COLOR}${BOLD}██║╚██╗██║██╔══╝   ██╔██╗ ██║   ██║╚════██║${NC}"
-  draw_box_center "${THEME_COLOR}${BOLD}██║ ╚████║███████╗██╔╝ ██╗╚██████╔╝███████║${NC}"
-  draw_box_center "${THEME_COLOR}${BOLD}╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝${NC}"
-  draw_box_empty
-  draw_box_center "${BOLD}Dronzer Studios${NC} ${DIM}— Interactive Setup${NC}"
-  draw_box_center "${DIM}v$(cat VERSION 2>/dev/null || echo '2.0-pre-release')${NC}"
-  draw_box_empty
-  draw_box_bottom
-  echo ""
+input_blank() {
+  input_print ""
 }
 
-# ─── Section Header ─────────────────────────
-
-section() {
-  echo ""
-  draw_box_top
-  draw_box_center "${THEME_ACCENT}${BOLD}$1${NC}"
-  draw_box_bottom
-  echo ""
+input_separator() {
+  if (( INPUT_CURRENT_ROW >= TERM_H - 1 )); then return; fi
+  move_to "$INPUT_CURRENT_ROW" 2
+  printf "${THEME}$(repeat_char '─' $(( LEFT_W - 1 )))${NC}"
+  (( INPUT_CURRENT_ROW++ )) || true
 }
 
-# ─── Status Messages ─────────────────────────
-
-info()    { echo -e "  ${GREEN}${CHECK}${NC} $*"; }
-warn()    { echo -e "  ${YELLOW}!${NC} $*"; }
-fail()    { echo -e "  ${RED}${CROSS}${NC} $*"; exit 1; }
-step()    { echo -e "  ${THEME_COLOR}${ARROW}${NC} ${BOLD}$*${NC}"; }
-dimtext() { echo -e "  ${DIM}$*${NC}"; }
-
-# ─── Step Progress Bar ───────────────────────
-
-draw_progress() {
-  local current="$1"
-  local total="$2"
-  local filled=$((BOX_WIDTH * current / total))
-  local empty=$((BOX_WIDTH - filled))
-
-  draw_box_top
-  draw_box_center "${BOLD}Step ${current} of ${total}${NC}"
-  echo -e "  ${THEME_COLOR}${V_LINE}${NC} ${GREEN}$(repeat_char '█' $filled)${DIM}$(repeat_char '░' $empty)${NC} ${THEME_COLOR}${V_LINE}${NC}"
-  draw_box_bottom
-  echo ""
+input_title() {
+  local title="$1"
+  input_separator
+  input_blank
+  input_print "${ACCENT}${BOLD}  $title${NC}"
+  input_blank
+  input_separator
+  input_blank
 }
 
-# ─── Menu Selector (inside box, with back) ───
+draw_progress_bar() {
+  local current="$1" total="$2"
+  local bar_w=$(( LEFT_W - 14 ))
+  local filled=$(( bar_w * current / total ))
+  local empty=$(( bar_w - filled ))
+
+  if (( INPUT_CURRENT_ROW >= TERM_H - 1 )); then return; fi
+  move_to "$INPUT_CURRENT_ROW" 3
+  printf "${DIM}Step %d/%d ${NC}${GREEN}$(repeat_char '█' $filled)${DIM}$(repeat_char '░' $empty)${NC}" "$current" "$total"
+  (( INPUT_CURRENT_ROW++ )) || true
+  input_blank
+}
+
+# ─── Prompt: Read input from user ────────────
+# We need to show cursor + position at a prompt line, then read
+
+do_prompt() {
+  local prompt_text="$1"
+  local col=3
+
+  if (( INPUT_CURRENT_ROW >= TERM_H - 1 )); then
+    INPUT_CURRENT_ROW=$(( INPUT_ROW + 1 ))
+  fi
+
+  move_to "$INPUT_CURRENT_ROW" "$col"
+  printf "${THEME}▸${NC} ${BOLD}${prompt_text}${NC} "
+  show_cursor
+  local answer
+  read -r answer < /dev/tty
+  hide_cursor
+  move_to "$INPUT_CURRENT_ROW" "$col"
+  printf "${THEME}▸${NC} ${BOLD}${prompt_text}${NC} ${GREEN}${answer}${NC}"
+  (( INPUT_CURRENT_ROW++ )) || true
+  PROMPT_RESULT="$answer"
+}
+
+# ─── Menus ────────────────────────────────────
 
 menu_select() {
   local prompt="$1"
@@ -148,56 +312,53 @@ menu_select() {
   local show_back="${4:-false}"
   local count=${#options[@]}
 
-  draw_box_top
-  draw_box_empty
-  draw_box_line "${BOLD}${prompt}${NC}"
-  draw_box_empty
-  draw_box_separator
-  draw_box_empty
+  clear_input_panel
+
+  input_blank
+  input_print "${BOLD}  ${prompt}${NC}"
+  input_blank
+  input_separator
+  input_blank
 
   for i in "${!options[@]}"; do
-    local num=$((i + 1))
-    if [ "$num" -eq "$default" ]; then
-      draw_box_line "    ${THEME_COLOR}${BOLD}${num})${NC} ${BOLD}${options[$i]}${NC} ${THEME_COLOR}(recommended)${NC}"
+    local num=$(( i + 1 ))
+    if (( num == default )); then
+      input_print "   ${THEME}${BOLD}${num})${NC} ${BOLD}${options[$i]}${NC}  ${DIM}← recommended${NC}"
     else
-      draw_box_line "    ${DIM}${num})${NC} ${options[$i]}"
+      input_print "   ${DIM}${num})${NC} ${options[$i]}"
     fi
+    input_blank
   done
-
-  draw_box_empty
 
   if [ "$show_back" = "true" ]; then
-    draw_box_separator
-    draw_box_line "    ${YELLOW}0)${NC} ${DIM}← Back to previous step${NC}"
+    input_separator
+    input_print "   ${YELLOW}0)${NC} ${DIM}← Back${NC}"
+    input_blank
   fi
 
-  draw_box_empty
-  draw_box_bottom
-  echo ""
+  input_separator
+  input_blank
 
   while true; do
-    local min_choice=1
-    [ "$show_back" = "true" ] && min_choice=0
-
-    read -rp "  ${THEME_COLOR}${ARROW}${NC} Choice [${min_choice}-${count}] (default: ${default}): " choice
-    choice="${choice:-$default}"
+    do_prompt "Choice [$([ "$show_back" = "true" ] && echo "0-" || echo "1-")${count}] (default: ${default}):"
+    local choice="${PROMPT_RESULT:-$default}"
 
     if [ "$show_back" = "true" ] && [ "$choice" = "0" ]; then
-      MENU_RESULT="BACK"
+      MENU_RESULT="BACK"; return
+    fi
+
+    if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= count )); then
+      MENU_RESULT="$choice"
+      local idx=$(( choice - 1 ))
+      log_info "Selected: ${options[$idx]}"
       return
     fi
 
-    if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "$count" ]; then
-      MENU_RESULT="$choice"
-      local idx=$((choice - 1))
-      info "Selected: ${BOLD}${options[$idx]}${NC}"
-      return
-    fi
-    warn "Please enter a number between ${min_choice} and ${count}"
+    input_blank
+    input_print "${RED}  ✗ Enter a number between $([ "$show_back" = "true" ] && echo "0" || echo "1") and ${count}${NC}"
+    input_blank
   done
 }
-
-# ─── Yes/No Prompt (inside box) ──────────────
 
 ask_yesno() {
   local prompt="$1"
@@ -206,313 +367,300 @@ ask_yesno() {
   local hint="[y/N]"
   [ "$default" = "y" ] && hint="[Y/n]"
 
-  draw_box_top
-  draw_box_empty
-  draw_box_line "${BOLD}${prompt}${NC}"
-  draw_box_empty
-  if [ "$show_back" = "true" ]; then
-    draw_box_separator
-    draw_box_line "    ${YELLOW}b)${NC} ${DIM}← Back to previous step${NC}"
-  fi
-  draw_box_empty
-  draw_box_bottom
-  echo ""
+  clear_input_panel
+  input_blank
+  input_print "${BOLD}  ${prompt}${NC}"
+  input_blank
+  input_print "  ${DIM}${hint}$([ "$show_back" = "true" ] && echo "  |  b) ← Back" || echo "")${NC}"
+  input_blank
+  input_separator
+  input_blank
 
   while true; do
-    read -rp "  ${THEME_COLOR}${ARROW}${NC} ${hint}: " answer
-    answer="${answer:-$default}"
+    do_prompt "Answer:"
+    local answer="${PROMPT_RESULT:-$default}"
+
     case "$answer" in
       [bB])
-        if [ "$show_back" = "true" ]; then
-          YESNO_RESULT="BACK"
-          return
-        fi
-        warn "Enter y or n"
+        if [ "$show_back" = "true" ]; then YESNO_RESULT="BACK"; return; fi
         ;;
-      [yY]|[yY][eE][sS]) YESNO_RESULT="y"; return ;;
-      [nN]|[nN][oO])     YESNO_RESULT="n"; return ;;
-      *) warn "Enter y or n" ;;
+      [yY]|yes) YESNO_RESULT="y"; log_info "${prompt}: Yes"; return ;;
+      [nN]|no)  YESNO_RESULT="n"; log_info "${prompt}: No"; return ;;
     esac
+
+    input_blank
+    input_print "${RED}  ✗ Enter y or n${NC}"
+    input_blank
   done
 }
-
-# ─── Text Input (inside box) ─────────────────
 
 ask_input() {
   local prompt="$1"
   local default="${2:-}"
   local show_back="${3:-false}"
 
-  draw_box_top
-  draw_box_empty
-  draw_box_line "${BOLD}${prompt}${NC}"
-  draw_box_empty
-  if [ -n "$default" ]; then
-    draw_box_line "${DIM}Default: ${default}${NC}"
-  fi
-  if [ "$show_back" = "true" ]; then
-    draw_box_separator
-    draw_box_line "    ${YELLOW}Type 'back' to go to previous step${NC}"
-  fi
-  draw_box_empty
-  draw_box_bottom
-  echo ""
+  clear_input_panel
+  input_blank
+  input_print "${BOLD}  ${prompt}${NC}"
+  input_blank
+  [ -n "$default" ] && input_print "  ${DIM}Default: ${default}${NC}" && input_blank
+  [ "$show_back" = "true" ] && input_print "  ${DIM}Type 'back' to return${NC}" && input_blank
+  input_separator
+  input_blank
 
-  if [ -n "$default" ]; then
-    read -rp "  ${THEME_COLOR}${ARROW}${NC} [${default}]: " INPUT_RESULT
-    INPUT_RESULT="${INPUT_RESULT:-$default}"
-  else
-    read -rp "  ${THEME_COLOR}${ARROW}${NC} : " INPUT_RESULT
-  fi
+  while true; do
+    do_prompt "Enter value$([ -n "$default" ] && echo " [${default}]" || echo ""):"
+    local val="${PROMPT_RESULT:-$default}"
 
-  if [ "$show_back" = "true" ] && [ "$INPUT_RESULT" = "back" ]; then
-    INPUT_RESULT="BACK"
-  fi
+    if [ "$show_back" = "true" ] && [ "$val" = "back" ]; then
+      INPUT_RESULT="BACK"; return
+    fi
+
+    if [ -n "$val" ]; then
+      INPUT_RESULT="$val"; log_info "${prompt}: ${val}"; return
+    fi
+
+    input_blank
+    input_print "${RED}  ✗ Value cannot be empty${NC}"
+    input_blank
+  done
 }
-
-# ─── Port Input (inside box) ─────────────────
 
 ask_port() {
   local prompt="$1"
   local default="${2:-8080}"
   local show_back="${3:-false}"
 
-  draw_box_top
-  draw_box_empty
-  draw_box_line "${BOLD}${prompt}${NC}"
-  draw_box_line "${DIM}Valid range: 1-65535${NC}"
-  if [ "$show_back" = "true" ]; then
-    draw_box_separator
-    draw_box_line "    ${YELLOW}Type 'back' to go to previous step${NC}"
-  fi
-  draw_box_empty
-  draw_box_bottom
-  echo ""
+  clear_input_panel
+  input_blank
+  input_print "${BOLD}  ${prompt}${NC}"
+  input_blank
+  input_print "  ${DIM}Valid range: 1–65535${NC}"
+  input_blank
+  [ "$show_back" = "true" ] && input_print "  ${DIM}Type 'back' to return${NC}" && input_blank
+  input_separator
+  input_blank
 
   while true; do
-    read -rp "  ${THEME_COLOR}${ARROW}${NC} Port [${default}]: " PORT_RESULT
-    PORT_RESULT="${PORT_RESULT:-$default}"
+    do_prompt "Port [${default}]:"
+    local val="${PROMPT_RESULT:-$default}"
 
-    if [ "$show_back" = "true" ] && [ "$PORT_RESULT" = "back" ]; then
-      PORT_RESULT="BACK"
-      return
+    if [ "$show_back" = "true" ] && [ "$val" = "back" ]; then
+      PORT_RESULT="BACK"; return
     fi
 
-    if [[ "$PORT_RESULT" =~ ^[0-9]+$ ]] && [ "$PORT_RESULT" -ge 1 ] && [ "$PORT_RESULT" -le 65535 ]; then
-      return
+    if [[ "$val" =~ ^[0-9]+$ ]] && (( val >= 1 && val <= 65535 )); then
+      PORT_RESULT="$val"; log_info "Port set to: ${val}"; return
     fi
-    warn "Enter a valid port (1-65535)"
+
+    input_blank
+    input_print "${RED}  ✗ Invalid port — enter 1–65535${NC}"
+    input_blank
   done
 }
 
+# ─── Show Summary ─────────────────────────────
+
+show_summary() {
+  clear_input_panel
+
+  input_blank
+  input_title "CONFIGURATION SUMMARY"
+  input_blank
+
+  input_print "  ${DIM}Mode:${NC}         ${THEME}${BOLD}${MODE_NAME}${NC}"
+  input_blank
+  input_print "  ${DIM}Port:${NC}         ${THEME}${BOLD}${SETUP_PORT}${NC}"
+  input_blank
+
+  if [ "$MODE_NAME" = "node" ]; then
+    input_print "  ${DIM}Server URL:${NC}   ${THEME}${NODE_SERVER_URL}${NC}"
+    input_blank
+  fi
+
+  input_print "  ${DIM}Console:${NC}      ${THEME}$([ "${CONSOLE_ENABLED}" = true ] && echo "Enabled" || echo "Disabled")${NC}"
+  input_blank
+  input_print "  ${DIM}Sudo access:${NC}  ${THEME}$([ "${ALLOW_SUDO}" = true ] && echo "Enabled" || echo "Disabled")${NC}"
+  input_blank
+
+  if [ "$MODE_NAME" != "node" ]; then
+    if [ "${USE_TAILSCALE}" = "y" ]; then
+      input_print "  ${DIM}Access:${NC}       ${THEME}Tailscale VPN${NC}"
+    elif [ "${SETUP_NGINX}" = "y" ]; then
+      input_print "  ${DIM}Nginx:${NC}        ${THEME}Yes (${NGINX_DOMAIN})${NC}"
+    else
+      input_print "  ${DIM}Access:${NC}       ${THEME}Direct IP:port${NC}"
+    fi
+    input_blank
+  fi
+
+  input_print "  ${DIM}Systemd:${NC}      ${THEME}$([ "${SETUP_SYSTEMD}" = "y" ] && echo "Yes" || echo "No")${NC}"
+  input_blank
+  input_separator
+  input_blank
+}
+
 # ══════════════════════════════════════════════
-#  PHASE 1: ASK ALL QUESTIONS (with back nav)
+#  PHASE 1: COLLECT ANSWERS
 # ══════════════════════════════════════════════
 
 collect_answers() {
   local CURRENT_STEP=1
 
-  while [ "$CURRENT_STEP" -le "$TOTAL_STEPS" ]; do
+  while (( CURRENT_STEP <= TOTAL_STEPS )); do
     case "$CURRENT_STEP" in
+
       1) # Operating Mode
-        draw_progress 1 $TOTAL_STEPS
-        section "OPERATING MODE"
+        clear_input_panel
+        draw_progress_bar 1 $TOTAL_STEPS
+        input_title "OPERATING MODE"
+        input_print "  ${DIM}Choose how Nexus should run:${NC}"
+        input_blank
+        input_print "  ${THEME}●${NC} ${BOLD}Combine${NC}  — Dashboard + local monitoring"
+        input_print "  ${THEME}●${NC} ${BOLD}Server${NC}   — Dashboard & API only"
+        input_print "  ${THEME}●${NC} ${BOLD}Node${NC}     — Lightweight metrics reporter"
+        input_blank
+        input_separator
+        input_blank
 
-        draw_box_top
-        draw_box_empty
-        draw_box_line "${DIM}Nexus runs in one of three modes:${NC}"
-        draw_box_empty
-        draw_box_line "  ${THEME_COLOR}${BULLET}${NC} ${BOLD}Combine${NC}  ${DIM}—${NC} Dashboard + local node monitoring"
-        draw_box_line "  ${THEME_COLOR}${BULLET}${NC} ${BOLD}Server${NC}   ${DIM}—${NC} Dashboard & API only (remote nodes)"
-        draw_box_line "  ${THEME_COLOR}${BULLET}${NC} ${BOLD}Node${NC}     ${DIM}—${NC} Lightweight metrics reporter"
-        draw_box_empty
-        draw_box_bottom
-        echo ""
+        menu_select "Select operating mode" \
+          "Combine — Dashboard + local monitoring|Server — Dashboard & API only|Node — Metrics reporter only" \
+          1 false
 
-        menu_select "Select operating mode" "Combine — Dashboard + local monitoring|Server — Dashboard & API only|Node — Metrics reporter only" 1 false
-        SETUP_MODE="$MENU_RESULT"
-
-        case "$SETUP_MODE" in
+        case "$MENU_RESULT" in
           1) MODE_NAME="combine" ;;
           2) MODE_NAME="server"  ;;
           3) MODE_NAME="node"    ;;
         esac
-        CURRENT_STEP=2
+        (( CURRENT_STEP++ )) || true
         ;;
 
       2) # Network
-        draw_progress 2 $TOTAL_STEPS
+        clear_input_panel
+        draw_progress_bar 2 $TOTAL_STEPS
 
         if [ "$MODE_NAME" != "node" ]; then
-          section "NETWORK"
+          input_title "NETWORK"
           ask_port "Dashboard port" "8080" true
-          if [ "$PORT_RESULT" = "BACK" ]; then CURRENT_STEP=1; continue; fi
+          if [ "$PORT_RESULT" = "BACK" ]; then (( CURRENT_STEP-- )) || true; continue; fi
           SETUP_PORT="$PORT_RESULT"
         else
-          section "SERVER CONNECTION"
-          draw_box_top
-          draw_box_empty
-          draw_box_line "${DIM}Enter the URL of the Nexus server this${NC}"
-          draw_box_line "${DIM}node should report to.${NC}"
-          draw_box_empty
-          draw_box_bottom
-          echo ""
-
+          input_title "SERVER CONNECTION"
+          input_print "  ${DIM}Enter the Nexus server URL this node should report to.${NC}"
+          input_blank
           ask_input "Nexus server URL" "http://localhost:8080" true
-          if [ "$INPUT_RESULT" = "BACK" ]; then CURRENT_STEP=1; continue; fi
+          if [ "$INPUT_RESULT" = "BACK" ]; then (( CURRENT_STEP-- )) || true; continue; fi
           NODE_SERVER_URL="$INPUT_RESULT"
           SETUP_PORT="8080"
         fi
 
-        [ -z "${NODE_SERVER_URL:-}" ] && NODE_SERVER_URL="http://localhost:8080"
-        CURRENT_STEP=3
+        (( CURRENT_STEP++ )) || true
         ;;
 
       3) # SSH Console
-        draw_progress 3 $TOTAL_STEPS
-        section "SSH CONSOLE"
+        clear_input_panel
+        draw_progress_bar 3 $TOTAL_STEPS
+        input_title "SSH CONSOLE"
+        input_print "  ${DIM}The web console provides direct SSH terminal access${NC}"
+        input_print "  ${DIM}to nodes from the dashboard. Requires 2FA to use.${NC}"
+        input_blank
 
-        draw_box_top
-        draw_box_empty
-        draw_box_line "${DIM}The web console provides direct SSH terminal${NC}"
-        draw_box_line "${DIM}access to nodes from the dashboard.${NC}"
-        draw_box_line "${DIM}Requires 2FA to use.${NC}"
-        draw_box_empty
-        draw_box_bottom
-        echo ""
+        menu_select "Enable web console?" \
+          "Enable console — SSH terminal from dashboard|Disable console — no terminal access" \
+          1 true
 
-        menu_select "Enable web console?" "Enable console — SSH terminal from dashboard|Disable console — no terminal access" 1 true
+        if [ "$MENU_RESULT" = "BACK" ]; then (( CURRENT_STEP-- )) || true; continue; fi
 
-        if [ "$MENU_RESULT" = "BACK" ]; then CURRENT_STEP=2; continue; fi
-
-        SETUP_CONSOLE_ENABLED="$MENU_RESULT"
-
-        if [ "$SETUP_CONSOLE_ENABLED" -eq 1 ]; then
+        if (( MENU_RESULT == 1 )); then
           CONSOLE_ENABLED=true
-          info "Web console enabled"
+          log_info "Web console enabled"
 
-          section "SSH CONSOLE SECURITY"
+          clear_input_panel
+          draw_progress_bar 3 $TOTAL_STEPS
+          input_title "SSH CONSOLE SECURITY"
+          input_print "  ${DIM}Configure privilege level for web console commands.${NC}"
+          input_blank
 
-          draw_box_top
-          draw_box_empty
-          draw_box_line "${DIM}Configure the privilege level for remote${NC}"
-          draw_box_line "${DIM}commands executed via the web console.${NC}"
-          draw_box_empty
-          draw_box_bottom
-          echo ""
-
-          menu_select "Allow sudo commands?" "No sudo — regular user only|Allow sudo — privileged commands (with auth)" 1 true
+          menu_select "Allow sudo commands?" \
+            "No sudo — regular user only|Allow sudo — privileged commands (with auth)" \
+            1 true
 
           if [ "$MENU_RESULT" = "BACK" ]; then continue; fi
 
-          SETUP_SUDO="$MENU_RESULT"
-
-          if [ "$SETUP_SUDO" -eq 1 ]; then
+          if (( MENU_RESULT == 1 )); then
             ALLOW_SUDO=false
-            info "Console: regular user privileges only"
+            log_info "Console: regular user only"
           else
             ALLOW_SUDO=true
-            info "Sudo access enabled — requires 2FA per session"
+            log_info "Sudo access enabled (requires 2FA per session)"
           fi
         else
           CONSOLE_ENABLED=false
           ALLOW_SUDO=false
-          info "Web console disabled"
+          log_info "Web console disabled"
         fi
 
-        CURRENT_STEP=4
+        (( CURRENT_STEP++ )) || true
         ;;
 
-      4) # Reverse Proxy / Tailscale
-        draw_progress 4 $TOTAL_STEPS
-
-        NGINX_DOMAIN=""
-        NGINX_SSL="n"
-        USE_TAILSCALE="n"
-
+      4) # Reverse Proxy
         if [ "$MODE_NAME" = "node" ]; then
           SETUP_NGINX="n"
-          CURRENT_STEP=5
+          (( CURRENT_STEP++ )) || true
           continue
         fi
 
-        section "NETWORKING & ACCESS"
+        clear_input_panel
+        draw_progress_bar 4 $TOTAL_STEPS
+        input_title "NETWORKING & ACCESS"
 
-        local has_nginx=false
-        local has_tailscale=false
-
-        command -v nginx &>/dev/null && has_nginx=true
+        local has_nginx=false has_tailscale=false
+        command -v nginx     &>/dev/null && has_nginx=true
         command -v tailscale &>/dev/null && has_tailscale=true
 
-        draw_box_top
-        draw_box_empty
-        draw_box_line "${DIM}Choose how to expose your Nexus dashboard.${NC}"
-        draw_box_empty
-        draw_box_line "  ${THEME_COLOR}${BULLET}${NC} ${BOLD}Nginx${NC}      ${DIM}—${NC} Reverse proxy with domain & SSL"
-        draw_box_line "  ${THEME_COLOR}${BULLET}${NC} ${BOLD}Tailscale${NC}  ${DIM}—${NC} Zero-config VPN (no port forwarding)"
-        draw_box_line "  ${THEME_COLOR}${BULLET}${NC} ${BOLD}Direct${NC}     ${DIM}—${NC} Access via IP:port (dev/LAN only)"
-        draw_box_empty
+        input_print "  ${DIM}Choose how to expose your Nexus dashboard:${NC}"
+        input_blank
+        input_print "  $([ "$has_nginx" = true ]     && echo "${GREEN}✓${NC}" || echo "${YELLOW}!${NC}") ${BOLD}Nginx${NC}      — Reverse proxy + SSL"
+        input_print "  $([ "$has_tailscale" = true ] && echo "${GREEN}✓${NC}" || echo "${YELLOW}!${NC}") ${BOLD}Tailscale${NC}  — Zero-config VPN mesh"
+        input_print "  ${DIM} ${NC} ${BOLD}Direct${NC}     — IP:port (dev/LAN only)"
+        input_blank
 
-        if [ "$has_nginx" = true ]; then
-          draw_box_line "  ${GREEN}${CHECK} nginx detected${NC}"
-        else
-          draw_box_line "  ${YELLOW}! nginx not installed${NC}"
-        fi
-
-        if [ "$has_tailscale" = true ]; then
-          local ts_ip
-          ts_ip=$(tailscale ip -4 2>/dev/null || echo "not connected")
-          draw_box_line "  ${GREEN}${CHECK} Tailscale detected (IP: ${ts_ip})${NC}"
-        else
-          draw_box_line "  ${YELLOW}! Tailscale not installed${NC}"
-        fi
-
-        draw_box_empty
-        draw_box_bottom
-        echo ""
-
-        local proxy_options="Nginx — Reverse proxy with domain & SSL"
-        proxy_options+="|Tailscale — Zero-config VPN mesh"
-        proxy_options+="|Direct — Access via IP:port (no proxy)"
         local default_choice=1
+        [ "$has_tailscale" = true ] && [ "$has_nginx" = false ] && default_choice=2
 
-        if [ "$has_tailscale" = true ] && [ "$has_nginx" = false ]; then
-          default_choice=2
-        fi
+        menu_select "Select access method" \
+          "Nginx — Reverse proxy with domain & SSL|Tailscale — Zero-config VPN mesh|Direct — Access via IP:port" \
+          "$default_choice" true
 
-        menu_select "Select access method" "$proxy_options" $default_choice true
+        if [ "$MENU_RESULT" = "BACK" ]; then (( CURRENT_STEP-- )) || true; continue; fi
 
-        if [ "$MENU_RESULT" = "BACK" ]; then CURRENT_STEP=3; continue; fi
-
-        PROXY_CHOICE="$MENU_RESULT"
-
-        case "$PROXY_CHOICE" in
+        case "$MENU_RESULT" in
           1) # Nginx
             SETUP_NGINX="y"
             USE_TAILSCALE="n"
 
             if [ "$has_nginx" = false ]; then
-              warn "nginx is not installed. Install it first:"
-              draw_box_top
-              draw_box_empty
-              draw_box_line "${DIM}Ubuntu/Debian:${NC}  sudo apt install nginx"
-              draw_box_line "${DIM}CentOS/RHEL:${NC}    sudo yum install nginx"
-              draw_box_line "${DIM}Arch:${NC}           sudo pacman -S nginx"
-              draw_box_line "${DIM}macOS:${NC}          brew install nginx"
-              draw_box_empty
-              draw_box_bottom
-              echo ""
+              log_warn "nginx not installed — configure manually later"
+              clear_input_panel
+              draw_progress_bar 4 $TOTAL_STEPS
+              input_title "NGINX NOT FOUND"
+              input_print "  ${YELLOW}nginx is not installed on this system.${NC}"
+              input_blank
+              input_print "  ${DIM}Install it first:${NC}"
+              input_print "    Ubuntu/Debian:  sudo apt install nginx"
+              input_print "    CentOS/RHEL:    sudo yum install nginx"
+              input_print "    Arch:           sudo pacman -S nginx"
+              input_blank
 
               ask_yesno "Continue without nginx? (configure later)" "y" true
               if [ "$YESNO_RESULT" = "BACK" ]; then continue; fi
-              if [ "$YESNO_RESULT" = "y" ]; then
-                SETUP_NGINX="n"
-              else
-                fail "Setup requires nginx. Install it and re-run setup."
-              fi
+              [ "$YESNO_RESULT" = "y" ] && SETUP_NGINX="n" || { log_error "Setup requires nginx."; exit 1; }
             fi
 
             if [ "$SETUP_NGINX" = "y" ]; then
+              clear_input_panel
+              draw_progress_bar 4 $TOTAL_STEPS
+              input_title "NGINX — DOMAIN SETUP"
               ask_input "Domain name (e.g., nexus.example.com)" "" true
               if [ "$INPUT_RESULT" = "BACK" ]; then continue; fi
               NGINX_DOMAIN="$INPUT_RESULT"
@@ -528,85 +676,23 @@ collect_answers() {
             USE_TAILSCALE="y"
 
             if [ "$has_tailscale" = false ]; then
-              section "TAILSCALE INSTALLATION"
-              draw_box_top
-              draw_box_empty
-              draw_box_line "${DIM}Tailscale is not installed. Install options:${NC}"
-              draw_box_empty
-              draw_box_line "  ${BOLD}Quick install:${NC}"
-              draw_box_line "    curl -fsSL https://tailscale.com/install.sh | sh"
-              draw_box_empty
-              draw_box_line "  ${BOLD}Package managers:${NC}"
-              draw_box_line "    ${DIM}Debian/Ubuntu:${NC} sudo apt install tailscale"
-              draw_box_line "    ${DIM}Arch:${NC}          sudo pacman -S tailscale"
-              draw_box_line "    ${DIM}Fedora:${NC}        sudo dnf install tailscale"
-              draw_box_empty
-              draw_box_bottom
-              echo ""
-
               ask_yesno "Install Tailscale now? (requires curl)" "y" true
               if [ "$YESNO_RESULT" = "BACK" ]; then continue; fi
               if [ "$YESNO_RESULT" = "y" ]; then
-                step "Installing Tailscale..."
-                if curl -fsSL https://tailscale.com/install.sh | sh 2>&1; then
-                  info "Tailscale installed successfully"
+                log_step "Installing Tailscale..."
+                if curl -fsSL https://tailscale.com/install.sh | sh &>/dev/null; then
+                  log_info "Tailscale installed"
                   has_tailscale=true
                 else
-                  warn "Tailscale installation failed"
-                  ask_yesno "Continue without Tailscale?" "y"
-                  if [ "$YESNO_RESULT" = "y" ]; then
-                    USE_TAILSCALE="n"
-                  else
-                    fail "Setup cancelled"
-                  fi
+                  log_warn "Tailscale install failed"
+                  USE_TAILSCALE="n"
                 fi
               else
-                ask_yesno "Continue without Tailscale?" "y"
-                if [ "$YESNO_RESULT" != "y" ]; then continue; fi
                 USE_TAILSCALE="n"
               fi
             fi
 
-            if [ "$USE_TAILSCALE" = "y" ] && [ "$has_tailscale" = true ]; then
-              local ts_connected=false
-              if tailscale ip -4 &>/dev/null; then
-                ts_connected=true
-                local ts_ip_addr
-                ts_ip_addr=$(tailscale ip -4 2>/dev/null || echo "unknown")
-                info "Tailscale is connected (IP: ${ts_ip_addr})"
-
-                draw_box_top
-                draw_box_empty
-                draw_box_line "${GREEN}${CHECK} Nexus will be accessible at:${NC}"
-                draw_box_line "  ${THEME_COLOR}http://${ts_ip_addr}:${SETUP_PORT}${NC}"
-                draw_box_empty
-                draw_box_bottom
-                echo ""
-              else
-                warn "Tailscale is installed but not connected"
-                ask_yesno "Run 'tailscale up' to connect?" "y" true
-                if [ "$YESNO_RESULT" = "BACK" ]; then continue; fi
-                if [ "$YESNO_RESULT" = "y" ]; then
-                  step "Starting Tailscale..."
-                  if tailscale up 2>&1; then
-                    info "Tailscale connected"
-                  else
-                    warn "Tailscale connection requires browser auth."
-                    dimtext "Run 'tailscale up' manually after setup."
-                  fi
-                fi
-              fi
-
-              section "TAILSCALE API (OPTIONAL)"
-              draw_box_top
-              draw_box_empty
-              draw_box_line "${DIM}Provide a Tailscale API key for advanced${NC}"
-              draw_box_line "${DIM}management (device listing, auth keys).${NC}"
-              draw_box_line "${DIM}Skip if you don't need API integration.${NC}"
-              draw_box_empty
-              draw_box_bottom
-              echo ""
-
+            if [ "$USE_TAILSCALE" = "y" ]; then
               ask_yesno "Configure Tailscale API key?" "n" true
               if [ "$YESNO_RESULT" = "BACK" ]; then continue; fi
               if [ "$YESNO_RESULT" = "y" ]; then
@@ -621,297 +707,307 @@ collect_answers() {
           3) # Direct
             SETUP_NGINX="n"
             USE_TAILSCALE="n"
-            info "Direct access mode — dashboard at http://localhost:${SETUP_PORT}"
+            log_info "Direct access — http://localhost:${SETUP_PORT}"
             ;;
         esac
 
-        CURRENT_STEP=5
+        (( CURRENT_STEP++ )) || true
         ;;
 
       5) # Systemd
-        draw_progress 5 $TOTAL_STEPS
-        section "AUTO-START"
-
-        draw_box_top
-        draw_box_empty
-        draw_box_line "${DIM}Install Nexus as a systemd service for${NC}"
-        draw_box_line "${DIM}auto-start on boot.${NC}"
-        draw_box_empty
-        draw_box_bottom
-        echo ""
+        clear_input_panel
+        draw_progress_bar 5 $TOTAL_STEPS
+        input_title "AUTO-START"
+        input_print "  ${DIM}Install Nexus as a systemd service${NC}"
+        input_print "  ${DIM}to auto-start on boot.${NC}"
+        input_blank
 
         ask_yesno "Install systemd service?" "n" true
-        if [ "$YESNO_RESULT" = "BACK" ]; then CURRENT_STEP=4; continue; fi
+        if [ "$YESNO_RESULT" = "BACK" ]; then (( CURRENT_STEP-- )) || true; continue; fi
         SETUP_SYSTEMD="$YESNO_RESULT"
 
-        CURRENT_STEP=6
+        (( CURRENT_STEP++ )) || true
         ;;
 
-      6) # Launch
-        draw_progress 6 $TOTAL_STEPS
-        section "LAUNCH"
-
-        ask_yesno "Start Nexus after installation?" "y" true
-        if [ "$YESNO_RESULT" = "BACK" ]; then CURRENT_STEP=5; continue; fi
-        SETUP_START="$YESNO_RESULT"
-
-        CURRENT_STEP=7
-        ;;
-
-      7) # Summary
-        draw_progress 7 $TOTAL_STEPS
-        section "CONFIGURATION SUMMARY"
-
-        draw_box_top
-        draw_box_empty
-        draw_box_line "${BOLD}Mode:${NC}           ${THEME_COLOR}${MODE_NAME}${NC}"
-        draw_box_line "${BOLD}Port:${NC}           ${THEME_COLOR}${SETUP_PORT}${NC}"
-
-        if [ "$MODE_NAME" = "node" ]; then
-          draw_box_line "${BOLD}Server URL:${NC}     ${THEME_COLOR}${NODE_SERVER_URL}${NC}"
-        fi
-
-        draw_box_line "${BOLD}Console:${NC}        ${THEME_COLOR}$([ "${CONSOLE_ENABLED:-false}" = true ] && echo 'Enabled' || echo 'Disabled')${NC}"
-        draw_box_line "${BOLD}Sudo access:${NC}    ${THEME_COLOR}$([ "${ALLOW_SUDO:-false}" = true ] && echo 'Enabled' || echo 'Disabled')${NC}"
-
-        if [ "$MODE_NAME" != "node" ]; then
-          if [ "${USE_TAILSCALE:-n}" = "y" ]; then
-            draw_box_line "${BOLD}Access:${NC}         ${THEME_COLOR}Tailscale VPN${NC}"
-          elif [ "${SETUP_NGINX:-n}" = "y" ]; then
-            draw_box_line "${BOLD}Nginx:${NC}          ${THEME_COLOR}Yes (${NGINX_DOMAIN:-})${NC}"
-          else
-            draw_box_line "${BOLD}Access:${NC}         ${THEME_COLOR}Direct (IP:port)${NC}"
-          fi
-        fi
-
-        draw_box_line "${BOLD}Systemd:${NC}        ${THEME_COLOR}$([ "${SETUP_SYSTEMD:-n}" = 'y' ] && echo 'Yes' || echo 'No')${NC}"
-        draw_box_line "${BOLD}Start after:${NC}    ${THEME_COLOR}$([ "${SETUP_START:-y}" = 'y' ] && echo 'Yes' || echo 'No')${NC}"
-        draw_box_empty
-        draw_box_bottom
-        echo ""
+      6) # Summary + Confirm
+        show_summary
+        draw_progress_bar 6 $TOTAL_STEPS
 
         ask_yesno "Proceed with installation?" "y" true
-        if [ "$YESNO_RESULT" = "BACK" ]; then CURRENT_STEP=6; continue; fi
+        if [ "$YESNO_RESULT" = "BACK" ]; then (( CURRENT_STEP-- )) || true; continue; fi
         if [ "$YESNO_RESULT" != "y" ]; then
+          clear_screen
+          show_cursor
           echo ""
-          warn "Setup cancelled by user"
+          echo "  Setup cancelled."
           exit 0
         fi
 
-        CURRENT_STEP=$((TOTAL_STEPS + 1))
+        (( CURRENT_STEP++ )) || true
         ;;
+
     esac
   done
 }
 
 # ══════════════════════════════════════════════
-#  PHASE 2: EXECUTE INSTALLATION
+#  PHASE 2: INSTALLATION
 # ══════════════════════════════════════════════
 
 run_installation() {
-  section "INSTALLING"
+  clear_input_panel
+  draw_progress_bar 7 $TOTAL_STEPS
+  input_title "INSTALLING..."
+  input_print "  ${DIM}Running installation steps...${NC}"
+  input_blank
+  input_print "  ${DIM}Watch the log panel on the left.${NC}"
+
+  log_blank
+  log_step "Starting installation..."
+  log_blank
 
   # ─── Prerequisites ─────────────────────────
-  step "Checking prerequisites"
+  log_step "Checking prerequisites"
 
   if ! command -v node &>/dev/null; then
-    fail "Node.js is not installed. Install Node.js >= ${REQUIRED_NODE_MAJOR} (https://nodejs.org)"
+    log_error "Node.js not installed — aborting"
+    exit_with_error "Node.js >= ${REQUIRED_NODE_MAJOR} is required."
   fi
 
-  NODE_VER=$(node -v | sed 's/v//' | cut -d. -f1)
-  if [ "$NODE_VER" -lt "$REQUIRED_NODE_MAJOR" ]; then
-    fail "Node.js ${REQUIRED_NODE_MAJOR}+ required (found $(node -v))"
+  local node_ver; node_ver=$(node -v | sed 's/v//' | cut -d. -f1)
+  if (( node_ver < REQUIRED_NODE_MAJOR )); then
+    log_error "Node.js ${REQUIRED_NODE_MAJOR}+ required (found $(node -v))"
+    exit_with_error "Upgrade Node.js and re-run setup."
   fi
-  info "Node.js $(node -v)"
 
-  if ! command -v npm &>/dev/null; then
-    fail "npm is not installed"
-  fi
-  info "npm $(npm -v)"
+  log_info "Node.js $(node -v)"
+  log_info "npm $(npm -v)"
+  log_blank
 
   # ─── Backend deps ──────────────────────────
-  step "Installing backend dependencies"
-  npm install --loglevel=warn 2>&1 | tail -3
-  info "Backend dependencies installed"
+  log_step "Installing backend dependencies"
+  if npm install --loglevel=error 2>&1 | grep -E "^npm (ERR|error)" | head -3; then
+    log_warn "npm install had warnings (check logs)"
+  fi
+  log_info "Backend dependencies installed"
+  log_blank
 
-  # ─── Dashboard deps & build ────────────────
+  # ─── Dashboard ─────────────────────────────
   if [ "$MODE_NAME" != "node" ]; then
-    step "Installing dashboard dependencies"
-    (cd dashboard && npm install --loglevel=warn 2>&1 | tail -3)
-    info "Dashboard dependencies installed"
+    log_step "Installing dashboard dependencies"
+    (cd dashboard && npm install --loglevel=error 2>&1 | grep -E "^npm (ERR|error)" | head -3 || true)
+    log_info "Dashboard dependencies installed"
+    log_blank
 
-    step "Building dashboard"
-    (cd dashboard && npm run build 2>&1 | tail -5)
-    info "Dashboard built successfully"
-  else
-    dimtext "Skipping dashboard (node mode)"
+    log_step "Building dashboard..."
+    (cd dashboard && npm run build 2>&1 | tail -3 || true)
+    log_info "Dashboard built"
+    log_blank
   fi
 
-  # ─── Configuration ─────────────────────────
-  step "Configuring Nexus"
-
+  # ─── Config ────────────────────────────────
+  log_step "Configuring Nexus"
   mkdir -p data
 
-  if [ -f config/config.json ]; then
-    info "Config file exists — updating settings"
-  else
+  if [ ! -f config/config.json ]; then
     cp config/config.default.json config/config.json
-    info "Created config/config.json from defaults"
+    log_info "Created config from defaults"
+  else
+    log_info "Using existing config.json"
   fi
 
   node -e "
     const fs = require('fs');
     const cfg = JSON.parse(fs.readFileSync('config/config.json', 'utf8'));
     cfg.server.port = ${SETUP_PORT};
-    cfg.node.serverUrl = '${NODE_SERVER_URL:-http://localhost:8080}';
+    cfg.node = cfg.node || {};
+    cfg.node.serverUrl = '${NODE_SERVER_URL}';
     cfg.console = cfg.console || {};
-    cfg.console.enabled = ${CONSOLE_ENABLED:-false};
-    cfg.console.allowSudo = ${ALLOW_SUDO:-false};
-    cfg.console.blockedCommands = [
-      'rm -rf /',
-      'rm -rf /*',
-      'mkfs.',
-      'dd if=',
-      ':(){:|:&};:',
-      'chmod -R 777 /',
-      'chown -R',
-      '> /dev/sda',
-      '> /dev/nvme'
-    ];
-    cfg.console.blockedPaths = [
-      '/etc/passwd',
-      '/etc/shadow',
-      '/etc/sudoers',
-      '/boot',
-      '/proc',
-      '/sys'
-    ];
-
-    // Tailscale config
-    if ('${USE_TAILSCALE:-n}' === 'y') {
-      cfg.tailscale = {
-        enabled: true,
-        apiKey: '${TAILSCALE_API_KEY:-}',
-        tailnet: '${TAILSCALE_TAILNET:-}',
-      };
+    cfg.console.enabled = ${CONSOLE_ENABLED};
+    cfg.console.allowSudo = ${ALLOW_SUDO};
+    cfg.console.blockedCommands = ['rm -rf /','rm -rf /*','mkfs.',':(){:|:&};:'];
+    cfg.console.blockedPaths = ['/etc/passwd','/etc/shadow','/etc/sudoers','/boot'];
+    if ('${USE_TAILSCALE}' === 'y') {
+      cfg.tailscale = { enabled: true, apiKey: '${TAILSCALE_API_KEY}', tailnet: '${TAILSCALE_TAILNET}' };
     }
-
     fs.writeFileSync('config/config.json', JSON.stringify(cfg, null, 2));
   "
-  info "Configuration updated"
+  log_info "Configuration updated"
+  log_blank
 
-  # ─── Reverse SSH Setup ─────────────────────
+  # ─── Reverse SSH ───────────────────────────
   setup_reverse_ssh
 
   # ─── Nginx ─────────────────────────────────
-  if [ "${SETUP_NGINX:-n}" = "y" ]; then
-    step "Setting up nginx reverse proxy"
-    node src/setup/wizard.js --domain="${NGINX_DOMAIN:-}" --ssl="${NGINX_SSL:-n}" --port="${SETUP_PORT}" 2>&1 || {
-      warn "Nginx setup had issues — you can retry with: npm run setup:nginx"
-    }
-    info "Nginx configured"
+  if [ "${SETUP_NGINX}" = "y" ]; then
+    log_step "Setting up nginx reverse proxy"
+    node src/setup/wizard.js \
+      --domain="${NGINX_DOMAIN}" \
+      --ssl="${NGINX_SSL}" \
+      --port="${SETUP_PORT}" 2>&1 | while IFS= read -r line; do
+        log_dim "$line"
+      done || log_warn "Nginx setup had issues — retry: npm run setup:nginx"
+    log_info "Nginx configured"
+    log_blank
   fi
 
   # ─── Systemd ───────────────────────────────
-  if [ "${SETUP_SYSTEMD:-n}" = "y" ]; then
+  if [ "${SETUP_SYSTEMD}" = "y" ]; then
     install_systemd_service
   fi
 
-  # ─── Done ──────────────────────────────────
-  section "SETUP COMPLETE"
+  log_blank
+  log_info "Installation complete!"
+  log_blank
 
-  draw_box_top
-  draw_box_empty
-  draw_box_center "${GREEN}${BOLD}${CHECK} Nexus v$(cat VERSION) is ready!${NC}"
-  draw_box_empty
-  draw_box_separator
-
-  if [ "$MODE_NAME" != "node" ]; then
-    draw_box_empty
-
-    if [ "${USE_TAILSCALE:-n}" = "y" ]; then
-      local ts_ip
-      ts_ip=$(tailscale ip -4 2>/dev/null || echo "your-tailscale-ip")
-      draw_box_line "${BOLD}Dashboard:${NC}  ${THEME_COLOR}http://${ts_ip}:${SETUP_PORT}${NC}"
-    elif [ "${SETUP_NGINX:-n}" = "y" ]; then
-      draw_box_line "${BOLD}Dashboard:${NC}  ${THEME_COLOR}https://${NGINX_DOMAIN}${NC}"
-    else
-      draw_box_line "${BOLD}Dashboard:${NC}  ${THEME_COLOR}http://localhost:${SETUP_PORT}${NC}"
-    fi
-
-    draw_box_line "${BOLD}Login:${NC}      ${YELLOW}admin / admin123${NC}"
-    draw_box_empty
-  fi
-
-  if [ "$MODE_NAME" = "node" ]; then
-    draw_box_empty
-    draw_box_line "${BOLD}Reports to:${NC} ${THEME_COLOR}${NODE_SERVER_URL}${NC}"
-    draw_box_empty
-  fi
-
-  draw_box_separator
-  draw_box_empty
-  draw_box_line "${DIM}Manual commands:${NC}"
-  draw_box_line "  npm run start:combine   ${DIM}# Dashboard + local monitoring${NC}"
-  draw_box_line "  npm run start:server    ${DIM}# Dashboard & API only${NC}"
-  draw_box_line "  npm run start:node      ${DIM}# Node reporter only${NC}"
-  draw_box_line "  npm run dev             ${DIM}# Development mode${NC}"
-  draw_box_line "  docker compose up -d    ${DIM}# Run with Docker${NC}"
-
-  if [ "${USE_TAILSCALE:-n}" = "y" ]; then
-    draw_box_empty
-    draw_box_line "${DIM}Tailscale commands:${NC}"
-    draw_box_line "  tailscale status        ${DIM}# Check connection${NC}"
-    draw_box_line "  tailscale ip            ${DIM}# Show Tailscale IP${NC}"
-  fi
-
-  draw_box_empty
-
-  if [ "${SETUP_SYSTEMD:-n}" = "y" ]; then
-    draw_box_line "${DIM}Service commands:${NC}"
-    draw_box_line "  sudo systemctl start nexus    ${DIM}# Start${NC}"
-    draw_box_line "  sudo systemctl stop nexus     ${DIM}# Stop${NC}"
-    draw_box_line "  sudo systemctl status nexus   ${DIM}# Status${NC}"
-    draw_box_line "  sudo journalctl -u nexus -f   ${DIM}# Logs${NC}"
-    draw_box_empty
-  fi
-
-  draw_box_bottom
-  echo ""
-
-  # ─── Start ─────────────────────────────────
-  if [ "${SETUP_START:-n}" = "y" ]; then
-    echo ""
-    info "Starting Nexus in ${BOLD}${MODE_NAME}${NC} mode..."
-    dimtext "Press Ctrl+C to stop"
-    echo ""
-    exec node src/index.js "--mode=${MODE_NAME}"
-  fi
+  show_done_screen
 }
 
-# ─── Systemd installer ──────────────────────
+# ─── Done Screen (full right panel) ──────────
 
-install_systemd_service() {
-  step "Installing systemd service"
+show_done_screen() {
+  clear_input_panel
 
-  if [ "$EUID" -ne 0 ] && ! command -v sudo &>/dev/null; then
-    warn "Root access required for systemd installation. Skipping..."
+  input_blank
+  input_title "✓  SETUP COMPLETE"
+  input_blank
+
+  if [ "$MODE_NAME" != "node" ]; then
+    if [ "${USE_TAILSCALE}" = "y" ]; then
+      local ts_ip; ts_ip=$(tailscale ip -4 2>/dev/null || echo "your-tailscale-ip")
+      input_print "  ${BOLD}Dashboard:${NC}  ${THEME}http://${ts_ip}:${SETUP_PORT}${NC}"
+    elif [ "${SETUP_NGINX}" = "y" ]; then
+      input_print "  ${BOLD}Dashboard:${NC}  ${THEME}https://${NGINX_DOMAIN}${NC}"
+    else
+      input_print "  ${BOLD}Dashboard:${NC}  ${THEME}http://localhost:${SETUP_PORT}${NC}"
+    fi
+    input_blank
+    input_print "  ${BOLD}Login:${NC}      ${YELLOW}admin / admin123${NC}"
+    input_blank
+  else
+    input_print "  ${BOLD}Reports to:${NC}  ${THEME}${NODE_SERVER_URL}${NC}"
+    input_blank
+  fi
+
+  input_separator
+  input_blank
+  input_print "  ${DIM}Start commands:${NC}"
+  input_print "    npm run start:combine   ${DIM}# Dashboard + monitoring${NC}"
+  input_print "    npm run start:server    ${DIM}# Dashboard & API only${NC}"
+  input_print "    npm run start:node      ${DIM}# Node reporter only${NC}"
+  input_blank
+
+  if [ "${SETUP_SYSTEMD}" = "y" ]; then
+    input_separator
+    input_blank
+    input_print "  ${DIM}Service commands:${NC}"
+    input_print "    sudo systemctl start nexus"
+    input_print "    sudo systemctl stop nexus"
+    input_print "    sudo systemctl status nexus"
+    input_print "    sudo journalctl -u nexus -f"
+    input_blank
+  fi
+
+  input_separator
+  input_blank
+
+  # Start systemd service if installed
+  if [ "${SETUP_SYSTEMD}" = "y" ]; then
+    input_print "  ${GREEN}${BOLD}Starting nexus.service...${NC}"
+    log_step "Starting nexus systemd service"
+    if [ "$EUID" -eq 0 ]; then
+      systemctl start nexus.service && log_info "nexus.service started" || log_warn "Failed to start service"
+    else
+      sudo systemctl start nexus.service && log_info "nexus.service started" || log_warn "Failed to start — run: sudo systemctl start nexus"
+    fi
+    input_blank
+    input_print "  ${DIM}Use 'sudo systemctl status nexus' to check status.${NC}"
+  else
+    input_print "  ${DIM}Run one of the start commands above to launch Nexus.${NC}"
+  fi
+
+  input_blank
+  input_print "  ${DIM}Press any key to exit setup.${NC}"
+
+  show_cursor
+  read -rsn1 < /dev/tty
+  hide_cursor
+
+  cleanup_exit 0
+}
+
+# ─── Reverse SSH Setup ───────────────────────
+
+setup_reverse_ssh() {
+  local os_type; os_type=$(uname -s)
+  local arch; arch=$(uname -m)
+  mkdir -p bin
+
+  local binary_name="reverse-ssh"
+
+  case "$os_type" in
+    Linux)
+      case "$arch" in
+        x86_64)          binary_name="reverse-ssh" ;;
+        i686|i386)       binary_name="reverse-ssh-x86" ;;
+        aarch64|arm64)   binary_name="reverse-ssh-arm64" ;;
+        *)               log_warn "Unsupported arch: $arch — skipping reverse-ssh"; return ;;
+      esac ;;
+    Darwin)
+      case "$arch" in
+        x86_64) binary_name="reverse-ssh-darwin-amd64" ;;
+        arm64)  binary_name="reverse-ssh-darwin-arm64" ;;
+        *)      log_warn "Unsupported macOS arch: $arch"; return ;;
+      esac ;;
+    *) log_warn "Unsupported OS: $os_type — skipping reverse-ssh"; return ;;
+  esac
+
+  if [ -f "bin/$binary_name" ]; then
+    chmod +x "bin/$binary_name"
+    log_info "Reverse-SSH binary ready at bin/$binary_name"
     return
   fi
 
-  local INSTALL_DIR=$(pwd)
-  local NODE_PATH=$(command -v node)
-  local SERVICE_FILE="/etc/systemd/system/nexus.service"
+  log_step "Downloading reverse-ssh..."
+  local url="https://github.com/Fahrj/reverse-ssh/releases/latest/download/${binary_name}"
 
-  local SERVICE_CONTENT="[Unit]
+  if command -v wget &>/dev/null; then
+    wget -q -O "bin/$binary_name" "$url" && chmod +x "bin/$binary_name" \
+      && log_info "reverse-ssh downloaded" \
+      || log_warn "Failed to download reverse-ssh (wget)"
+  elif command -v curl &>/dev/null; then
+    curl -sL -o "bin/$binary_name" "$url" && chmod +x "bin/$binary_name" \
+      && log_info "reverse-ssh downloaded" \
+      || log_warn "Failed to download reverse-ssh (curl)"
+  else
+    log_warn "wget/curl not found — cannot download reverse-ssh"
+  fi
+  log_blank
+}
+
+# ─── Systemd Service ─────────────────────────
+
+install_systemd_service() {
+  log_step "Installing systemd service"
+
+  if (( EUID != 0 )) && ! command -v sudo &>/dev/null; then
+    log_warn "Root required for systemd — skipping"
+    return
+  fi
+
+  local install_dir; install_dir=$(pwd)
+  local node_path; node_path=$(command -v node)
+  local svc_file="/etc/systemd/system/nexus.service"
+
+  local svc_content="[Unit]
 Description=Nexus Monitoring Server
 After=network.target
 
 [Service]
 Type=simple
 User=${USER}
-WorkingDirectory=${INSTALL_DIR}
-ExecStart=${NODE_PATH} ${INSTALL_DIR}/src/index.js --mode=${MODE_NAME}
+WorkingDirectory=${install_dir}
+ExecStart=${node_path} ${install_dir}/src/index.js --mode=${MODE_NAME}
 Restart=always
 RestartSec=10
 StandardOutput=journal
@@ -921,257 +1017,49 @@ Environment=NODE_ENV=production
 [Install]
 WantedBy=multi-user.target"
 
-  if [ "$EUID" -eq 0 ]; then
-    echo "$SERVICE_CONTENT" > "$SERVICE_FILE"
+  if (( EUID == 0 )); then
+    echo "$svc_content" > "$svc_file"
     systemctl daemon-reload
     systemctl enable nexus.service
   else
-    echo "$SERVICE_CONTENT" | sudo tee "$SERVICE_FILE" > /dev/null
+    echo "$svc_content" | sudo tee "$svc_file" >/dev/null
     sudo systemctl daemon-reload
     sudo systemctl enable nexus.service
   fi
 
-  info "Systemd service installed and enabled"
+  log_info "Systemd service installed and enabled"
+  log_blank
 }
 
-# ══════════════════════════════════════════════
-#  BYPASS MODE — red TUI, skip onboarding
-# ══════════════════════════════════════════════
+# ─── Cleanup & Exit ──────────────────────────
 
-run_bypass_mode() {
-  # Override theme to RED for bypass mode
-  THEME_COLOR="$RED"
-  THEME_ACCENT="$RED"
-
-  banner
-
-  draw_box_top
-  draw_box_empty
-  draw_box_center "${RED}${BOLD}⚡ BYPASS MODE ⚡${NC}"
-  draw_box_empty
-  draw_box_center "${RED}${BOLD}WARNING: DEVELOPMENT/TESTING ONLY${NC}"
-  draw_box_empty
-  draw_box_center "${DIM}Skipping onboarding & 2FA — using defaults${NC}"
-  draw_box_center "${DIM}All prompts use default values${NC}"
-  draw_box_empty
-  draw_box_bottom
+exit_with_error() {
+  local msg="$1"
+  show_cursor
+  clear_screen
   echo ""
-
-  MODE_NAME="combine"
-  SETUP_PORT="8080"
-  NODE_SERVER_URL="http://localhost:8080"
-  CONSOLE_ENABLED=true
-  ALLOW_SUDO=false
-  SETUP_NGINX="n"
-  NGINX_DOMAIN=""
-  NGINX_SSL="n"
-  SETUP_SYSTEMD="n"
-  USE_TAILSCALE="n"
-
-  # ─── Prerequisites ─────────────────────────
-  section "PREREQUISITES"
-
-  if ! command -v node &>/dev/null; then
-    fail "Node.js is not installed. Install Node.js >= ${REQUIRED_NODE_MAJOR}"
-  fi
-
-  NODE_VER=$(node -v | sed 's/v//' | cut -d. -f1)
-  if [ "$NODE_VER" -lt "$REQUIRED_NODE_MAJOR" ]; then
-    fail "Node.js ${REQUIRED_NODE_MAJOR}+ required (found $(node -v))"
-  fi
-  info "Node.js $(node -v)"
-  info "npm $(npm -v)"
-
-  # ─── Dependencies ──────────────────────────
-  section "DEPENDENCIES"
-
-  step "Installing backend dependencies"
-  npm install --loglevel=warn 2>&1 | tail -3
-  info "Backend dependencies installed"
-
-  step "Installing dashboard dependencies"
-  (cd dashboard && npm install --loglevel=warn 2>&1 | tail -3)
-  info "Dashboard dependencies installed"
-
-  step "Building dashboard"
-  (cd dashboard && npm run build 2>&1 | tail -5)
-  info "Dashboard built"
-
-  # ─── Config ────────────────────────────────
-  section "CONFIGURATION"
-
-  mkdir -p data
-
-  if [ ! -f config/config.json ]; then
-    cp config/config.default.json config/config.json
-    info "Created config from defaults"
-  fi
-
-  node -e "
-    const fs = require('fs');
-    const cfg = JSON.parse(fs.readFileSync('config/config.json', 'utf8'));
-    cfg.server.port = ${SETUP_PORT};
-    cfg.node.serverUrl = '${NODE_SERVER_URL}';
-    cfg.console = cfg.console || {};
-    cfg.console.enabled = ${CONSOLE_ENABLED};
-    cfg.console.allowSudo = ${ALLOW_SUDO};
-    fs.writeFileSync('config/config.json', JSON.stringify(cfg, null, 2));
-  "
-  info "Config updated"
-
-  # ─── Bypass: auto-setup admin + 2FA + onboarding ──
-  section "BYPASS SETUP"
-
-  step "Creating admin account & 2FA"
-
-  BYPASS_OUTPUT=$(node -e "
-    const database = require('./src/utils/database');
-    const { hashPassword } = require('./src/utils/password');
-    const { generateSecret, encryptSecret, generateRecoveryCodes, hashRecoveryCode } = require('./src/utils/totp');
-
-    database.init();
-
-    const bcrypt = require('bcrypt');
-    const passwordHash = bcrypt.hashSync('admin123', 10);
-
-    let user = database.getUserByUsername('admin');
-    if (user) {
-      database.updateUser(user.id, { password: passwordHash, mustChangePassword: 0 });
-    } else {
-      database.createUser({ username: 'admin', password: passwordHash, role: 'admin', mustChangePassword: 0 });
-      user = database.getUserByUsername('admin');
-    }
-
-    const { secret, otpauth_url } = generateSecret('admin');
-    const encrypted = encryptSecret(secret);
-
-    const codes = generateRecoveryCodes(10);
-    const hashedCodes = codes.map(c => hashRecoveryCode(c));
-
-    database.updateUser(user.id, {
-      totpSecret: encrypted,
-      totpEnabled: 1,
-      recoveryCodes: JSON.stringify(hashedCodes)
-    });
-
-    database.setSetting('onboarding_completed', 'true');
-    database.setSetting('onboarding_version', '1.9.5');
-
-    console.log('SECRET=' + secret);
-    console.log('OTPAUTH=' + otpauth_url);
-    console.log('RECOVERY=' + codes.slice(0, 3).join(','));
-  ")
-
-  BYPASS_SECRET=$(echo "$BYPASS_OUTPUT" | grep '^SECRET=' | cut -d= -f2-)
-  BYPASS_RECOVERY=$(echo "$BYPASS_OUTPUT" | grep '^RECOVERY=' | cut -d= -f2-)
-
-  info "Admin account ready  ${DIM}(admin / admin123)${NC}"
-  info "2FA configured"
-  info "Onboarding marked complete"
-
-  # ─── Done ──────────────────────────────────
+  echo "  ${RED}✗ Setup Error:${NC} ${msg}"
   echo ""
-  draw_box_top
-  draw_box_empty
-  draw_box_center "${RED}${BOLD}${CHECK} Bypass Mode Ready${NC}"
-  draw_box_empty
-  draw_box_separator
-  draw_box_empty
-  draw_box_line "${BOLD}Dashboard:${NC}    ${RED}http://localhost:${SETUP_PORT}${NC}"
-  draw_box_line "${BOLD}Login:${NC}        ${YELLOW}admin / admin123${NC}"
-  draw_box_empty
-  draw_box_separator
-  draw_box_empty
-  draw_box_line "${BOLD}2FA Secret:${NC}   ${MAGENTA}${BYPASS_SECRET}${NC}"
-  draw_box_empty
-  draw_box_line "${DIM}Add this to your authenticator app, or use a${NC}"
-  draw_box_line "${DIM}recovery code below for first login:${NC}"
-  draw_box_empty
-
-  IFS=',' read -ra RCODES <<< "$BYPASS_RECOVERY"
-  for code in "${RCODES[@]}"; do
-    draw_box_line "  ${RED}${BULLET}${NC} ${BOLD}${code}${NC}"
-  done
-
-  draw_box_empty
-  draw_box_bottom
-  echo ""
-
-  info "Starting Nexus in ${BOLD}combine${NC} mode..."
-  dimtext "Press Ctrl+C to stop"
-  echo ""
-  exec node src/index.js "--mode=combine"
+  exit 1
 }
 
-# ══════════════════════════════════════════════
-#  Reverse SSH Setup
-# ══════════════════════════════════════════════
-
-setup_reverse_ssh() {
-  local os_type=$(uname -s)
-  local arch=$(uname -m)
-
-  mkdir -p bin
-
-  local binary_name="reverse-ssh"
-
-  case "$os_type" in
-    Linux)
-      if [ "$arch" = "x86_64" ]; then binary_name="reverse-ssh"
-      elif [ "$arch" = "i686" ] || [ "$arch" = "i386" ]; then binary_name="reverse-ssh-x86"
-      elif [ "$arch" = "aarch64" ] || [ "$arch" = "arm64" ]; then binary_name="reverse-ssh-arm64"
-      else warn "Unsupported architecture: $arch — skip reverse-ssh"; return; fi
-      ;;
-    Darwin)
-      if [ "$arch" = "x86_64" ]; then binary_name="reverse-ssh-darwin-amd64"
-      elif [ "$arch" = "arm64" ]; then binary_name="reverse-ssh-darwin-arm64"
-      else warn "Unsupported macOS architecture: $arch"; return; fi
-      ;;
-    *) warn "Unsupported OS: $os_type — skip reverse-ssh"; return ;;
-  esac
-
-  if [ -f "bin/$binary_name" ]; then
-    info "Reverse-SSH binary already present at bin/$binary_name"
-    chmod +x "bin/$binary_name"
-    return
-  fi
-
-  step "Downloading reverse-ssh from GitHub..."
-
-  local release_url="https://github.com/Fahrj/reverse-ssh/releases/latest/download"
-  local download_url="${release_url}/${binary_name}"
-
-  if command -v wget &>/dev/null; then
-    if wget -q -O "bin/$binary_name" "$download_url" 2>/dev/null; then
-      chmod +x "bin/$binary_name"
-      info "Reverse-SSH binary downloaded to bin/$binary_name"
-    else
-      warn "Failed to download reverse-ssh (wget)"
-    fi
-  elif command -v curl &>/dev/null; then
-    if curl -sL -o "bin/$binary_name" "$download_url" 2>/dev/null; then
-      chmod +x "bin/$binary_name"
-      info "Reverse-SSH binary downloaded to bin/$binary_name"
-    else
-      warn "Failed to download reverse-ssh (curl)"
-    fi
-  else
-    warn "wget or curl not found — cannot auto-download reverse-ssh"
-    dimtext "Download manually from: $release_url"
-  fi
+cleanup_exit() {
+  show_cursor
+  tput rmcup 2>/dev/null || clear_screen
+  exit "${1:-0}"
 }
+
+trap 'cleanup_exit 130' INT TERM
 
 # ══════════════════════════════════════════════
 #  MAIN
 # ══════════════════════════════════════════════
 
 main() {
-  if [[ "${1:-}" == "--bypass-mode" ]]; then
-    run_bypass_mode
-    exit 0
-  fi
+  # Use alternate screen buffer to restore terminal on exit
+  tput smcup 2>/dev/null || true
 
-  banner
+  draw_frame
   collect_answers
   run_installation
 }

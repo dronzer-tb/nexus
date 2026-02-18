@@ -4,6 +4,15 @@ All notable changes to Nexus are documented here.
 
 ---
 
+## v2.2.3
+
+- **Setup Script Rewrite (v3.0 Split-Panel TUI)** — Complete rewrite of the interactive installer with a split-panel layout: logo/questions on the left, live install logs on the right. Adds progress bars, back-navigation on every step, animated menu selection, and a full configuration summary before install
+- **Tailscale VPN Support** — New "Networking & Access" setup step offers Tailscale as an access method alongside Nginx and direct IP; auto-detects installed tools, can install Tailscale inline, and optionally configures API key + tailnet
+- **Web Console Setup** — Dedicated setup step for enabling/disabling the SSH web console and configuring sudo access, with clear security descriptions
+- **Improved Reverse-SSH Detection** — Architecture-aware binary selection for Linux (x86_64, i686, aarch64) and macOS (amd64, arm64) with graceful fallback
+
+---
+
 ## v2.2.2
 
 - **Fix: Nginx Wizard Port Override** — Setup wizard no longer re-asks for the backend port when called from `setup.sh`; the port chosen in the main installer is now passed via `--port` CLI arg, preventing config overwrites
