@@ -2,7 +2,7 @@ const axios = require('axios');
 const os = require('os');
 const fs = require('fs');
 const path = require('path');
-const { spawn } = require('child_process');
+const { spawn, exec } = require('child_process');
 const logger = require('../utils/logger');
 const config = require('../utils/config');
 const metrics = require('../utils/metrics');
@@ -18,6 +18,7 @@ class NodeMode {
     this.nodeInfoPath = path.join(__dirname, '../../data/node-info.json');
     this.reverseSSHProcess = null;
     this.reverseSSHTunnelActive = false;
+    this.isUpdating = false;
   }
 
   async start() {
@@ -163,6 +164,11 @@ class NodeMode {
       if (!response.data.success) {
         logger.warn('Server rejected metrics:', response.data.error);
       }
+
+      // Check if server is requesting an update
+      if (response.data.update && response.data.update.type === 'update') {
+        this.handleUpdateRequest(response.data.update);
+      }
     } catch (error) {
       if (error.code === 'ECONNREFUSED') {
         logger.debug('Server unavailable, will retry...');
@@ -182,6 +188,51 @@ class NodeMode {
         logger.debug(`Failed to send metrics: ${error.message || error.code || 'unknown error'}`);
       }
     }
+  }
+
+  /**
+   * Handle an update request received from the server via metrics response.
+   * Runs the update command (git pull + npm install + restart) on this node.
+   */
+  handleUpdateRequest(update) {
+    if (this.isUpdating) {
+      logger.debug('Update already in progress, skipping duplicate request');
+      return;
+    }
+
+    this.isUpdating = true;
+    const command = update.command;
+    const fallback = update.fallbackCommand;
+    const targetVersion = update.targetVersion || 'latest';
+
+    logger.info(`Received update request to version ${targetVersion}`);
+    logger.info(`Running update command: ${command}`);
+
+    exec(command, { timeout: 120000, cwd: '/opt/nexus' }, (error, stdout, stderr) => {
+      if (error) {
+        logger.warn(`Primary update command failed: ${error.message}`);
+        if (fallback) {
+          logger.info(`Trying fallback command: ${fallback}`);
+          exec(fallback, { timeout: 120000, cwd: '/opt/nexus' }, (err2, out2, err2out) => {
+            if (err2) {
+              logger.error(`Fallback update command also failed: ${err2.message}`);
+              if (err2out) logger.debug(`Fallback stderr: ${err2out}`);
+            } else {
+              logger.info(`Update applied successfully via fallback command`);
+              if (out2) logger.debug(`Fallback stdout: ${out2}`);
+            }
+            this.isUpdating = false;
+          });
+        } else {
+          logger.error('No fallback command available, update failed');
+          this.isUpdating = false;
+        }
+      } else {
+        logger.info('Update applied successfully');
+        if (stdout) logger.debug(`Update stdout: ${stdout}`);
+        this.isUpdating = false;
+      }
+    });
   }
 
   startMetricsReporting() {

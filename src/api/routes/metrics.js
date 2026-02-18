@@ -50,9 +50,26 @@ router.post('/', (req, res) => {
       logger.error('Alert check failed:', err.message);
     });
 
+    // Check if there's a pending update for nodes
+    let pendingUpdate = null;
+    try {
+      const raw = database.getSetting('pending_node_update');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        // Only send if requested within last 24 hours
+        if (parsed.requestedAt && (Date.now() - parsed.requestedAt) < 86400000) {
+          pendingUpdate = parsed;
+        } else {
+          // Expired — clear it
+          database.setSetting('pending_node_update', '');
+        }
+      }
+    } catch {}
+
     res.json({
       success: true,
-      message: 'Metrics received'
+      message: 'Metrics received',
+      ...(pendingUpdate && { update: pendingUpdate }),
     });
   } catch (error) {
     logger.error('Error saving metrics:', error);

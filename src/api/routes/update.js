@@ -95,59 +95,32 @@ router.post('/apply', async (req, res) => {
 
 /**
  * POST /api/update/nodes
- * Send update instructions to all connected nodes via Socket.IO
+ * Flag all connected nodes for update via metrics response
  */
 router.post('/nodes', (req, res) => {
   try {
-    const io = req.app.get('io');
-    if (!io) {
-      return res.status(500).json({
-        success: false,
-        error: 'Socket.IO not available',
-      });
-    }
-
+    const database = require('../../utils/database');
     const updateCommand = updater.getNodeUpdateCommand();
-    const targetNodeIds = req.body.nodeIds || null; // null = all nodes
 
-    // Emit to agent namespace
-    const agentNs = io.of('/agent');
-    
-    if (targetNodeIds && Array.isArray(targetNodeIds)) {
-      // Send to specific nodes
-      let sentCount = 0;
-      agentNs.sockets.forEach((socket) => {
-        if (targetNodeIds.includes(socket.id) || targetNodeIds.includes(socket.handshake?.query?.nodeId)) {
-          socket.emit('update:execute', updateCommand);
-          sentCount++;
-        }
-      });
-      
-      logger.info(`Update command sent to ${sentCount} specific nodes`);
-      res.json({
-        success: true,
-        message: `Update command sent to ${sentCount} node(s)`,
-        sentCount,
-        command: updateCommand,
-      });
-    } else {
-      // Broadcast to all connected agents
-      agentNs.emit('update:execute', updateCommand);
-      const connectedCount = agentNs.sockets?.size || 0;
-      
-      logger.info(`Update command broadcast to ${connectedCount} connected nodes`);
-      res.json({
-        success: true,
-        message: `Update command broadcast to ${connectedCount} connected node(s)`,
-        connectedCount,
-        command: updateCommand,
-      });
-    }
+    // Store pending update in settings — nodes will pick it up on next metrics report
+    database.setSetting('pending_node_update', JSON.stringify({
+      ...updateCommand,
+      requestedAt: Date.now(),
+      requestedBy: req.user?.username || 'unknown',
+      targetVersion: updater.getCurrentVersion(),
+    }));
+
+    logger.info(`Node update flagged by ${req.user?.username || 'unknown'}`);
+    res.json({
+      success: true,
+      message: 'Update queued — nodes will update on next check-in',
+      command: updateCommand,
+    });
   } catch (error) {
     logger.error('Node update push error:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to send update to nodes',
+      error: 'Failed to queue node update',
     });
   }
 });
