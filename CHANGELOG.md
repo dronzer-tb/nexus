@@ -4,6 +4,21 @@ All notable changes to Nexus are documented here.
 
 ---
 
+## v2.2.6
+
+- **Fix: Reverse-SSH Disabled by Default** — Reverse SSH tunnel no longer starts automatically, preventing infinite EACCES retry loops that caused 100% CPU on nodes
+- **Fix: CORS Blocking Onboarding** — CORS now allows all origins during initial onboarding (before nginx config is set), and no longer hard-rejects unknown origins in production
+- **Fix: Systemd WorkingDirectory** — `install_systemd_service()` now resolves the install path from `BASH_SOURCE` instead of `$(pwd)`, preventing `getcwd() failed` errors
+- **Fix: Nginx Wizard Hanging** — Added non-interactive mode to `wizard.js` so it completes instantly when called from `setup.sh` with `--domain`, `--ssl`, `--port` args instead of blocking on readline prompts
+- **Fix: Nginx Port Mismatch Prevention** — `writeNginxConfig()` now detects existing Certbot-modified configs and updates only `proxy_pass` port in-place; new `sync_nginx_port()` in `setup.sh` scans all nginx configs post-install
+- **Fix: Input Pattern Regex** — Escaped hyphen in `[a-zA-Z0-9_\-]+` pattern for `v`-flag compatibility in modern browsers
+- **Fix: Onboarding Error Messages** — Step 1 handler now returns actual error messages instead of generic "Internal server error"; frontend displays detailed errors
+- **Fix: TUI Menu Duplication** — Cursor-up calculation now includes blank and hint lines, preventing menu options from rendering twice
+- **Fix: TUI Arrow Menu Crash** — Added `|| true` guards to `read` and arithmetic in setup.sh to prevent `set -e` from killing the script
+- **Fix: TUI Menu Hanging on VPS** — Replaced `\033[6n` cursor position query with relative `\033[nA` movement for terminal compatibility
+
+---
+
 ## v2.2.3
 
 - **Full TUI Redesign (v4.0)** — Ground-up rewrite of the interactive installer: replaced the split-panel box-drawing layout with a clean, full-width centered design featuring 256-color gradient accents, animated braille spinners, and a step-dot progress indicator

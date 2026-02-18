@@ -122,7 +122,7 @@ draw_logo() {
   blank
   cprint "${C_DIM}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
   local version
-  version=$(cat VERSION 2>/dev/null || echo "2.2.3")
+  version=$(cat VERSION 2>/dev/null || echo "2.2.6")
   cprint "${C_WHITE}${C_BOLD}Dronzer Studios${C_RESET}  ${C_DIM}·${C_RESET}  ${C_PURPLE}v${version}${C_RESET}"
   cprint "${C_DIM}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
   blank
