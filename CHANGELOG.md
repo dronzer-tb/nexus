@@ -4,6 +4,12 @@ All notable changes to Nexus are documented here.
 
 ---
 
+## v2.2.7
+
+- **Fix: Update All Nodes Not Working** — Replaced broken Socket.IO `/agent` namespace broadcast with HTTP-based signaling; server now stores `pending_node_update` in the database, nodes pick it up via metrics response on next heartbeat, and execute `git pull && npm install && restart` automatically
+
+---
+
 ## v2.2.6
 
 - **Fix: Reverse-SSH Disabled by Default** — Reverse SSH tunnel no longer starts automatically, preventing infinite EACCES retry loops that caused 100% CPU on nodes
