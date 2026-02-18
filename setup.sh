@@ -175,12 +175,16 @@ arrow_menu() {
   local options=("$@")
   local count=${#options[@]}
   local selected=0
+  local total_lines=$count
+  [[ "$show_back" == "true" ]] && (( total_lines += 2 ))
 
   _draw_options() {
-    # Restore cursor to saved position, then redraw all options
-    printf '\033[u'
+    # Move cursor up to the start of the menu, then redraw
+    local up=$(( total_lines ))
+    printf '\033[%dA' "$up" 2>/dev/null || true
+    local i
     for (( i=0; i<count; i++ )); do
-      printf '\033[2K'
+      printf '\r\033[2K'
       if (( i == selected )); then
         lprint "    ${C_ACCENT}${C_BOLD}  ❯ ${options[$i]}${C_RESET}"
       else
@@ -188,47 +192,79 @@ arrow_menu() {
       fi
     done
     if [[ "$show_back" == "true" ]]; then
-      printf '\033[2K'
+      printf '\r\033[2K'
       blank
-      printf '\033[2K'
+      printf '\r\033[2K'
       lprint "    ${C_DIM2}    ← Back (q)${C_RESET}"
     fi
   }
 
-  # Save cursor position before drawing options
-  printf '\033[s'
-
-  # Draw initial state
-  _draw_options
+  # Print initial options
+  local i
+  for (( i=0; i<count; i++ )); do
+    if (( i == selected )); then
+      lprint "    ${C_ACCENT}${C_BOLD}  ❯ ${options[$i]}${C_RESET}"
+    else
+      lprint "    ${C_DIM}    ${options[$i]}${C_RESET}"
+    fi
+  done
+  if [[ "$show_back" == "true" ]]; then
+    blank
+    lprint "    ${C_DIM2}    ← Back (q)${C_RESET}"
+  fi
   blank
   lprint "  ${C_DIM2}↑/↓ Navigate  ·  Enter Select${C_RESET}"
 
   hide_cursor
 
   while true; do
-    local key
-    IFS= read -rsn1 key < /dev/tty
-    case "$key" in
-      $'\033')
-        read -rsn2 -t 0.1 key < /dev/tty || true
-        case "$key" in
-          '[A') (( selected > 0 )) && (( selected-- )); _draw_options ;;
-          '[B') (( selected < count - 1 )) && (( selected++ )); _draw_options ;;
-        esac
-        ;;
-      '')
-        MENU_RESULT=$(( selected + 1 ))
-        show_cursor
-        return
-        ;;
-      'q'|'Q')
-        if [[ "$show_back" == "true" ]]; then
-          MENU_RESULT="BACK"
-          show_cursor
-          return
+    local key=""
+    IFS= read -rsn1 key < /dev/tty || true
+    if [[ "$key" == $'\033' ]]; then
+      local seq=""
+      IFS= read -rsn2 -t 0.2 seq < /dev/tty || true
+      if [[ "$seq" == "[A" ]]; then
+        # Up arrow
+        if (( selected > 0 )); then
+          (( selected-- )) || true
+          _draw_options
         fi
-        ;;
-    esac
+      elif [[ "$seq" == "[B" ]]; then
+        # Down arrow
+        if (( selected < count - 1 )); then
+          (( selected++ )) || true
+          _draw_options
+        fi
+      fi
+    elif [[ "$key" == "" ]]; then
+      # Enter key
+      MENU_RESULT=$(( selected + 1 ))
+      show_cursor
+      return 0
+    elif [[ "$key" == "k" || "$key" == "K" ]]; then
+      # vim-style up
+      if (( selected > 0 )); then
+        (( selected-- )) || true
+        _draw_options
+      fi
+    elif [[ "$key" == "j" || "$key" == "J" ]]; then
+      # vim-style down
+      if (( selected < count - 1 )); then
+        (( selected++ )) || true
+        _draw_options
+      fi
+    elif [[ "$key" == "q" || "$key" == "Q" ]]; then
+      if [[ "$show_back" == "true" ]]; then
+        MENU_RESULT="BACK"
+        show_cursor
+        return 0
+      fi
+    elif [[ "$key" =~ ^[1-9]$ ]] && (( key <= count )); then
+      # Number key shortcut
+      MENU_RESULT="$key"
+      show_cursor
+      return 0
+    fi
   done
 }
 
