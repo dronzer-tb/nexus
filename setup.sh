@@ -798,7 +798,7 @@ install_systemd_service() {
   fi
 
   local install_dir node_path svc_file="/etc/systemd/system/nexus.service"
-  install_dir=$(pwd); node_path=$(command -v node)
+  install_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; node_path=$(command -v node)
 
   local svc_content="[Unit]
 Description=Nexus Monitoring Server
