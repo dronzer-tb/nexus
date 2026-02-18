@@ -688,6 +688,8 @@ run_installation() {
     else
       stop_spinner false "Nginx setup had issues — retry: npm run setup:nginx"
     fi
+    # Post-setup: verify nginx proxy_pass port matches config
+    sync_nginx_port "${SETUP_PORT}" "${NGINX_DOMAIN}"
   fi
 
   # Systemd
@@ -702,6 +704,43 @@ run_installation() {
   blank
 
   show_done_screen
+}
+
+# ─── Sync Nginx Port ──────────────────────────────────────────
+# Ensures all nginx configs for the domain have the correct proxy_pass port.
+# Fixes port mismatches caused by config changes, certbot rewrites, etc.
+
+sync_nginx_port() {
+  local port="$1" domain="$2"
+  local safe_domain="${domain//./_}"
+  local dirs=("/etc/nginx/sites-enabled" "/etc/nginx/sites-available" "/etc/nginx/conf.d")
+  local fixed=0
+
+  for dir in "${dirs[@]}"; do
+    [[ -d "$dir" ]] || continue
+    for f in "$dir"/*; do
+      [[ -f "$f" ]] || continue
+      # Match config files for this domain (by name or content)
+      local match=false
+      if [[ "$(basename "$f")" == *"$safe_domain"* ]]; then
+        match=true
+      elif grep -q "server_name.*${domain}" "$f" 2>/dev/null; then
+        match=true
+      fi
+      [[ "$match" == "true" ]] || continue
+
+      # Check if proxy_pass port differs from target
+      if grep -qP "proxy_pass\s+http://127\.0\.0\.1:(?!${port}\b)\d+" "$f" 2>/dev/null; then
+        sed -i "s|proxy_pass http://127\.0\.0\.1:[0-9]\+|proxy_pass http://127.0.0.1:${port}|g" "$f" 2>/dev/null && fixed=$((fixed + 1)) || true
+      fi
+    done
+  done
+
+  if (( fixed > 0 )); then
+    install_ok "Fixed proxy_pass port in ${fixed} nginx config(s) → ${port}"
+    # Reload nginx to apply
+    systemctl reload nginx 2>/dev/null || nginx -s reload 2>/dev/null || true
+  fi
 }
 
 # ─── Reverse SSH Setup ───────────────────────────────────────

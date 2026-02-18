@@ -241,22 +241,60 @@ function runCertbot(domain, email) {
 // ─── Write nginx config & enable ─────────────
 function writeNginxConfig(configDir, enabledDir, domain, configContent) {
   const configFile = path.join(configDir, `nexus-${domain.replace(/\./g, '_')}`);
-  
-  try {
-    fs.writeFileSync(configFile, configContent, 'utf8');
-    info(`Nginx config written to ${configFile}`);
-  } catch (error) {
-    if (error.code === 'EACCES') {
-      fail('Permission denied. Try running with sudo:');
-      dim(`  sudo node src/setup/wizard.js`);
-      return false;
+  const enabledLink = (configDir !== enabledDir)
+    ? path.join(enabledDir, path.basename(configFile))
+    : configFile;
+
+  // Extract the target port from the new config
+  const portMatch = configContent.match(/proxy_pass\s+http:\/\/127\.0\.0\.1:(\d+)/);
+  const targetPort = portMatch ? portMatch[1] : null;
+
+  // Check if an existing config already has SSL/Certbot modifications
+  const existingPath = fs.existsSync(configFile) ? configFile : null;
+  let updatedInPlace = false;
+
+  if (existingPath && targetPort) {
+    try {
+      const existing = fs.readFileSync(existingPath, 'utf8');
+      const hasSsl = /ssl_certificate|listen\s+443/.test(existing);
+
+      if (hasSsl) {
+        // Existing config has SSL (Certbot-modified) — update proxy_pass port only
+        const updated = existing.replace(
+          /proxy_pass\s+http:\/\/127\.0\.0\.1:\d+/g,
+          `proxy_pass http://127.0.0.1:${targetPort}`
+        );
+        if (updated !== existing) {
+          fs.writeFileSync(existingPath, updated, 'utf8');
+          info(`Updated proxy_pass port → ${targetPort} (preserved SSL config)`);
+        } else {
+          info('Nginx config already has correct port');
+        }
+        updatedInPlace = true;
+      }
+    } catch (error) {
+      warn(`Could not read existing config: ${error.message}`);
+      // Fall through to overwrite
     }
-    throw error;
+  }
+
+  // No existing SSL config — write full fresh config
+  if (!updatedInPlace) {
+    try {
+      fs.writeFileSync(configFile, configContent, 'utf8');
+      info(`Nginx config written to ${configFile}`);
+    } catch (error) {
+      if (error.code === 'EACCES') {
+        fail('Permission denied. Try running with sudo:');
+        dim(`  sudo node src/setup/wizard.js`);
+        return false;
+      }
+      throw error;
+    }
   }
 
   // Create symlink in sites-enabled if separate dirs
   if (configDir !== enabledDir) {
-    const enabledLink = path.join(enabledDir, path.basename(configFile));
     try {
       if (fs.existsSync(enabledLink)) fs.unlinkSync(enabledLink);
       fs.symlinkSync(configFile, enabledLink);
@@ -608,9 +646,21 @@ async function runWizard() {
     // Update main Nexus config
     updateMainConfig(fullDomain, ssl, port);
 
-    // Run certbot if selected
+    // Run certbot if selected (skip if SSL already configured)
     if (ssl.type === 'certbot' && certbotEmail) {
-      runCertbot(fullDomain, certbotEmail);
+      const existingConfigPath = path.join(configDir, `nexus-${fullDomain.replace(/\./g, '_')}`);
+      let alreadyHasSsl = false;
+      try {
+        if (fs.existsSync(existingConfigPath)) {
+          const content = fs.readFileSync(existingConfigPath, 'utf8');
+          alreadyHasSsl = /ssl_certificate/.test(content);
+        }
+      } catch {}
+      if (alreadyHasSsl) {
+        info('SSL certificate already configured — skipping certbot');
+      } else {
+        runCertbot(fullDomain, certbotEmail);
+      }
     }
 
     // Save setup state
