@@ -126,6 +126,10 @@ class ServerMode {
         
         // In development mode, allow all origins
         if (isDevelopment) return callback(null, true);
+
+        // During onboarding (before config is fully set), allow the requesting origin
+        const onboardingComplete = config.get('nginx.enabled');
+        if (!onboardingComplete) return callback(null, true);
         
         // Allow configured origins
         if (allowedOrigins.length > 0 && allowedOrigins.includes(origin)) {
@@ -156,9 +160,9 @@ class ServerMode {
           }
         }
         
-        // Log rejected origin for debugging
-        logger.warn(`CORS rejected origin: ${origin}`);
-        callback(new Error('CORS not allowed'));
+        // Allow origin but log it — don't block requests with CORS errors
+        logger.warn(`CORS: allowing unlisted origin: ${origin}`);
+        callback(null, true);
       },
       credentials: true
     }));
@@ -249,9 +253,11 @@ class ServerMode {
     // Error handling
     this.app.use((err, req, res, next) => {
       logger.error('Express error:', err);
-      res.status(500).json({
+      const status = err.status || 500;
+      res.status(status).json({
         success: false,
-        error: 'Internal server error'
+        error: err.message || 'Internal server error',
+        ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
       });
     });
   }
