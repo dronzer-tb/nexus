@@ -401,7 +401,7 @@ class ServerMode {
       }
 
       try {
-        // Validate session token (custom auth system v1.9.5)
+        // Validate session token (custom auth system v2.2.8)
         const { validateSession } = require('../utils/session');
         const session = validateSession(token);
         if (!session) return next(new Error('Invalid or expired session'));

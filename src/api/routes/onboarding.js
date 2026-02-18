@@ -8,7 +8,7 @@ const { generateSecret, generateQRCode, verifyToken, generateRecoveryCodes, hash
 
 /**
  * Onboarding API Routes
- * Handles first-time setup wizard for Nexus v1.9.5
+ * Handles first-time setup wizard for Nexus v2.2.8
  */
 
 // ═══════════════════════════════════════════════════════════════

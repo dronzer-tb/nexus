@@ -2,7 +2,7 @@ const bcrypt = require('bcrypt');
 
 /**
  * Password Validation and Hashing Utilities
- * For custom authentication system v1.9.5
+ * For custom authentication system v2.2.8
  */
 
 const SALT_ROUNDS = 10;

@@ -4,7 +4,7 @@ const crypto = require('crypto');
 
 /**
  * TOTP (Time-based One-Time Password) Utilities
- * For mandatory 2FA in custom authentication system v1.9.5
+ * For mandatory 2FA in custom authentication system v2.2.8
  */
 
 const TOTP_CONFIG = {

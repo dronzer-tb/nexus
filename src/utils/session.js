@@ -4,7 +4,7 @@ const logger = require('./logger');
 
 /**
  * Session Management Utilities
- * For custom authentication system v1.9.5
+ * For custom authentication system v2.2.8
  */
 
 const SESSION_CONFIG = {

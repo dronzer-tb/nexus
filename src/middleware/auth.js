@@ -6,7 +6,7 @@ const { validateSession, extractTokenFromRequest } = require('../utils/session')
 /**
  * Unified Authentication Middleware
  * Supports both session tokens (dashboard users) and API keys (nodes)
- * For custom auth system v1.9.5
+ * For custom auth system v2.2.8
  */
 
 function hashApiKey(apiKey) {
